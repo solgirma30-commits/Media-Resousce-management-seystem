@@ -144,7 +144,11 @@ export default function App() {
       } else if (authError.code === 'auth/popup-closed-by-user') {
         toast.error('Sign-in cancelled');
       } else if (authError.code === 'auth/unauthorized-domain') {
-        toast.error('This domain is not authorized for authentication. Please check Firebase console.');
+        const domain = window.location.hostname;
+        toast.error(
+          `Domain Unauthorized: Please add "${domain}" to your Authorized Domains in the Firebase Console (Auth > Settings).`,
+          { duration: 10000 }
+        );
       } else if (authError.code === 'auth/missing-initial-state' || authError.code === 'auth/internal-error') {
         toast.error('Sign-in blocked by preview restrictions. Please click "Open in New Tab" on the login screen.', {
           duration: 8000,
