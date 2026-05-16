@@ -1,0 +1,237 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default deny
+    match /{document=**} {
+      allow read, write: if isSignedIn() && request.auth.token.email == 'solgirma30@gmail.com';
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definitions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'solgirma30@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'ADMIN')
+      );
+    }
+    
+    function isDeptDirector() {
+      return isSignedIn() && getUserRole() == 'DEPT_DIRECTOR';
+    }
+    
+    function isTechnician() {
+      return isSignedIn() && getUserRole() == 'TECHNICIAN';
+    }
+
+    function isDriver() {
+      return isSignedIn() && getUserRole() == 'DRIVER';
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Service Requests
+    match /service_requests/{requestId} {
+      allow get, list: if isSignedIn() && (
+        request.auth.token.email == 'solgirma30@gmail.com' ||
+        isAdmin() || 
+        resource.data.directorId == request.auth.uid || 
+        resource.data.assignedTechnicianId == request.auth.uid
+      );
+
+      function isValidServiceRequest(data) {
+        // Core fields that MUST always be present in a valid record
+        return data.keys().hasAll(['status', 'description', 'directorId', 'createdAt', 'updatedAt']) &&
+               data.description is string && data.description.size() <= 2000 &&
+               (!data.keys().contains('directorComments') || (data.directorComments is string && data.directorComments.size() <= 2000)) &&
+               (!data.keys().contains('fleetId') || (data.fleetId is string || data.fleetId == null)) &&
+               (!data.keys().contains('location') || (data.location is string && data.location.size() <= 200)) &&
+               (!data.keys().contains('phoneNumber') || (data.phoneNumber is string && data.phoneNumber.size() <= 30)) &&
+               (!data.keys().contains('priority') || (data.priority in ['LOW', 'MEDIUM', 'HIGH', 'URGENT'])) &&
+               (!data.keys().contains('departmentName') || (data.departmentName is string)) &&
+               (!data.keys().contains('directorName') || (data.directorName is string)) &&
+               (!data.keys().contains('assignedTechnicianName') || (data.assignedTechnicianName is string)) &&
+               data.status in ['NEW', 'APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED', 'REOPENED'];
+      }
+
+      allow create: if isDeptDirector() && 
+                    isValidId(requestId) &&
+                    isValidServiceRequest(incoming()) &&
+                    incoming().directorId == request.auth.uid &&
+                    incoming().status == 'NEW' &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      
+      allow update: if isSignedIn() && (
+        // Action: Admin Approve
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'adminNotes']) && 
+         existing().status == 'NEW' && (incoming().status == 'APPROVED' || incoming().status == 'ASSIGNED')) ||
+        
+        // Action: Admin Assign
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'assignedTechnicianId', 'assignedTechnicianName', 'updatedAt', 'adminNotes']) && 
+         (existing().status == 'APPROVED' || existing().status == 'ASSIGNED') && incoming().status == 'ASSIGNED') ||
+        
+        // Action: Technician Accept
+        ((isTechnician() || isAdmin()) && (existing().assignedTechnicianId == request.auth.uid || isAdmin()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+         existing().status == 'ASSIGNED' && incoming().status == 'ACCEPTED') ||
+        
+        // Action: Technician Start
+        ((isTechnician() || isAdmin()) && (existing().assignedTechnicianId == request.auth.uid || isAdmin()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+         existing().status == 'ACCEPTED' && incoming().status == 'IN_PROGRESS') ||
+        
+        // Action: Technician Update Notes (Intermediate)
+        ((isTechnician() || isAdmin()) && (existing().assignedTechnicianId == request.auth.uid || isAdmin()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['technicianNotes', 'updatedAt']) &&
+         existing().status == 'IN_PROGRESS' && incoming().status == 'IN_PROGRESS') ||
+        
+        // Action: Technician Complete
+        ((isTechnician() || isAdmin()) && (existing().assignedTechnicianId == request.auth.uid || isAdmin()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'completedAt', 'technicianNotes', 'completionImageUrl']) &&
+         existing().status == 'IN_PROGRESS' && incoming().status == 'COMPLETED' &&
+         incoming().completedAt == request.time) ||
+        
+        // Action: Confirm (Director or Admin)
+        ((isDeptDirector() || isAdmin()) && (existing().directorId == request.auth.uid || isAdmin()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'confirmedAt', 'directorComments']) &&
+         existing().status == 'COMPLETED' && incoming().status == 'CONFIRMED' &&
+         incoming().confirmedAt == request.time) ||
+
+        // Action: Finalize/Close/Decommission (Admin only)
+        (isAdmin() && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'confirmedAt']) &&
+         (existing().status == 'CONFIRMED' || existing().status == 'COMPLETED') && 
+         incoming().status == 'CLOSED') ||
+
+        // Action: Reopen (Admin or Director)
+        ((isAdmin() || isDeptDirector()) && (existing().directorId == request.auth.uid || isAdmin()) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'reopenedAt', 'adminNotes', 'directorComments']) &&
+         (existing().status == 'CLOSED' || existing().status == 'CONFIRMED' || existing().status == 'COMPLETED') &&
+         incoming().status == 'REOPENED' &&
+         incoming().reopenedAt == request.time) ||
+
+        // Action: General Update (Metadata) - Director or Admin before assignment
+        ((isDeptDirector() || isAdmin()) && (existing().directorId == request.auth.uid || isAdmin()) && 
+         (existing().status == 'NEW' || existing().status == 'APPROVED') &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['description', 'location', 'phoneNumber', 'priority', 'serviceCategory', 'updatedAt', 'fleetId', 'departmentName', 'directorName']))
+      ) && isValidServiceRequest(incoming());
+    }
+
+    // Camera Requests
+    match /camera_requests/{requestId} {
+      allow get, list: if isSignedIn() && (
+        request.auth.token.email == 'solgirma30@gmail.com' ||
+        isAdmin() || 
+        resource.data.directorId == request.auth.uid ||
+        resource.data.assignedTechnicianId == request.auth.uid
+      );
+
+      function isValidCameraRequest(data) {
+        return data.keys().hasAll(['status', 'directorId', 'eventTitle', 'date', 'startTime', 'endTime', 'purpose', 'createdAt', 'updatedAt']) &&
+               data.eventTitle is string && data.eventTitle.size() <= 200 &&
+               data.purpose is string && data.purpose.size() <= 1000 &&
+               data.status in ['NEW', 'APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED'];
+      }
+
+      allow create: if isDeptDirector() && 
+                    isValidId(requestId) && 
+                    isValidCameraRequest(incoming()) && 
+                    incoming().directorId == request.auth.uid &&
+                    incoming().status == 'NEW' &&
+                    incoming().createdAt == request.time;
+
+      allow update: if isSignedIn() && (
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'adminNotes', 'assignedTechnicianId', 'assignedTechnicianName'])) ||
+        ((getUserRole() == 'CAMERAMAN' || getUserRole() == 'TECHNICIAN' || isAdmin()) && (existing().assignedTechnicianId == request.auth.uid || isAdmin()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'technicianNotes', 'completionImageUrl'])) ||
+        (isDeptDirector() && existing().directorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'confirmedAt', 'directorComments']) && existing().status == 'COMPLETED')
+      );
+    }
+
+    // Vehicle Requests
+    match /vehicle_requests/{requestId} {
+      allow get, list: if isSignedIn() && (
+        request.auth.token.email == 'solgirma30@gmail.com' ||
+        isAdmin() || 
+        resource.data.directorId == request.auth.uid || 
+        resource.data.assignedDriverId == request.auth.uid
+      );
+
+      function isValidVehicleRequest(data) {
+        return data.keys().hasAll(['status', 'directorId', 'vehicleType', 'destination', 'departureDate', 'departureTime', 'purpose', 'createdAt', 'updatedAt']) &&
+               data.destination is string && data.destination.size() <= 200 &&
+               data.purpose is string && data.purpose.size() <= 1000 &&
+               data.status in ['NEW', 'APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED'];
+      }
+
+      allow create: if isDeptDirector() && 
+                    isValidId(requestId) && 
+                    isValidVehicleRequest(incoming()) && 
+                    incoming().directorId == request.auth.uid &&
+                    incoming().status == 'NEW' &&
+                    incoming().createdAt == request.time;
+
+      allow update: if isSignedIn() && (
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'adminNotes', 'assignedDriverId', 'assignedDriverName'])) ||
+        ((isDriver() || isAdmin()) && (existing().assignedDriverId == request.auth.uid || isAdmin()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'driverNotes', 'completionImageUrl'])) ||
+        (isDeptDirector() && existing().directorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'confirmedAt', 'directorComments']) && existing().status == 'COMPLETED')
+      );
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isSignedIn() && 
+                    isValidId(notificationId) &&
+                    incoming().createdAt == request.time;
+                    
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+    }
+
+    // Test connection doc
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Fleet Registry
+    match /fleet/{fleetId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+
+      function isValidFleet(data) {
+        return data.keys().hasAll(['plateNumber', 'model', 'type', 'status', 'createdAt', 'updatedAt']) &&
+               data.plateNumber is string && data.plateNumber.size() <= 20 &&
+               data.model is string && data.model.size() <= 100 &&
+               data.type in ['VEHICLE', 'MACHINERY', 'OTHER'] &&
+               data.status in ['OPERATIONAL', 'MAINTENANCE', 'OUT_OF_SERVICE'];
+      }
+      
+      allow create: if isAdmin() && isValidFleet(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidFleet(incoming()) && incoming().updatedAt == request.time;
+    }
+  }
+}

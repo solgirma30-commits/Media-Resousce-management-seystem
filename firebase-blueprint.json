@@ -1,0 +1,158 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information and role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["ADMIN", "DEPT_DIRECTOR", "TECHNICIAN"] },
+        "department": { "type": "string", "description": "Applicable for DEPT_DIRECTOR" },
+        "phoneNumber": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "ServiceRequest": {
+      "title": "Service Request",
+      "description": "A technical service request submitted by a Department Director.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "fleetId": { "type": "string", "description": "Reference to a fleet asset (optional)" },
+        "departmentName": { "type": "string" },
+        "directorName": { "type": "string" },
+        "directorId": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "location": { "type": "string" },
+        "serviceCategory": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "URGENT"] },
+        "status": { "type": "string", "enum": ["NEW", "APPROVED", "ASSIGNED", "ACCEPTED", "IN_PROGRESS", "COMPLETED", "CONFIRMED", "CLOSED", "REOPENED"] },
+        "assignedTechnicianId": { "type": "string" },
+        "assignedTechnicianName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "completionImageUrl": { "type": "string" },
+        "technicianNotes": { "type": "string" },
+        "directorComments": { "type": "string" },
+        "adminNotes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "confirmedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requestId", "departmentName", "directorId", "status", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notification for users.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "requestId": { "type": "string" },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["notificationId", "userId", "title", "message", "read", "createdAt"]
+    },
+    "Fleet": {
+      "title": "Fleet",
+      "description": "Information about a vehicle or equipment in the fleet.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "plateNumber": { "type": "string" },
+        "model": { "type": "string" },
+        "type": { "type": "string", "enum": ["VEHICLE", "MACHINERY", "OTHER"] },
+        "status": { "type": "string", "enum": ["OPERATIONAL", "MAINTENANCE", "OUT_OF_SERVICE"] },
+        "department": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "plateNumber", "model", "type", "status"]
+    },
+    "CameraRequest": {
+      "title": "Camera Request",
+      "description": "A request for camera coverage or equipment.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "directorId": { "type": "string" },
+        "directorName": { "type": "string" },
+        "departmentName": { "type": "string" },
+        "eventTitle": { "type": "string" },
+        "location": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "purpose": { "type": "string" },
+        "status": { "type": "string", "enum": ["NEW", "APPROVED", "REJECTED", "COMPLETED"] },
+        "assignedAgentId": { "type": "string" },
+        "adminNotes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requestId", "directorId", "eventTitle", "status", "createdAt"]
+    },
+    "VehicleRequest": {
+      "title": "Vehicle Request",
+      "description": "A request for a vehicle for transportation.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "directorId": { "type": "string" },
+        "directorName": { "type": "string" },
+        "departmentName": { "type": "string" },
+        "destination": { "type": "string" },
+        "purpose": { "type": "string" },
+        "passengersCount": { "type": "number" },
+        "departureDate": { "type": "string", "format": "date" },
+        "departureTime": { "type": "string" },
+        "returnTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["NEW", "APPROVED", "REJECTED", "COMPLETED"] },
+        "assignedVehicleId": { "type": "string" },
+        "assignedDriverName": { "type": "string" },
+        "adminNotes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requestId", "directorId", "destination", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/fleet/{fleetId}": {
+      "schema": "Fleet",
+      "description": "Fleet assets registry."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/service_requests/{requestId}": {
+      "schema": "ServiceRequest",
+      "description": "Service requests tracking."
+    },
+    "/camera_requests/{requestId}": {
+      "schema": "CameraRequest",
+      "description": "Camera and coverage requests."
+    },
+    "/vehicle_requests/{requestId}": {
+      "schema": "VehicleRequest",
+      "description": "Transportation requests."
+    },
+    "/service_requests/{requestId}/notifications": {
+      "schema": "Notification",
+      "description": "Notifications related to a specific request (historical logs)."
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Global user notifications."
+    }
+  }
+}

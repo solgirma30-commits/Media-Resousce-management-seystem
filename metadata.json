@@ -1,0 +1,9 @@
+{
+  "name": "FMC Web Apps",
+  "description": "A comprehensive technical service management platform for FMC RESOURCE MANAGEMENT with real-time tracking.",
+  "requestFramePermissions": [
+    "camera",
+    "notifications"
+  ],
+  "majorCapabilities": []
+}
