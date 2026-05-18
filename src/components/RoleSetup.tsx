@@ -61,6 +61,15 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
       bg: 'bg-purple-500/10',
       border: 'border-purple-500/20',
     },
+    {
+      id: UserRole.SECURITY,
+      title: 'FMC SECURITY',
+      description: 'Asset exit permit verification.',
+      icon: Shield,
+      color: 'text-pink-400',
+      bg: 'bg-pink-500/10',
+      border: 'border-pink-500/20',
+    },
   ];
 
   const handleComplete = async () => {

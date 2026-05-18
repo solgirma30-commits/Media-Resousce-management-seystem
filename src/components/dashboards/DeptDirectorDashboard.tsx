@@ -40,10 +40,12 @@ import { format } from 'date-fns';
 
 export function DeptDirectorDashboard() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE'>('SERVICE');
+  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
   const [requests, setRequests] = useState<any[]>([]);
   const [cameraRequests, setCameraRequests] = useState<any[]>([]);
   const [vehicleRequests, setVehicleRequests] = useState<any[]>([]);
+  const [itemRequests, setItemRequests] = useState<any[]>([]);
+  const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [directorComments, setDirectorComments] = useState('');
@@ -55,6 +57,7 @@ export function DeptDirectorDashboard() {
   const [phoneNumber, setPhoneNumber] = useState(profile?.phoneNumber || '');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
+  const [workName, setWorkName] = useState('');
 
   // Service Request specific
   const [category, setCategory] = useState('Hardware');
@@ -74,6 +77,17 @@ export function DeptDirectorDashboard() {
   const [depDate, setDepDate] = useState('');
   const [depTime, setDepTime] = useState('');
   const [retTime, setRetTime] = useState('');
+
+  // Item Exit specific
+  const [itemName, setItemName] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+  const [exitReason, setExitReason] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+
+  // Other Device Request unique
+  const [deviceModel, setDeviceModel] = useState('');
+  const [requestQty, setRequestQty] = useState(1);
+  const [needDate, setNeedDate] = useState('');
 
   useEffect(() => {
     if (!profile) return;
@@ -134,6 +148,42 @@ export function DeptDirectorDashboard() {
       handleFirestoreError(error, OperationType.LIST, vrPath);
     });
 
+    // Item Exit Requests
+    const irPath = 'item_requests';
+    const irQ = query(
+      collection(db, irPath),
+      where('directorId', '==', profile.uid),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribeIR = onSnapshot(irQ, (snapshot) => {
+      setItemRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, collectionName: irPath, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
+      if (activeTab === 'ITEM') setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, irPath);
+    });
+
+    // Device Requests (Other)
+    const drPath = 'device_requests';
+    const drQ = query(
+      collection(db, drPath),
+      where('directorId', '==', profile.uid),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribeDR = onSnapshot(drQ, (snapshot) => {
+      setDeviceRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, collectionName: drPath, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
+      if (activeTab === 'OTHER') setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, drPath);
+    });
+
     const fleetPath = 'fleet';
     const fleetQuery = query(collection(db, fleetPath), where('status', '==', 'OPERATIONAL'));
     const unsubscribeFleet = onSnapshot(fleetQuery, (snapshot) => {
@@ -146,6 +196,8 @@ export function DeptDirectorDashboard() {
       unsubscribeSR();
       unsubscribeCR();
       unsubscribeVR();
+      unsubscribeIR();
+      unsubscribeDR();
       unsubscribeFleet();
     };
   }, [profile, activeTab]);
@@ -155,6 +207,7 @@ export function DeptDirectorDashboard() {
     if (!profile) return;
 
     try {
+      let docRef;
       if (activeTab === 'SERVICE') {
         const path = 'service_requests';
         const newRequest = {
@@ -164,6 +217,7 @@ export function DeptDirectorDashboard() {
           phoneNumber,
           location,
           serviceCategory: category,
+          workName,
           description,
           priority,
           fleetId: selectedFleetId || null,
@@ -171,7 +225,7 @@ export function DeptDirectorDashboard() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
-        await addDoc(collection(db, path), newRequest);
+        docRef = await addDoc(collection(db, path), newRequest);
       } else if (activeTab === 'CAMERA') {
         const path = 'camera_requests';
         const newRequest = {
@@ -189,7 +243,7 @@ export function DeptDirectorDashboard() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
-        await addDoc(collection(db, path), newRequest);
+        docRef = await addDoc(collection(db, path), newRequest);
       } else if (activeTab === 'VEHICLE') {
         const path = 'vehicle_requests';
         const newRequest = {
@@ -198,6 +252,7 @@ export function DeptDirectorDashboard() {
           directorName: profile.displayName,
           departmentName: profile.department || 'Unknown Dept',
           destination,
+          tripName: workName,
           purpose: vehiclePurpose,
           passengersCount,
           departureDate: depDate,
@@ -207,11 +262,46 @@ export function DeptDirectorDashboard() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
-        await addDoc(collection(db, path), newRequest);
+        docRef = await addDoc(collection(db, path), newRequest);
+      } else if (activeTab === 'ITEM') {
+        const path = 'item_requests';
+        const newRequest = {
+          requestId: `EX-${Date.now()}`,
+          directorId: profile.uid,
+          directorName: profile.displayName,
+          departmentName: profile.department || 'Unknown Dept',
+          itemName,
+          serialNumber,
+          purpose: exitReason,
+          expectedReturnDate,
+          status: 'NEW',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        docRef = await addDoc(collection(db, path), newRequest);
+      } else if (activeTab === 'OTHER') {
+        const path = 'device_requests';
+        const newRequest = {
+          requestId: `DEV-${Date.now()}`,
+          directorId: profile.uid,
+          directorName: profile.displayName,
+          departmentName: profile.department || 'Unknown Dept',
+          projectName: workName,
+          deviceModel,
+          quantity: requestQty,
+          purpose: description,
+          neededBy: needDate,
+          status: 'NEW',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        docRef = await addDoc(collection(db, path), newRequest);
       }
 
       toast.success('Request submitted for processing');
       setIsModalOpen(false);
+      
+      const realRequestId = docRef?.id || `REQ-${Date.now()}`;
       
       // Create notifications for Admins and relevant operators
       const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'ADMIN')));
@@ -222,6 +312,8 @@ export function DeptDirectorDashboard() {
       if (activeTab === 'CAMERA') targetRole = 'CAMERAMAN';
       else if (activeTab === 'VEHICLE') targetRole = 'DRIVER';
       else if (activeTab === 'SERVICE') targetRole = 'TECHNICIAN';
+      else if (activeTab === 'ITEM') targetRole = 'SECURITY';
+      else if (activeTab === 'OTHER') targetRole = 'TECHNICIAN'; // Generic device requests go to Tech Team
 
       const staffSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
       const staffDocs = staffSnapshot.docs;
@@ -232,17 +324,21 @@ export function DeptDirectorDashboard() {
         ...staffDocs.map(d => d.id)
       ]));
 
-      const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : 'Service';
+      const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : activeTab === 'OTHER' ? 'Device Request' : 'Service';
+      const displayName = activeTab === 'SERVICE' ? workName : activeTab === 'CAMERA' ? eventTitle : activeTab === 'ITEM' ? itemName : activeTab === 'OTHER' ? deviceModel : workName;
+      const notificationTitle = `[${profile.department}] ${requestTypeLabel}: ${displayName}`;
+      const notificationMessage = `ALERT: ${profile.displayName} submitted a new ${requestTypeLabel.toLowerCase()} request: "${displayName}" for ${location || destination || 'unspecified site'}.`;
       
       const notificationPromises = audienceIds.map(userId => {
         const notificationId = `notif_new_${Date.now()}_${userId}`;
         return setDoc(doc(db, 'notifications', notificationId), {
           userId,
-          title: `New ${requestTypeLabel} Request`,
-          message: `A new ${requestTypeLabel.toLowerCase()} request has been submitted by ${profile.displayName} (${profile.department}).`,
+          title: notificationTitle,
+          message: notificationMessage,
           read: false,
+          role: 'ADMIN_OR_STAFF', // Helpful for filtering if needed
           type: 'NEW_REQUEST',
-          requestId: `REQ-${Date.now()}`, // Temporary or just context
+          requestId: realRequestId, 
           createdAt: serverTimestamp(),
         });
       });
@@ -274,12 +370,17 @@ export function DeptDirectorDashboard() {
   };
 
   const resetForm = () => {
+    setWorkName('');
     setDescription('');
     setCategory('Hardware');
     setLocation('');
     setPriority('MEDIUM');
     setPhoneNumber(profile?.phoneNumber || '');
     setSelectedFleetId('');
+    setItemName('');
+    setSerialNumber('');
+    setExitReason('');
+    setExpectedReturnDate('');
     setEventTitle('');
     setEventDate('');
     setStartTime('');
@@ -291,6 +392,9 @@ export function DeptDirectorDashboard() {
     setDepDate('');
     setDepTime('');
     setRetTime('');
+    setDeviceModel('');
+    setRequestQty(1);
+    setNeedDate('');
   };
 
   const categories = ['Hardware', 'Software', 'Network', 'Electrical', 'Furniture', 'Other'];
@@ -337,6 +441,20 @@ export function DeptDirectorDashboard() {
           label="Vehicle Request" 
           count={vehicleRequests.length}
         />
+        <TabButton 
+          active={activeTab === 'ITEM'} 
+          onClick={() => setActiveTab('ITEM')} 
+          icon={Tag} 
+          label="Item Exit Permit" 
+          count={itemRequests.length}
+        />
+        <TabButton 
+          active={activeTab === 'OTHER'} 
+          onClick={() => setActiveTab('OTHER')} 
+          icon={Plus} 
+          label="Other Request" 
+          count={deviceRequests.length}
+        />
       </div>
 
       {/* Stats row */}
@@ -373,7 +491,7 @@ export function DeptDirectorDashboard() {
       <div className="bg-dark-card rounded-xl border border-dark-border shadow-2xl overflow-hidden">
         <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
           <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-            {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : 'Transportation Log'}
+            {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : activeTab === 'ITEM' ? 'Exit Permit Log' : 'Other Device Log'}
           </h3>
           <div className="flex items-center gap-2">
             <div className="relative hidden sm:block">
@@ -390,16 +508,16 @@ export function DeptDirectorDashboard() {
         <div className="divide-y divide-dark-border">
           {loading ? (
              <div className="p-12 text-center text-dark-text-subtle">Retreiving records...</div>
-          ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : vehicleRequests).length === 0 ? (
+          ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).length === 0 ? (
             <div className="p-16 text-center">
               <div className="w-16 h-16 bg-dark-main rounded-xl flex items-center justify-center mx-auto mb-4 border border-dark-border">
-                {activeTab === 'SERVICE' ? <Clock className="w-8 h-8 text-dark-border" /> : activeTab === 'CAMERA' ? <Camera className="w-8 h-8 text-dark-border" /> : <Car className="w-8 h-8 text-dark-border" />}
+                {activeTab === 'SERVICE' ? <Clock className="w-8 h-8 text-dark-border" /> : activeTab === 'CAMERA' ? <Camera className="w-8 h-8 text-dark-border" /> : activeTab === 'VEHICLE' ? <Car className="w-8 h-8 text-dark-border" /> : activeTab === 'ITEM' ? <Tag className="w-8 h-8 text-dark-border" /> : <Plus className="w-8 h-8 text-dark-border" />}
               </div>
               <p className="text-slate-400 font-medium">No records found</p>
               <p className="text-dark-text-subtle text-xs mt-1">Submit a new request to populate your logs</p>
             </div>
           ) : (
-            (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : vehicleRequests).map((request) => (
+            (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).map((request) => (
               <motion.div 
                 layout
                 key={request.id} 
@@ -408,6 +526,9 @@ export function DeptDirectorDashboard() {
                 <div className="flex flex-col lg:flex-row lg:items-center gap-6">
                   <div className="flex-1 space-y-3">
                     <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-[10px] font-black text-dark-accent bg-dark-accent/10 px-2 py-0.5 rounded border border-dark-accent/20 font-mono">
+                        {activeTab === 'SERVICE' ? (request.workName || 'UNNAMED JOB') : activeTab === 'CAMERA' ? (request.eventTitle || 'UNNAMED EVENT') : activeTab === 'ITEM' ? (request.itemName || 'UNNAMED ITEM') : activeTab === 'OTHER' ? (request.projectName || 'UNNAMED DEVICE REQ') : (request.tripName || 'UNNAMED TRIP')}
+                      </span>
                       <span className={cn("status-pill", getStatusStyle(request.status))}>
                         {request.status.replace('_', ' ')}
                       </span>
@@ -427,7 +548,7 @@ export function DeptDirectorDashboard() {
                     </div>
                     
                     <h4 className="font-medium text-slate-200 text-lg group-hover:text-white transition-colors">
-                      {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.eventTitle : request.destination}
+                      {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
                     </h4>
 
                     <div className="flex flex-wrap gap-x-6 gap-y-2 text-[0.75rem] text-dark-text-subtle font-medium">
@@ -440,6 +561,30 @@ export function DeptDirectorDashboard() {
                           <div className="flex items-center gap-2">
                             <MapPin className="w-3.5 h-3.5" />
                             {request.location}
+                          </div>
+                        </>
+                      )}
+                      {activeTab === 'OTHER' && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-3.5 h-3.5" />
+                            Qty: {request.quantity}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5" />
+                            Needed By: {request.neededBy}
+                          </div>
+                        </>
+                      )}
+                      {activeTab === 'ITEM' && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-3.5 h-3.5" />
+                            S/N: {request.serialNumber || 'N/A'}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5" />
+                            Return: {request.expectedReturnDate || 'Permanent'}
                           </div>
                         </>
                       )}
@@ -753,6 +898,15 @@ export function DeptDirectorDashboard() {
                     </div>
 
                     <div>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Work Name / Title</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder="e.g., Office AC Repair"
+                        value={workName}
+                        onChange={(e) => setWorkName(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                      />
                       <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Issue Specifications</label>
                       <textarea
                         required
@@ -761,6 +915,67 @@ export function DeptDirectorDashboard() {
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'OTHER' && (
+                  <>
+                    <div>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Project / Work Name</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder="Project name using the device"
+                        value={workName}
+                        onChange={(e) => setWorkName(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Device Model / Type</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder="Specify device needed"
+                        value={deviceModel}
+                        onChange={(e) => setDeviceModel(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Quantity</label>
+                        <input
+                          required
+                          type="number"
+                          min="1"
+                          value={requestQty}
+                          onChange={(e) => setRequestQty(parseInt(e.target.value))}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Needed By Date</label>
+                        <input
+                          required
+                          type="date"
+                          value={needDate}
+                          onChange={(e) => setNeedDate(e.target.value)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Reason for Request</label>
+                      <textarea
+                        required
+                        rows={3}
+                        placeholder="Explain why this device is needed"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
                       />
                     </div>
                   </>
@@ -841,6 +1056,17 @@ export function DeptDirectorDashboard() {
                 {activeTab === 'VEHICLE' && (
                   <>
                     <div>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Trip Name / Purpose Title</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder="e.g., Site Inspection Trip"
+                        value={workName}
+                        onChange={(e) => setWorkName(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                      />
+                    </div>
+                    <div>
                       <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Destination</label>
                       <input
                         required
@@ -904,6 +1130,56 @@ export function DeptDirectorDashboard() {
                         placeholder="Explain mission details..."
                         value={vehiclePurpose}
                         onChange={(e) => setVehiclePurpose(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'ITEM' && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Item Name / Model</label>
+                        <input
+                          required
+                          type="text"
+                          placeholder="e.g., Dell Laptop XPS 15"
+                          value={itemName}
+                          onChange={(e) => setItemName(e.target.value)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Serial Number / Asset Tag</label>
+                        <input
+                          required
+                          type="text"
+                          placeholder="e.g., S/N 12345678"
+                          value={serialNumber}
+                          onChange={(e) => setSerialNumber(e.target.value)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div className="mb-6">
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Expected Return Date (Optional)</label>
+                      <input
+                        type="date"
+                        value={expectedReturnDate}
+                        onChange={(e) => setExpectedReturnDate(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                      />
+                      <p className="text-[10px] text-dark-text-subtle mt-1 italic font-serif">Leave blank if the item is not expected to return</p>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Reason for Exit</label>
+                      <textarea
+                        required
+                        rows={3}
+                        placeholder="Explain why this item is leaving the premises..."
+                        value={exitReason}
+                        onChange={(e) => setExitReason(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
                       />
                     </div>
@@ -984,6 +1260,8 @@ const getStatusStyle = (status: string) => {
     case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
     case 'CONFIRMED': return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
     case 'CLOSED': return 'bg-slate-500/20 text-slate-300 border border-slate-500/30';
+    case 'EXITED': return 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
+    case 'RETURNED': return 'bg-teal-500/10 text-teal-400 border border-teal-500/20';
     default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
   }
 };

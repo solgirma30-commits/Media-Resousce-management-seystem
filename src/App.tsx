@@ -29,7 +29,8 @@ export enum UserRole {
   DEPT_DIRECTOR = 'DEPT_DIRECTOR',
   TECHNICIAN = 'TECHNICIAN',
   DRIVER = 'DRIVER',
-  CAMERAMAN = 'CAMERAMAN'
+  CAMERAMAN = 'CAMERAMAN',
+  SECURITY = 'SECURITY'
 }
 
 interface UserProfile {

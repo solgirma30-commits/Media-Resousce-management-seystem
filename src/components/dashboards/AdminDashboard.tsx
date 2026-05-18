@@ -11,11 +11,14 @@ import {
   BarChart3,
   CheckCircle2,
   AlertCircle,
-  Truck,
   Wrench,
   X,
   Settings,
   ClipboardList,
+  Tag,
+  Lock,
+  Unlock,
+  Key,
   FileText,
   MessageSquare,
   Phone,
@@ -44,72 +47,223 @@ import { WeeklyReport } from '../WeeklyReport';
 
 export function AdminDashboard() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE'>('SERVICE');
+  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
   const [requests, setRequests] = useState<any[]>([]);
   const [cameraRequests, setCameraRequests] = useState<any[]>([]);
   const [vehicleRequests, setVehicleRequests] = useState<any[]>([]);
+  const [itemRequests, setItemRequests] = useState<any[]>([]);
+  const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [cameramen, setCameramen] = useState<any[]>([]);
-  const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
-  const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
-  const [isFleetAssetModalOpen, setIsFleetAssetModalOpen] = useState(false);
+  const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
   const [selectedTechForSms, setSelectedTechForSms] = useState<any | null>(null);
   const [customSmsMessage, setCustomSmsMessage] = useState('');
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [editingTech, setEditingTech] = useState<any | null>(null);
-  const [editingAsset, setEditingAsset] = useState<any | null>(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   
-  // Fleet Asset Form
-  const [assetPlate, setAssetPlate] = useState('');
-  const [assetModel, setAssetModel] = useState('');
-  const [assetType, setAssetType] = useState('VEHICLE');
-  const [assetStatus, setAssetStatus] = useState('OPERATIONAL');
-  const [assetDept, setAssetDept] = useState('');
-
+  // Operational Protection (Sector Level)
+  const [unlockedSectors, setUnlockedSectors] = useState<Set<string>>(new Set());
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: 'APPROVE' | 'ASSIGN', data: any, sector: string } | null>(null);
+  
+  const SECTOR_AUTH = {
+    SERVICE: { label: 'Maintenance Director', pin: '1010', icon: Wrench },
+    CAMERA: { label: 'Surveillance Director', pin: '2020', icon: Camera },
+    VEHICLE: { label: 'Logistics Director', pin: '3030', icon: Car },
+    ITEM: { label: 'Security Director', pin: '4040', icon: Tag },
+    OTHER: { label: 'Operations Director', pin: '5050', icon: ClipboardList }
+  };
+  
   useEffect(() => {
     const srPath = 'service_requests';
-    const q = query(collection(db, srPath), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, srPath));
+    let isFirstLoad = true;
     const unsubscribeReq = onSnapshot(q, (snapshot) => {
-      setRequests(
-        snapshot.docs
+      const docs = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((req: any) => !req.archived)
-      );
+          .filter((req: any) => !req.archived);
+      
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setRequests(docs);
+      
+      if (!isFirstLoad) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as any;
+            if (data.status === 'NEW' && !data.archived) {
+              const displayName = data.workName || data.description;
+              toast(`NEW SERVICE: ${displayName} [${data.departmentName}]`, {
+                icon: '🛠️',
+                duration: 8000,
+                style: { background: '#1e293b', color: '#fff', border: '2px solid #6366f1' }
+              });
+            }
+          }
+        });
+      }
+      
       setLoading(false);
+      isFirstLoad = false;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, srPath);
     });
 
+    let isFirstLoadCam = true;
     const camPath = 'camera_requests';
-    const qCam = query(collection(db, camPath), orderBy('createdAt', 'desc'));
+    const qCam = query(collection(db, camPath));
     const unsubscribeCam = onSnapshot(qCam, (snapshot) => {
-      setCameraRequests(
-        snapshot.docs
+      const docs = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((req: any) => !req.archived)
-      );
+          .filter((req: any) => !req.archived);
+      
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setCameraRequests(docs);
+
+      if (!isFirstLoadCam) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as any;
+            if (data.status === 'NEW' && !data.archived) {
+              const displayName = data.eventTitle || data.purpose;
+              toast(`NEW CAMERA: ${displayName} [${data.departmentName}]`, {
+                icon: '📷',
+                duration: 8000,
+                style: { background: '#1e293b', color: '#fff', border: '2px solid #f59e0b' }
+              });
+            }
+          }
+        });
+      }
+      isFirstLoadCam = false;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, camPath);
     });
 
+    let isFirstLoadVeh = true;
     const vehPath = 'vehicle_requests';
-    const qVeh = query(collection(db, vehPath), orderBy('createdAt', 'desc'));
+    const qVeh = query(collection(db, vehPath));
     const unsubscribeVeh = onSnapshot(qVeh, (snapshot) => {
-      setVehicleRequests(
-        snapshot.docs
+      const docs = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((req: any) => !req.archived)
-      );
+          .filter((req: any) => !req.archived);
+      
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setVehicleRequests(docs);
+
+      if (!isFirstLoadVeh) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as any;
+            if (data.status === 'NEW' && !data.archived) {
+              const displayName = data.tripName || data.destination;
+              toast(`NEW SHIPMENT: ${displayName} [${data.departmentName}]`, {
+                icon: '🚗',
+                duration: 8000,
+                style: { background: '#1e293b', color: '#fff', border: '2px solid #3b82f6' }
+              });
+            }
+          }
+        });
+      }
+      isFirstLoadVeh = false;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, vehPath);
+    });
+
+    let isFirstLoadItem = true;
+    const itemPath = 'item_requests';
+    const qItem = query(collection(db, itemPath));
+    const unsubscribeItem = onSnapshot(qItem, (snapshot) => {
+      const docs = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((req: any) => !req.archived);
+      
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setItemRequests(docs);
+
+      if (!isFirstLoadItem) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as any;
+            if (data.status === 'NEW' && !data.archived) {
+              const displayName = data.itemName || data.purpose;
+              toast(`NEW EXIT PERMIT: ${displayName} [${data.departmentName}]`, {
+                icon: '📦',
+                duration: 8000,
+                style: { background: '#1e293b', color: '#fff', border: '2px solid #ec4899' }
+              });
+            }
+          }
+        });
+      }
+      isFirstLoadItem = false;
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, itemPath);
+    });
+
+    let isFirstLoadDev = true;
+    const devPath = 'device_requests';
+    const qDev = query(collection(db, devPath));
+    const unsubscribeDev = onSnapshot(qDev, (snapshot) => {
+      const docs = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((req: any) => !req.archived);
+      
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setDeviceRequests(docs);
+
+      if (!isFirstLoadDev) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as any;
+            if (data.status === 'NEW' && !data.archived) {
+              const displayName = data.projectName || data.deviceModel;
+              toast(`NEW DEVICE REQUEST: ${displayName} [${data.departmentName}]`, {
+                icon: '🛠️',
+                duration: 8000,
+                style: { background: '#1e293b', color: '#fff', border: '2px solid #8b5cf6' }
+              });
+            }
+          }
+        });
+      }
+      isFirstLoadDev = false;
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, devPath);
     });
 
     const userPath = 'users';
@@ -132,30 +286,34 @@ export function AdminDashboard() {
       handleFirestoreError(error, OperationType.LIST, userPath);
     });
 
-    const fleetPath = 'fleet';
-    const unsubscribeFleet = onSnapshot(collection(db, fleetPath), (snapshot) => {
-      setFleet(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, fleetPath);
-    });
-
     return () => {
       unsubscribeReq();
       unsubscribeCam();
       unsubscribeVeh();
+      unsubscribeItem();
+      unsubscribeDev();
       unsubscribeTech();
-      unsubscribeFleet();
     };
   }, []);
 
   const collectionMap = {
     SERVICE: 'service_requests',
     CAMERA: 'camera_requests',
-    VEHICLE: 'vehicle_requests'
+    VEHICLE: 'vehicle_requests',
+    ITEM: 'item_requests',
+    OTHER: 'device_requests'
   };
 
   const handleApprove = async (requestId: string, directorId: string) => {
+    if (!unlockedSectors.has(activeTab)) {
+      setPendingAction({ type: 'APPROVE', data: { requestId, directorId }, sector: activeTab });
+      setIsUnlockModalOpen(true);
+      return;
+    }
+
     const colName = collectionMap[activeTab];
+    const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
+    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Device Request') : (req?.tripName || 'Untitled Trip');
     const path = `${colName}/${requestId}`;
     try {
       await updateDoc(doc(db, colName, requestId), {
@@ -168,7 +326,7 @@ export function AdminDashboard() {
       await setDoc(doc(db, 'notifications', notificationId), {
         userId: directorId,
         title: 'Request Approved',
-        message: `Your ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()} has been approved and moved to the dispatch queue.`,
+        message: `Your ${activeTab.toLowerCase()} request "${displayName}" has been approved and moved to the dispatch queue.`,
         read: false,
         type: 'APPROVAL',
         requestId: requestId,
@@ -183,6 +341,8 @@ export function AdminDashboard() {
 
   const handleAssign = async (requestId: string, tech: any, directorId: string) => {
     const colName = collectionMap[activeTab];
+    const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
+    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Device Request') : (req?.tripName || 'Untitled Trip');
     const path = `${colName}/${requestId}`;
     try {
       const updateData: any = {
@@ -206,8 +366,8 @@ export function AdminDashboard() {
       const techNotificationId = `notif_tech_${Date.now()}_${tech.id}`;
       await setDoc(doc(db, 'notifications', techNotificationId), {
         userId: tech.id,
-        title: `New ${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Dispatch'} Assignment`,
-        message: `Hello ${tech.displayName}, you have been assigned to a new ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal for details.`,
+        title: `New Assignment: ${displayName}`,
+        message: `Hello ${tech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}". Please check your portal for details.`,
         read: false,
         type: 'ASSIGNMENT',
         requestId: requestId,
@@ -218,8 +378,8 @@ export function AdminDashboard() {
       const dirNotificationId = `notif_dir_${Date.now()}_${directorId}`;
       await setDoc(doc(db, 'notifications', dirNotificationId), {
         userId: directorId,
-        title: `${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Technician'} Assigned`,
-        message: `${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Technician'} ${tech.displayName} has been assigned to your request #${requestId.slice(-6).toUpperCase()}`,
+        title: 'Agent Assigned',
+        message: `${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Technician'} ${tech.displayName} has been assigned to your request: "${displayName}"`,
         read: false,
         type: 'ASSIGNMENT',
         requestId: requestId,
@@ -295,6 +455,11 @@ export function AdminDashboard() {
   };
 
   const openAssignModal = (request: any) => {
+    if (!unlockedSectors.has(activeTab)) {
+      setPendingAction({ type: 'ASSIGN', data: request, sector: activeTab });
+      setIsUnlockModalOpen(true);
+      return;
+    }
     setSelectedRequest(request);
     setIsAssignModalOpen(true);
   };
@@ -332,31 +497,35 @@ export function AdminDashboard() {
     }
   };
 
-  const handleUpdateAsset = async () => {
-    const assetId = editingAsset?.id || `asset_${Date.now()}`;
-    const path = `fleet/${assetId}`;
-    try {
-      await setDoc(doc(db, 'fleet', assetId), {
-        id: assetId,
-        plateNumber: assetPlate,
-        model: assetModel,
-        type: assetType,
-        status: assetStatus,
-        department: assetDept,
-        updatedAt: serverTimestamp(),
-        createdAt: editingAsset ? editingAsset.createdAt : serverTimestamp(),
-      }, { merge: true });
+  const handleUnlock = () => {
+    const sectorToUnlock = pendingAction?.sector || activeTab;
+    const sectorConfig = SECTOR_AUTH[sectorToUnlock as keyof typeof SECTOR_AUTH];
+
+    if (unlockPassword === sectorConfig.pin) {
+      setUnlockedSectors(prev => new Set(prev).add(sectorToUnlock));
+      setIsUnlockModalOpen(false);
+      setUnlockPassword('');
+      toast.success(`${sectorConfig.label} authenticated`, {
+        icon: '🔓',
+        style: { background: '#064e3b', color: '#34d399', border: '1px solid #059669' }
+      });
       
-      toast.success(editingAsset ? 'Asset specifications updated' : 'New asset registered in fleet');
-      setEditingAsset(null);
-      setIsFleetAssetModalOpen(false);
-      setAssetPlate('');
-      setAssetModel('');
-      setAssetType('VEHICLE');
-      setAssetStatus('OPERATIONAL');
-      setAssetDept('');
-    } catch (error) {
-       handleFirestoreError(error, OperationType.WRITE, path);
+      if (pendingAction) {
+        if (pendingAction.type === 'APPROVE') {
+          handleApprove(pendingAction.data.requestId, pendingAction.data.directorId);
+        } else if (pendingAction.type === 'ASSIGN') {
+          const req = pendingAction.data;
+          setSelectedRequest(req);
+          setIsAssignModalOpen(true);
+        }
+        setPendingAction(null);
+      }
+    } else {
+      toast.error('Invalid Sector PIN', {
+        icon: '🔒',
+        style: { background: '#450a0a', color: '#f87171', border: '1px solid #991b1b' }
+      });
+      setUnlockPassword('');
     }
   };
 
@@ -396,14 +565,53 @@ export function AdminDashboard() {
     { label: 'Service Rep', value: requests.length, icon: Wrench, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
     { label: 'Camera Cov', value: cameraRequests.length, icon: Camera, color: 'text-orange-400', bg: 'bg-orange-500/10' },
     { label: 'Vehicle Req', value: vehicleRequests.length, icon: Car, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: 'Approved', value: [...requests, ...cameraRequests, ...vehicleRequests].filter(r => r.status === 'APPROVED').length, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: 'Exit Permits', value: itemRequests.length, icon: Tag, color: 'text-pink-400', bg: 'bg-pink-500/10' },
+    { label: 'Device Req', value: deviceRequests.length, icon: ClipboardList, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+    { label: 'Approved', value: [...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests].filter(r => r.status === 'APPROVED').length, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   ];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 text-slate-200">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-medium text-white tracking-tight">Fleet Operations Command</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-medium text-white tracking-tight">Fleet Operations Command</h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (unlockedSectors.has(activeTab)) {
+                    setUnlockedSectors(prev => {
+                      const next = new Set(prev);
+                      next.delete(activeTab);
+                      return next;
+                    });
+                  } else {
+                    setPendingAction({ type: 'APPROVE', data: null, sector: activeTab });
+                    setIsUnlockModalOpen(true);
+                  }
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.1em] flex items-center gap-2 transition-all active:scale-95",
+                  unlockedSectors.has(activeTab) 
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20" 
+                    : "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20"
+                )}
+              >
+                {unlockedSectors.has(activeTab) ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                {unlockedSectors.has(activeTab) ? `${activeTab} Sector Authorized` : `${activeTab} Auth Required`}
+              </button>
+              
+              {unlockedSectors.size > 0 && (
+                <button 
+                  onClick={() => setUnlockedSectors(new Set())}
+                  className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 transition-all"
+                  title="Lock All Sectors"
+                >
+                  <Lock className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
           <p className="text-dark-text-subtle mt-1 font-serif italic">Operational overview and resource allocation</p>
         </div>
         <button 
@@ -448,11 +656,23 @@ export function AdminDashboard() {
               icon={Car} 
               onClick={() => { setActiveTab('VEHICLE'); setSelectedRequest(null); }} 
             />
+            <TabButton 
+              active={activeTab === 'ITEM'} 
+              label="Exit Permit" 
+              icon={Tag} 
+              onClick={() => { setActiveTab('ITEM'); setSelectedRequest(null); }} 
+            />
+            <TabButton 
+              active={activeTab === 'OTHER'} 
+              label="Other" 
+              icon={ClipboardList} 
+              onClick={() => { setActiveTab('OTHER'); setSelectedRequest(null); }} 
+            />
           </div>
           <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden flex flex-col h-[500px]">
              <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
                <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-                 {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : 'Transportation Queue'}
+                 {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'ITEM' ? 'Exit Permits Queue' : 'Other Requests Queue'}
                </h3>
                <div className="flex items-center gap-2">
                   <Search className="w-3.5 h-3.5 text-dark-text-subtle" />
@@ -464,8 +684,8 @@ export function AdminDashboard() {
                <table className="w-full text-left border-collapse">
                  <thead className="bg-dark-header sticky top-0 z-10">
                    <tr>
-                     <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">ID</th>
-                     <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Details</th>
+                     <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Request Reference</th>
+                     <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Details & Context</th>
                      <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Status</th>
                      <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Action</th>
                    </tr>
@@ -475,26 +695,31 @@ export function AdminDashboard() {
                      <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-dark-text-subtle">Synchronizing data...</td>
                      </tr>
-                   ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : vehicleRequests).length === 0 ? (
+                   ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).length === 0 ? (
                      <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
                      </tr>
-                   ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : vehicleRequests).map((request) => (
+                   ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).map((request) => (
                        <tr key={request.id} className="hover:bg-dark-main/40 transition-colors group">
-                         <td className="px-6 py-5 font-mono text-[10px] text-dark-accent">#{request.id.slice(-6).toUpperCase()}</td>
+                         <td className="px-6 py-5">
+                             <div className="text-[12px] font-bold text-dark-accent mb-1 tracking-tight">
+                                {activeTab === 'SERVICE' ? (request.workName || 'SVC-RQ') : activeTab === 'CAMERA' ? (request.eventTitle || 'CAM-RQ') : activeTab === 'ITEM' ? (request.itemName || 'EXIT-RQ') : activeTab === 'OTHER' ? (request.projectName || 'DEV-RQ') : (request.tripName || 'TRP-RQ')}
+                             </div>
+                             <div className="text-[10px] font-mono text-dark-text-subtle opacity-50 uppercase tracking-widest">#{request.id.slice(-6).toUpperCase()}</div>
+                          </td>
                          <td className="px-6 py-5">
                             <div className="text-[13px] font-medium text-slate-200">
-                               {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.eventTitle : request.destination}
+                               {activeTab === 'SERVICE' ? (request.workName || request.description) : activeTab === 'CAMERA' ? (request.eventTitle || request.purpose) : activeTab === 'ITEM' ? (request.itemName || request.purpose) : activeTab === 'OTHER' ? (request.projectName || request.deviceModel) : (request.tripName || request.destination)}
                             </div>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
                                <span className="text-[10px] text-dark-text-subtle font-mono uppercase tracking-tighter bg-dark-main px-1.5 py-0.5 rounded border border-dark-border">
                                   {request.departmentName}
                                </span>
-                               {activeTab === 'SERVICE' && request.fleetId && (
-                                 <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/5 px-1.5 py-0.5 rounded border border-cyan-500/10">
-                                    {fleet.find(f => f.id === request.fleetId)?.plateNumber}
-                                 </span>
-                               )}
+                               {activeTab === 'ITEM' && (
+                                  <span className="text-[9px] font-mono text-pink-400 bg-pink-500/5 px-1.5 py-0.5 rounded border border-pink-500/10">
+                                     S/N: {request.serialNumber || 'N/A'}
+                                  </span>
+                                )}
                                {activeTab === 'CAMERA' && (
                                  <span className="text-[9px] font-mono text-amber-400 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10">
                                     {request.date}
@@ -516,7 +741,14 @@ export function AdminDashboard() {
                             {request.status === 'NEW' ? (
                               <button onClick={() => handleApprove(request.id, request.directorId)} className="text-[10px] font-black uppercase text-dark-accent hover:text-indigo-400 transition-colors">Approve</button>
                             ) : request.status === 'APPROVED' ? (
-                              <button onClick={() => openAssignModal(request)} className="text-[10px] font-black uppercase text-amber-400 hover:text-amber-300 transition-colors">Assign</button>
+                              activeTab === 'ITEM' ? (
+                                <span className="text-[9px] font-black uppercase text-emerald-400 tracking-widest bg-emerald-500/5 px-2 py-1 rounded border border-emerald-500/10 flex items-center gap-2 w-fit">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Verified
+                                </span>
+                              ) : (
+                                <button onClick={() => openAssignModal(request)} className="text-[10px] font-black uppercase text-amber-400 hover:text-amber-300 transition-colors">Assign</button>
+                              )
                             ) : request.status === 'COMPLETED' ? (
                               <button 
                                 onClick={() => setSelectedRequest(request)}
@@ -548,67 +780,6 @@ export function AdminDashboard() {
                    }
                  </tbody>
                </table>
-             </div>
-          </div>
-
-          <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden flex flex-col h-[400px]">
-             <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
-               <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">Fleet Registry (Assets)</h3>
-               <button 
-                 onClick={() => {
-                   setEditingAsset(null);
-                   setAssetPlate('');
-                   setAssetModel('');
-                   setAssetType('VEHICLE');
-                   setAssetStatus('OPERATIONAL');
-                   setIsFleetAssetModalOpen(true);
-                 }}
-                 className="text-[9px] font-black uppercase text-dark-accent hover:underline flex items-center gap-2"
-               >
-                 <Truck className="w-3.5 h-3.5" />
-                 Register Asset
-               </button>
-             </div>
-
-             <div className="overflow-auto flex-1 scrollbar-hide p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {fleet.length === 0 ? (
-                    <div className="col-span-2 py-12 text-center text-dark-text-subtle text-sm font-serif italic">No assets registered in fleet registry</div>
-                  ) : (
-                    fleet.map((asset) => (
-                      <div key={asset.id} className="p-4 bg-dark-main border border-dark-border rounded-xl flex items-center justify-between group hover:border-dark-accent/50 transition-all">
-                        <div className="flex items-center gap-4">
-                           <div className={cn(
-                             "w-10 h-10 rounded-lg flex items-center justify-center border",
-                             asset.status === 'OPERATIONAL' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
-                             asset.status === 'MAINTENANCE' ? "bg-amber-500/10 border-amber-500/20 text-amber-400" :
-                             "bg-red-500/10 border-red-500/20 text-red-400"
-                           )}>
-                             {asset.type === 'VEHICLE' ? <Truck className="w-5 h-5" /> : <Settings className="w-5 h-5" />}
-                           </div>
-                           <div>
-                              <p className="text-sm font-bold text-white">{asset.plateNumber}</p>
-                              <p className="text-[10px] text-dark-text-subtle font-mono uppercase tracking-tight">{asset.model}</p>
-                           </div>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            setEditingAsset(asset);
-                            setAssetPlate(asset.plateNumber);
-                            setAssetModel(asset.model);
-                            setAssetType(asset.type);
-                            setAssetStatus(asset.status);
-                            setAssetDept(asset.department || '');
-                            setIsFleetAssetModalOpen(true);
-                          }}
-                          className="p-2 text-dark-text-subtle hover:text-white"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
              </div>
           </div>
         </div>
@@ -676,7 +847,7 @@ export function AdminDashboard() {
           </div>
           <div className="p-6 bg-dark-main/20">
              <button 
-               onClick={() => setIsFleetModalOpen(true)}
+               onClick={() => setIsPersonnelModalOpen(true)}
                className="w-full bg-dark-accent hover:bg-indigo-600 text-white py-3.5 rounded-lg text-[0.8rem] font-bold transition-all shadow-lg shadow-indigo-900/30 active:scale-95 group flex items-center justify-center gap-2"
              >
                 <Settings className="w-4 h-4" />
@@ -734,8 +905,6 @@ export function AdminDashboard() {
                           <p className="text-sm font-medium text-slate-200">
                              {activeTab === 'VEHICLE' ? (
                                selectedRequest.vehicleType || 'Company Vehicle'
-                             ) : selectedRequest.fleetId ? (
-                               fleet.find(f => f.id === selectedRequest.fleetId)?.plateNumber || 'Linked Asset'
                              ) : 'General Service'}
                           </p>
                        </div>
@@ -869,112 +1038,6 @@ export function AdminDashboard() {
           </div>
         )}
 
-        {isFleetAssetModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-             <motion.div 
-               initial={{ opacity: 0 }}
-               animate={{ opacity: 1 }}
-               exit={{ opacity: 0 }}
-               onClick={() => setIsFleetAssetModalOpen(false)}
-               className="absolute inset-0 bg-dark-main/90 backdrop-blur-md"
-             />
-             <motion.div 
-               initial={{ opacity: 0, scale: 0.95, y: 20 }}
-               animate={{ opacity: 1, scale: 1, y: 0 }}
-               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-               className="relative w-full max-w-lg bg-dark-card rounded-2xl border border-dark-border shadow-2xl overflow-hidden"
-             >
-                <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
-                   <div>
-                      <h2 className="text-2xl font-medium text-white tracking-tight">{editingAsset ? 'Edit Asset' : 'Register Vehicle'}</h2>
-                      <p className="text-dark-text-subtle text-sm mt-1">Fleet registry update protocols</p>
-                   </div>
-                   <button onClick={() => setIsFleetAssetModalOpen(false)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
-                      <X className="w-6 h-6" />
-                   </button>
-                </div>
-
-                <div className="p-8 space-y-6">
-                   <div className="grid grid-cols-2 gap-4">
-                      <div>
-                         <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Plate Number</label>
-                         <input 
-                           type="text" 
-                           value={assetPlate}
-                           onChange={(e) => setAssetPlate(e.target.value)}
-                           placeholder="ABC-123"
-                           className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-white focus:ring-1 focus:ring-dark-accent outline-none font-mono"
-                         />
-                      </div>
-                      <div>
-                         <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Model/Description</label>
-                         <input 
-                           type="text" 
-                           value={assetModel}
-                           onChange={(e) => setAssetModel(e.target.value)}
-                           placeholder="Toyota Hilux"
-                           className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-white focus:ring-1 focus:ring-dark-accent outline-none"
-                         />
-                      </div>
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-4">
-                      <div>
-                         <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Category</label>
-                         <select 
-                           value={assetType}
-                           onChange={(e) => setAssetType(e.target.value)}
-                           className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-white focus:ring-1 focus:ring-dark-accent outline-none"
-                         >
-                           <option value="VEHICLE">Service Vehicle</option>
-                           <option value="MACHINERY">Heavy Machinery</option>
-                           <option value="OTHER">Utility Asset</option>
-                         </select>
-                      </div>
-                      <div>
-                         <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Operational Status</label>
-                         <select 
-                           value={assetStatus}
-                           onChange={(e) => setAssetStatus(e.target.value)}
-                           className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-3 text-sm text-white focus:ring-1 focus:ring-dark-accent outline-none"
-                         >
-                           <option value="OPERATIONAL">Operational</option>
-                           <option value="MAINTENANCE">Maintenance</option>
-                           <option value="OUT_OF_SERVICE">Out of Service</option>
-                         </select>
-                      </div>
-                   </div>
-
-                   <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Department Allocation</label>
-                      <input 
-                        type="text" 
-                        value={assetDept}
-                        onChange={(e) => setAssetDept(e.target.value)}
-                        placeholder="Logistics / Maintenance"
-                        className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-white focus:ring-1 focus:ring-dark-accent outline-none"
-                      />
-                   </div>
-
-                   <div className="flex gap-4 pt-4 border-t border-dark-border">
-                      <button 
-                        onClick={() => setIsFleetAssetModalOpen(false)}
-                        className="flex-1 px-8 py-3.5 text-xs font-black uppercase text-dark-text-subtle border border-dark-border rounded-xl hover:text-white"
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        onClick={handleUpdateAsset}
-                        className="flex-1 bg-dark-accent hover:bg-indigo-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-xl shadow-indigo-900/30"
-                      >
-                         {editingAsset ? 'Update Asset' : 'Register Asset'}
-                      </button>
-                   </div>
-                </div>
-             </motion.div>
-          </div>
-        )}
-
         {isAssignModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
@@ -1013,7 +1076,7 @@ export function AdminDashboard() {
                       <button 
                         onClick={() => {
                           setIsAssignModalOpen(false);
-                          setIsFleetModalOpen(true);
+                          setIsPersonnelModalOpen(true);
                         }}
                         className="text-[10px] font-black uppercase text-dark-accent hover:underline tracking-widest"
                       >
@@ -1062,19 +1125,19 @@ export function AdminDashboard() {
 
         {isReportOpen && (
           <WeeklyReport 
-            requests={[...requests, ...cameraRequests, ...vehicleRequests]}
+            requests={[...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests]}
             workforce={[...technicians, ...drivers, ...cameramen]}
             onClose={() => setIsReportOpen(false)}
           />
         )}
 
-        {isFleetModalOpen && (
+        {isPersonnelModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                exit={{ opacity: 0 }}
-               onClick={() => setIsFleetModalOpen(false)}
+               onClick={() => setIsPersonnelModalOpen(false)}
                className="absolute inset-0 bg-dark-main/90 backdrop-blur-md"
             />
             <motion.div 
@@ -1085,7 +1148,7 @@ export function AdminDashboard() {
             >
                <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-medium text-white tracking-tight">Fleet Registry</h2>
+                    <h2 className="text-2xl font-medium text-white tracking-tight">Workforce Registry</h2>
                     <p className="text-dark-text-subtle text-sm mt-1">Manage personnel and communication protocols</p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -1100,7 +1163,7 @@ export function AdminDashboard() {
                       <UserPlus className="w-3.5 h-3.5" />
                       Onboard Agent
                     </button>
-                    <button onClick={() => setIsFleetModalOpen(false)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
+                    <button onClick={() => setIsPersonnelModalOpen(false)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
                       <X className="w-6 h-6" />
                     </button>
                   </div>
@@ -1179,6 +1242,78 @@ export function AdminDashboard() {
             </motion.div>
           </div>
         )}
+        {isUnlockModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsUnlockModalOpen(false);
+                setPendingAction(null);
+                setUnlockPassword('');
+              }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+            />
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md bg-dark-card border border-dark-border rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 text-center">
+                 <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    {SECTOR_AUTH[(pendingAction?.sector || activeTab) as keyof typeof SECTOR_AUTH]?.icon ? (
+                      (() => {
+                        const Icon = SECTOR_AUTH[(pendingAction?.sector || activeTab) as keyof typeof SECTOR_AUTH].icon;
+                        return <Icon className="w-8 h-8 text-amber-500" />;
+                      })()
+                    ) : (
+                      <Lock className="w-8 h-8 text-amber-500" />
+                    )}
+                 </div>
+                 <h2 className="text-xl font-bold text-white mb-2 uppercase tracking-tight">
+                   {SECTOR_AUTH[(pendingAction?.sector || activeTab) as keyof typeof SECTOR_AUTH]?.label || 'Director Authorization'}
+                 </h2>
+                 <p className="text-dark-text-subtle text-sm mb-8 font-serif italic">Enter sector-specific access key to continue.</p>
+                 
+                 <div className="space-y-4">
+                    <div className="relative">
+                       <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-text-subtle" />
+                       <input 
+                         type="password"
+                         value={unlockPassword}
+                         onChange={(e) => setUnlockPassword(e.target.value)}
+                         onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+                         placeholder="••••"
+                         autoFocus
+                         className="w-full bg-dark-main border border-dark-border rounded-xl pl-12 pr-4 py-4 text-white focus:ring-2 focus:ring-amber-500/20 outline-none transition-all placeholder:text-dark-text-muted text-center tracking-[0.5em] text-2xl font-black"
+                       />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 pt-4">
+                       <button 
+                         onClick={() => {
+                           setIsUnlockModalOpen(false);
+                           setPendingAction(null);
+                           setUnlockPassword('');
+                         }}
+                         className="px-6 py-3.5 bg-dark-main border border-dark-border rounded-xl text-[10px] font-black uppercase tracking-widest text-dark-text-subtle hover:text-white transition-all underline decoration-dark-border underline-offset-4"
+                       >
+                         Abort
+                       </button>
+                       <button 
+                         onClick={handleUnlock}
+                         className="px-6 py-3.5 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-900/40 transition-all active:scale-95"
+                       >
+                         Verify PIN
+                       </button>
+                    </div>
+                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -1211,6 +1346,8 @@ const getStatusStyle = (status: string) => {
     case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
     case 'CONFIRMED': return 'bg-slate-500/10 text-emerald-400 border border-emerald-500/20';
     case 'CLOSED': return 'bg-slate-500/20 text-slate-300 border border-slate-500/30';
+    case 'EXITED': return 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
+    case 'RETURNED': return 'bg-teal-500/10 text-teal-400 border border-teal-500/20';
     default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
   }
 };

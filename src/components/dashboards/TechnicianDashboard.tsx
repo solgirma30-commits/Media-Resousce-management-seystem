@@ -118,6 +118,7 @@ export function TechnicianDashboard() {
     const path = portalConfig.collection;
     const q = query(collection(db, path), where(portalConfig.idField, '==', profile.uid));
 
+    let isFirstLoad = true;
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs
         .map((doc: any) => ({ 
@@ -133,9 +134,50 @@ export function TechnicianDashboard() {
         return timeB - timeA;
       });
       
+      if (!isFirstLoad) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as any;
+            const displayName = path === 'camera_requests' ? (data.eventTitle || data.purpose) : 
+                              path === 'vehicle_requests' ? (data.tripName || data.destination) : 
+                              (data.workName || data.description);
+            if (data.status === 'ASSIGNED') {
+              toast(`NEW ASSIGNMENT: ${displayName}`, {
+                icon: '📋',
+                duration: 8000,
+                style: { background: '#0a0a0a', color: '#fff', border: '1px solid #27272a' }
+              });
+            }
+          }
+        });
+      }
+
       setAssignments(docs);
       setLoading(false);
+      isFirstLoad = false;
     }, (error) => handleFirestoreError(error, OperationType.LIST, path));
+
+    // Listen for NEW unassigned requests to notify technicians in real-time
+    let isFirstLoadNew = true;
+    const qNew = query(collection(db, path), where('status', '==', 'NEW'));
+    const unsubscribeNew = onSnapshot(qNew, (snapshot) => {
+      if (!isFirstLoadNew) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as any;
+            const displayName = path === 'camera_requests' ? (data.eventTitle || data.purpose) : 
+                              path === 'vehicle_requests' ? (data.tripName || data.destination) : 
+                              (data.workName || data.description);
+            toast(`NEW UNASSIGNED REQUEST: ${displayName}`, {
+              icon: portalConfig.icon === Truck ? '🚗' : portalConfig.icon === Camera ? '📷' : '🛠️',
+              duration: 10000,
+              style: { background: '#1e1b4b', color: '#fff', border: '1px solid #312e81' }
+            });
+          }
+        });
+      }
+      isFirstLoadNew = false;
+    });
 
     const fleetPath = 'fleet';
     const unsubscribeFleet = onSnapshot(collection(db, fleetPath), (snapshot) => {
@@ -144,6 +186,7 @@ export function TechnicianDashboard() {
 
     return () => {
       unsubscribe();
+      unsubscribeNew();
       unsubscribeFleet();
     };
   }, [profile, portalConfig]);
@@ -602,9 +645,9 @@ export function TechnicianDashboard() {
                       <span className="text-[9px] font-mono text-dark-text-subtle">#{work.id.slice(-4).toUpperCase()}</span>
                     </div>
                     <h4 className={cn("text-xs font-medium truncate mb-2", selectedWork?.id === work.id ? "text-white" : "text-slate-300")}>
-                      {work.collectionName === 'camera_requests' ? work.eventTitle : 
-                       work.collectionName === 'vehicle_requests' ? work.destination : 
-                       work.description}
+                      {work.collectionName === 'camera_requests' ? (work.eventTitle || work.purpose) : 
+                       work.collectionName === 'vehicle_requests' ? (work.tripName || work.destination) : 
+                       (work.workName || work.description)}
                     </h4>
                     <div className="flex items-center gap-2 text-[9px] text-dark-text-subtle font-mono">
                       <MapPin className="w-2.5 h-2.5 text-dark-accent" />
@@ -655,9 +698,9 @@ export function TechnicianDashboard() {
                         <span className="text-[10px] font-mono text-dark-text-subtle">VECT_{selectedWork.id.slice(-6).toUpperCase()}</span>
                       </div>
                       <h2 className="text-2xl font-medium text-white tracking-tight">
-                         {selectedWork.collectionName === 'camera_requests' ? selectedWork.eventTitle : 
-                          selectedWork.collectionName === 'vehicle_requests' ? selectedWork.destination : 
-                          selectedWork.description}
+                         {selectedWork.collectionName === 'camera_requests' ? (selectedWork.eventTitle || selectedWork.purpose) : 
+                          selectedWork.collectionName === 'vehicle_requests' ? (selectedWork.tripName || selectedWork.destination) : 
+                          (selectedWork.workName || selectedWork.description)}
                        </h2>
                     </div>
                   </div>
@@ -949,6 +992,8 @@ const getStatusStyle = (status: string) => {
     case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
     case 'CONFIRMED': return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
     case 'CLOSED': return 'bg-slate-500/20 text-slate-300 border border-slate-500/30';
+    case 'EXITED': return 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
+    case 'RETURNED': return 'bg-teal-500/10 text-teal-400 border border-teal-500/20';
     default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
   }
 };
