@@ -6,12 +6,10 @@ import { toast } from 'react-hot-toast';
 
 export function Login({ 
   onPortalVerify, 
-  isPortalVerified,
-  isInIframe
+  isPortalVerified
 }: { 
   onPortalVerify: () => void; 
   isPortalVerified?: boolean;
-  isInIframe?: boolean;
 }) {
   const { signIn } = useAuth();
   const [username, setUsername] = useState('');
@@ -130,32 +128,12 @@ export function Login({
           </motion.div>
         )}
 
-        {isInIframe ? (
-          <div className="mt-8 pt-6 border-t border-dark-border/20">
-            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 text-center">
-              <h3 className="text-amber-200 text-xs font-bold uppercase tracking-widest mb-2">Iframe Restriction Detected</h3>
-              <p className="text-[11px] text-dark-text-subtle mb-4 leading-relaxed">
-                Authentication is restricted inside the chat preview. 
-                Please open the app in a full browser tab.
-              </p>
-              <a 
-                href={window.location.href} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="inline-flex items-center justify-center w-full gap-2 bg-amber-500 hover:bg-amber-400 text-dark-main text-[11px] font-black py-2.5 px-4 rounded-lg uppercase tracking-wider transition-all shadow-lg shadow-amber-500/10"
-              >
-                Launch in New Tab
-              </a>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-8 pt-6 border-t border-dark-border/10 text-center">
-            <p className="text-[10px] text-dark-text-subtle flex items-center justify-center gap-2">
-              <Lock className="w-3 h-3" />
-              Secure 256-bit SSL Encrypted Access
-            </p>
-          </div>
-        )}
+        <div className="mt-8 pt-6 border-t border-dark-border/10 text-center">
+          <p className="text-[10px] text-dark-text-subtle flex items-center justify-center gap-2">
+            <Lock className="w-3 h-3" />
+            Secure 256-bit SSL Encrypted Access
+          </p>
+        </div>
       </motion.div>
     </div>
   );

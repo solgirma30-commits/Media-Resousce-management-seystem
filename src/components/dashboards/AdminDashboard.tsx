@@ -78,7 +78,11 @@ export function AdminDashboard() {
     const srPath = 'service_requests';
     const q = query(collection(db, srPath), orderBy('createdAt', 'desc'));
     const unsubscribeReq = onSnapshot(q, (snapshot) => {
-      setRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, srPath);
@@ -87,7 +91,11 @@ export function AdminDashboard() {
     const camPath = 'camera_requests';
     const qCam = query(collection(db, camPath), orderBy('createdAt', 'desc'));
     const unsubscribeCam = onSnapshot(qCam, (snapshot) => {
-      setCameraRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setCameraRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, camPath);
     });
@@ -95,7 +103,11 @@ export function AdminDashboard() {
     const vehPath = 'vehicle_requests';
     const qVeh = query(collection(db, vehPath), orderBy('createdAt', 'desc'));
     const unsubscribeVeh = onSnapshot(qVeh, (snapshot) => {
-      setVehicleRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setVehicleRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, vehPath);
     });
@@ -181,9 +193,11 @@ export function AdminDashboard() {
       if (activeTab === 'VEHICLE') {
         updateData.assignedDriverId = tech.id;
         updateData.assignedDriverName = tech.displayName;
+        updateData.assignedDriverPhone = tech.phoneNumber || '';
       } else {
         updateData.assignedTechnicianId = tech.id;
         updateData.assignedTechnicianName = tech.displayName;
+        updateData.assignedTechnicianPhone = tech.phoneNumber || '';
       }
 
       await updateDoc(doc(db, colName, requestId), updateData);
@@ -193,7 +207,7 @@ export function AdminDashboard() {
       await setDoc(doc(db, 'notifications', techNotificationId), {
         userId: tech.id,
         title: `New ${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Dispatch'} Assignment`,
-        message: `You have been assigned to ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}`,
+        message: `Hello ${tech.displayName}, you have been assigned to a new ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal for details.`,
         read: false,
         type: 'ASSIGNMENT',
         requestId: requestId,
@@ -215,7 +229,7 @@ export function AdminDashboard() {
       toast.success(`${tech.displayName} assigned`);
       
       if (tech.phoneNumber) {
-        const smsMessage = `Vector System: You have been assigned to ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal.`;
+        const smsMessage = `Vector System: Hello ${tech.displayName}, you have been assigned to ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal.`;
         
         toast.promise(
           fetch('/api/send-sms', {
@@ -225,8 +239,11 @@ export function AdminDashboard() {
               to: tech.phoneNumber, 
               message: smsMessage 
             }),
-          }).then((res) => {
-            if (!res.ok) throw new Error('SMS Gateway failure');
+          }).then(async (res) => {
+            if (!res.ok) {
+              const errorData = await res.json().catch(() => ({}));
+              throw new Error(errorData.error || 'SMS Gateway failure');
+            }
             return res.json();
           }),
           {
@@ -250,10 +267,11 @@ export function AdminDashboard() {
     try {
       await updateDoc(doc(db, colName, requestId), {
         status: 'CLOSED',
+        archived: true, // Auto-delete from active view
         updatedAt: serverTimestamp(),
         confirmedAt: serverTimestamp(),
       });
-      toast.success('Service decommissioned and finalized');
+      toast.success('Service decommissioned and archived');
       setSelectedRequest(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
@@ -266,9 +284,10 @@ export function AdminDashboard() {
     try {
       await updateDoc(doc(db, colName, requestId), {
         status: 'CLOSED',
+        archived: true, // Auto-delete from active view
         updatedAt: serverTimestamp(),
       });
-      toast.success('Service vector decommissioned');
+      toast.success('Service vector decommissioned and archived');
       setSelectedRequest(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
@@ -287,6 +306,11 @@ export function AdminDashboard() {
     const targetUid = isOnboarding ? `placeholder_${Date.now()}` : editingTech.uid;
     const path = `users/${targetUid}`;
     
+    if (editPhone && !editPhone.startsWith('+')) {
+      toast.error('Agent contact must start with + and include country code (e.g., +251...)');
+      return;
+    }
+
     try {
       await setDoc(doc(db, 'users', targetUid), {
         uid: targetUid,
@@ -697,6 +721,11 @@ export function AdminDashboard() {
                           <p className="text-sm font-medium text-slate-200">
                             {activeTab === 'VEHICLE' ? selectedRequest.assignedDriverName : selectedRequest.assignedTechnicianName}
                           </p>
+                          {(selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone) && (
+                            <p className="text-[10px] font-mono text-dark-accent mt-1">
+                              {selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone}
+                            </p>
+                          )}
                        </div>
                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
@@ -1126,14 +1155,15 @@ export function AdminDashboard() {
                               />
                            </div>
                            <div>
-                              <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Password</label>
+                              <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Agent Contact (SMS)</label>
                               <input 
-                                type="password" 
+                                type="tel" 
                                 value={editPhone}
                                 onChange={(e) => setEditPhone(e.target.value)}
-                                placeholder="Password"
+                                placeholder="+251..."
                                 className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-white focus:ring-1 focus:ring-dark-accent outline-none font-mono"
                               />
+                              <p className="text-[9px] text-dark-text-subtle mt-1 italic font-serif">Must include + and country code for SMS delivery</p>
                            </div>
                         </div>
                         <div className="flex items-center justify-end gap-3">

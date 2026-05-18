@@ -28,7 +28,9 @@ import {
   addDoc,
   serverTimestamp,
   updateDoc,
-  doc
+  doc,
+  getDocs,
+  setDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -86,7 +88,11 @@ export function DeptDirectorDashboard() {
       orderBy('createdAt', 'desc')
     );
     const unsubscribeSR = onSnapshot(srQ, (snapshot) => {
-      setRequests(snapshot.docs.map(doc => ({ id: doc.id, collectionName: srPath, ...doc.data() })));
+      setRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, collectionName: srPath, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
       if (activeTab === 'SERVICE') setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, srPath);
@@ -100,7 +106,11 @@ export function DeptDirectorDashboard() {
       orderBy('createdAt', 'desc')
     );
     const unsubscribeCR = onSnapshot(crQ, (snapshot) => {
-      setCameraRequests(snapshot.docs.map(doc => ({ id: doc.id, collectionName: crPath, ...doc.data() })));
+      setCameraRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, collectionName: crPath, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
       if (activeTab === 'CAMERA') setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, crPath);
@@ -114,7 +124,11 @@ export function DeptDirectorDashboard() {
       orderBy('createdAt', 'desc')
     );
     const unsubscribeVR = onSnapshot(vrQ, (snapshot) => {
-      setVehicleRequests(snapshot.docs.map(doc => ({ id: doc.id, collectionName: vrPath, ...doc.data() })));
+      setVehicleRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, collectionName: vrPath, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
       if (activeTab === 'VEHICLE') setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, vrPath);
@@ -198,6 +212,42 @@ export function DeptDirectorDashboard() {
 
       toast.success('Request submitted for processing');
       setIsModalOpen(false);
+      
+      // Create notifications for Admins and relevant operators
+      const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'ADMIN')));
+      const adminDocs = adminsSnapshot.docs;
+      
+      // Target roles based on request type
+      let targetRole = '';
+      if (activeTab === 'CAMERA') targetRole = 'CAMERAMAN';
+      else if (activeTab === 'VEHICLE') targetRole = 'DRIVER';
+      else if (activeTab === 'SERVICE') targetRole = 'TECHNICIAN';
+
+      const staffSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
+      const staffDocs = staffSnapshot.docs;
+
+      // Combine audiences (Admins + Relevant Staff)
+      const audienceIds = Array.from(new Set([
+        ...adminDocs.map(d => d.id),
+        ...staffDocs.map(d => d.id)
+      ]));
+
+      const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : 'Service';
+      
+      const notificationPromises = audienceIds.map(userId => {
+        const notificationId = `notif_new_${Date.now()}_${userId}`;
+        return setDoc(doc(db, 'notifications', notificationId), {
+          userId,
+          title: `New ${requestTypeLabel} Request`,
+          message: `A new ${requestTypeLabel.toLowerCase()} request has been submitted by ${profile.displayName} (${profile.department}).`,
+          read: false,
+          type: 'NEW_REQUEST',
+          requestId: `REQ-${Date.now()}`, // Temporary or just context
+          createdAt: serverTimestamp(),
+        });
+      });
+
+      await Promise.all(notificationPromises);
       resetForm();
     } catch (error) {
       const path = activeTab === 'SERVICE' ? 'service_requests' : activeTab === 'CAMERA' ? 'camera_requests' : 'vehicle_requests';
@@ -466,13 +516,21 @@ export function DeptDirectorDashboard() {
                    <div className="grid grid-cols-2 gap-6">
                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
-                           {activeTab === 'VEHICLE' ? 'Driver/Vehicle' : 'Assigned Agent'}
+                           {activeTab === 'VEHICLE' ? 'Driver Details' : 'Assigned Agent'}
                          </p>
                          <p className="text-sm font-medium text-slate-200">
                            {activeTab === 'VEHICLE' 
                              ? (selectedRequest.assignedDriverName || 'Pending Allocation')
                              : (selectedRequest.assignedTechnicianName || 'Pending Assignment')}
                          </p>
+                         {(selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone) && (
+                           <div className="flex items-center gap-2 mt-2 pt-2 border-t border-dark-border/10">
+                             <Phone className="w-3 h-3 text-dark-accent" />
+                             <span className="text-[11px] font-mono text-dark-text-subtle">
+                               {selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone}
+                             </span>
+                           </div>
+                         )}
                       </div>
                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Fleet Asset</p>

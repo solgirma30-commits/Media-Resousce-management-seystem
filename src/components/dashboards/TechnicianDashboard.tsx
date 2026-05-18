@@ -15,10 +15,23 @@ import {
   Send,
   Phone,
   X,
+  User,
   Wrench,
   Camera,
-  BarChart3
+  Trash2,
+  Archive,
+  BarChart3,
+  CheckCircle,
+  Activity,
+  Layers
 } from 'lucide-react';
+import { 
+  PieChart, 
+  Pie, 
+  Cell, 
+  ResponsiveContainer, 
+  Tooltip
+} from 'recharts';
 import { 
   collection, 
   query, 
@@ -30,17 +43,6 @@ import {
   getDocs,
   setDoc
 } from 'firebase/firestore';
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Tooltip, 
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis
-} from 'recharts';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
 import { toast } from 'react-hot-toast';
@@ -52,7 +54,46 @@ export function TechnicianDashboard() {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Role-based portal configuration
+  const portalConfig = React.useMemo(() => {
+    switch (profile?.role) {
+      case 'CAMERAMAN':
+        return { 
+          title: 'FMC CAMERA PORTAL', 
+          subtitle: 'Media & Event Coverage Node', 
+          collection: 'camera_requests', 
+          idField: 'assignedTechnicianId',
+          icon: Camera,
+          accent: 'text-purple-400',
+          bg: 'bg-purple-500/10'
+        };
+      case 'DRIVER':
+        return { 
+          title: 'FMC DRIVER PORTAL', 
+          subtitle: 'Logistics & Transport Node', 
+          collection: 'vehicle_requests', 
+          idField: 'assignedDriverId',
+          icon: Truck,
+          accent: 'text-blue-400',
+          bg: 'bg-blue-500/10'
+        };
+      default:
+        return { 
+          title: 'FMC ENGINEERS PORTAL', 
+          subtitle: 'Maintenance & Service Node', 
+          collection: 'service_requests', 
+          idField: 'assignedTechnicianId',
+          icon: Wrench,
+          accent: 'text-emerald-400',
+          bg: 'bg-emerald-500/10'
+        };
+    }
+  }, [profile?.role]);
+
   const [selectedWork, setSelectedWork] = useState<any | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const [notes, setNotes] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -74,51 +115,27 @@ export function TechnicianDashboard() {
   useEffect(() => {
     if (!profile) return;
 
-    const srPath = 'service_requests';
-    const crPath = 'camera_requests';
-    const vrPath = 'vehicle_requests';
+    const path = portalConfig.collection;
+    const q = query(collection(db, path), where(portalConfig.idField, '==', profile.uid));
 
-    const qSR = query(collection(db, srPath), where('assignedTechnicianId', '==', profile.uid));
-    const qCR = query(collection(db, crPath), where('assignedTechnicianId', '==', profile.uid));
-    const qVR = query(collection(db, vrPath), where('assignedDriverId', '==', profile.uid));
-
-    const processSnapshot = (snapshot: any, collectionName: string) => {
-      return snapshot.docs.map((doc: any) => ({ 
-        id: doc.id, 
-        collectionName,
-        ...doc.data() 
-      }));
-    };
-
-    let srDocs: any[] = [];
-    let crDocs: any[] = [];
-    let vrDocs: any[] = [];
-
-    const updateAssignments = () => {
-      const all = [...srDocs, ...crDocs, ...vrDocs];
-      all.sort((a: any, b: any) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs
+        .map((doc: any) => ({ 
+          id: doc.id, 
+          collectionName: path,
+          ...doc.data() 
+        }))
+        .filter((doc: any) => !doc.technicianArchived);
+      
+      docs.sort((a: any, b: any) => {
         const timeA = a.updatedAt?.seconds || 0;
         const timeB = b.updatedAt?.seconds || 0;
         return timeB - timeA;
       });
-      setAssignments(all);
+      
+      setAssignments(docs);
       setLoading(false);
-    };
-
-    const unsubscribeSR = onSnapshot(qSR, (snapshot) => {
-      srDocs = processSnapshot(snapshot, srPath);
-      updateAssignments();
-    }, (error) => handleFirestoreError(error, OperationType.LIST, srPath));
-
-    const unsubscribeCR = onSnapshot(qCR, (snapshot) => {
-      crDocs = processSnapshot(snapshot, crPath);
-      updateAssignments();
-    }, (error) => handleFirestoreError(error, OperationType.LIST, crPath));
-
-    const unsubscribeVR = onSnapshot(qVR, (snapshot) => {
-      vrDocs = processSnapshot(snapshot, vrPath);
-      updateAssignments();
-    }, (error) => handleFirestoreError(error, OperationType.LIST, vrPath));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, path));
 
     const fleetPath = 'fleet';
     const unsubscribeFleet = onSnapshot(collection(db, fleetPath), (snapshot) => {
@@ -126,12 +143,26 @@ export function TechnicianDashboard() {
     }, (error) => handleFirestoreError(error, OperationType.LIST, fleetPath));
 
     return () => {
-      unsubscribeSR();
-      unsubscribeCR();
-      unsubscribeVR();
+      unsubscribe();
       unsubscribeFleet();
     };
-  }, [profile]);
+  }, [profile, portalConfig]);
+
+  // Analytics Calculations
+  const stats = React.useMemo(() => {
+    const total = assignments.length;
+    const active = assignments.filter(a => ['ACCEPTED', 'IN_PROGRESS'].includes(a.status)).length;
+    const pending = assignments.filter(a => a.status === 'ASSIGNED').length;
+    const finalized = assignments.filter(a => ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(a.status)).length;
+
+    const chartData = [
+      { name: 'Pending', value: pending, color: '#6366f1' },
+      { name: 'Active', value: active, color: '#f59e0b' },
+      { name: 'Finalized', value: finalized, color: '#10b981' }
+    ].filter(d => d.value > 0);
+
+    return { total, active, pending, finalized, chartData };
+  }, [assignments]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -161,6 +192,7 @@ export function TechnicianDashboard() {
       
       if (status === 'COMPLETED') {
         update.completedAt = serverTimestamp();
+        update.technicianArchived = true; // Auto-archive from technician log
         // Use appropriate field based on request type
         if (colName === 'vehicle_requests') {
           update.driverNotes = notes;
@@ -245,42 +277,94 @@ export function TechnicianDashboard() {
     }
   };
 
-  // Chart Data Processing
-  const statusStats = assignments.reduce((acc: any, curr: any) => {
-    const status = curr.status || 'NEW';
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {});
+  const handleClearWork = async (work: any) => {
+    if (!['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status)) {
+      toast.error('Only finished tasks can be cleared from this log');
+      return;
+    }
 
-  const typeStats = assignments.reduce((acc: any, curr: any) => {
-    const type = curr.collectionName === 'camera_requests' ? 'Media' : 
-                 curr.collectionName === 'vehicle_requests' ? 'Fleet' : 'Service';
-    acc[type] = (acc[type] || 0) + 1;
-    return acc;
-  }, {});
+    try {
+      const colName = work.collectionName || 'service_requests';
+      await updateDoc(doc(db, colName, work.id), {
+        technicianArchived: true
+      });
+      toast.success('Assignment archived from active view');
+      if (selectedWork?.id === work.id) setSelectedWork(null);
+    } catch (_error) {
+      toast.error('Failed to clear assignment');
+    }
+  };
 
-  const statusChartData = Object.entries(statusStats).map(([name, value]) => ({
-    name: name.replace('_', ' '),
-    value,
-    color: name === 'COMPLETED' ? '#10b981' : 
-           name === 'IN_PROGRESS' ? '#f59e0b' : 
-           name === 'ACCEPTED' ? '#8b5cf6' : 
-           name === 'ASSIGNED' ? '#6366f1' : '#3b82f6'
-  }));
+  const handleClearFinished = async () => {
+    const finished = assignments.filter(a => ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(a.status));
+    if (finished.length === 0) {
+      toast.error('No finished assignments to clear');
+      return;
+    }
 
-  const typeChartData = Object.entries(typeStats).map(([name, value]) => ({
-    name,
-    value,
-    color: name === 'Fleet' ? '#60a5fa' : 
-           name === 'Media' ? '#c084fc' : '#34d399'
-  }));
+    const confirm = window.confirm(`Clear ${finished.length} finished assignments from your log?`);
+    if (!confirm) return;
+
+    try {
+      const promises = finished.map(work => {
+        const colName = (work.collectionName as string) || 'service_requests';
+        return updateDoc(doc(db, colName, work.id), {
+          technicianArchived: true
+        });
+      });
+      await Promise.all(promises);
+      toast.success('Operational log cleared of finished items');
+      setSelectedWork(null);
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+    } catch (_error) {
+      toast.error('Failed to clear log completely');
+    }
+  };
+
+  const handleClearSelected = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('No assignments selected');
+      return;
+    }
+
+    const confirm = window.confirm(`Clear ${selectedIds.size} selected assignments from your log?`);
+    if (!confirm) return;
+
+    try {
+      const promises = Array.from(selectedIds).map((id: string) => {
+        const work = assignments.find(a => a.id === id);
+        if (!work) return Promise.resolve();
+        const collectionName = (work.collectionName as string) || 'service_requests';
+        const docRef = doc(db, collectionName, id);
+        return updateDoc(docRef, {
+          technicianArchived: true
+        });
+      });
+      await Promise.all(promises);
+      toast.success(`${selectedIds.size} items cleared from log`);
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+      setSelectedWork(null);
+    } catch (_error) {
+      toast.error('Failed to clear selected items');
+    }
+  };
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-slate-200">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between px-2">
           <div>
-            <h1 className="text-3xl font-medium text-white tracking-tight">FMC ENGINEERS Portal</h1>
-            <p className="text-dark-text-subtle mt-1 font-serif italic uppercase tracking-widest text-[10px] font-black">{profile?.displayName} • Operational Node Active</p>
+            <h1 className="text-3xl font-medium text-white tracking-tight uppercase">{portalConfig.title}</h1>
+            <p className="text-dark-text-subtle mt-1 font-serif italic uppercase tracking-widest text-[10px] font-black">{profile?.displayName} • {portalConfig.subtitle}</p>
           </div>
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex bg-dark-card px-4 py-2 rounded-lg border border-dark-border items-center gap-3 shadow-xl">
@@ -290,28 +374,91 @@ export function TechnicianDashboard() {
         </div>
       </div>
 
-      {/* Analytics Subsection */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 bg-dark-card rounded-2xl border border-dark-border p-6 shadow-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-dark-accent/5 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-dark-accent/10 transition-colors"></div>
-            <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-6 flex items-center gap-2">
+      {/* Analytics Stats Deck */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-dark-accent/5 rounded-full -mr-12 -mt-12 blur-3xl"></div>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-dark-main border border-dark-border flex items-center justify-center text-dark-accent">
+              <Layers className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Total Requests</p>
+              <h3 className="text-2xl font-mono font-bold text-white mt-1">{stats.total.toString().padStart(2, '0')}</h3>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full -mr-12 -mt-12 blur-3xl"></div>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-dark-main border border-dark-border flex items-center justify-center text-amber-500">
+              <Activity className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Active Task</p>
+              <h3 className="text-2xl font-mono font-bold text-white mt-1">{stats.active.toString().padStart(2, '0')}</h3>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full -mr-12 -mt-12 blur-3xl"></div>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-dark-main border border-dark-border flex items-center justify-center text-blue-400">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Pending Sync</p>
+              <h3 className="text-2xl font-mono font-bold text-white mt-1">{stats.pending.toString().padStart(2, '0')}</h3>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full -mr-12 -mt-12 blur-3xl"></div>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-dark-main border border-dark-border flex items-center justify-center text-emerald-400">
+              <CheckCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Finalized</p>
+              <h3 className="text-2xl font-mono font-bold text-white mt-1">{stats.finalized.toString().padStart(2, '0')}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Finalized Chart & Distribution */}
+      {stats.total > 0 && (
+        <div className="bg-dark-card border border-dark-border rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
               <BarChart3 className="w-3 h-3 text-dark-accent" />
-              Operational Status Distribution
+              Operational Cycle Chart
             </h3>
-            <div className="h-[180px] w-full">
+            <div className="flex items-center gap-4">
+              {stats.chartData.map((item, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.color }}></div>
+                  <span className="text-[10px] font-mono text-dark-text-subtle uppercase">{item.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            <div className="lg:col-span-4 h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={statusChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={65}
-                    paddingAngle={8}
+                    data={stats.chartData}
+                    innerRadius={55}
+                    outerRadius={75}
+                    paddingAngle={5}
                     dataKey="value"
                     stroke="none"
                   >
-                    {statusChartData.map((entry, index) => (
+                    {stats.chartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -322,91 +469,30 @@ export function TechnicianDashboard() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-               {statusChartData.slice(0, 4).map((item, i) => (
-                 <div key={i} className="flex items-center gap-2">
-                   <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.color }}></div>
-                   <span className="text-[9px] font-mono text-dark-text-subtle uppercase">{item.name}: {item.value}</span>
-                 </div>
-               ))}
-            </div>
-        </div>
-
-        <div className="lg:col-span-1 bg-dark-card rounded-2xl border border-dark-border p-6 shadow-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-emerald-500/10 transition-colors"></div>
-            <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-6 flex items-center gap-2">
-              <BarChart3 className="w-3 h-3 text-emerald-400" />
-              Vector Type Metrics
-            </h3>
-            <div className="h-[180px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={typeChartData}>
-                  <XAxis dataKey="name" hide />
-                  <YAxis hide />
-                  <Tooltip 
-                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', fontSize: '10px' }}
-                  />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {typeChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex items-center justify-center gap-6 mt-4">
-              {typeChartData.map((item, i) => (
-                <div key={i} className="text-center">
-                  <p className="text-lg font-mono font-bold text-white leading-none">{item.value.toString().padStart(2, '0')}</p>
-                  <p className="text-[8px] font-black text-dark-text-subtle uppercase tracking-widest mt-1" style={{ color: item.color }}>{item.name}</p>
-                </div>
-              ))}
-            </div>
-        </div>
-
-        <div className="lg:col-span-1 bg-dark-card rounded-2xl border border-dark-border p-6 shadow-xl flex flex-col justify-between">
-           <div>
-              <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Clock className="w-3 h-3 text-amber-500" />
-                Operational Velocity
-              </h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-400 capitalize">Active Deployments</span>
-                  <span className="text-sm font-mono text-white">{assignments.filter(a => ['ACCEPTED', 'IN_PROGRESS'].includes(a.status)).length}</span>
-                </div>
-                <div className="w-full bg-dark-main h-1.5 rounded-full overflow-hidden">
-                   <div 
-                    className="h-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" 
-                    style={{ width: `${(assignments.filter(a => ['ACCEPTED', 'IN_PROGRESS'].includes(a.status)).length / (assignments.length || 1)) * 100}%` }}
-                   ></div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-400 capitalize">Finalized Vectors</span>
-                  <span className="text-sm font-mono text-white">{statusStats['COMPLETED'] || 0}</span>
-                </div>
-                <div className="w-full bg-dark-main h-1.5 rounded-full overflow-hidden">
-                   <div 
-                    className="h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" 
-                    style={{ width: `${((statusStats['COMPLETED'] || 0) / (assignments.length || 1)) * 100}%` }}
-                   ></div>
-                </div>
+            <div className="lg:col-span-8">
+              <div className="space-y-6">
+                {stats.chartData.map((item, i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-white uppercase tracking-widest">{item.name} Lifecycle</span>
+                      <span className="text-[10px] font-mono text-dark-text-subtle">{Math.round((item.value / stats.total) * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-dark-main h-1.5 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(item.value / stats.total) * 100}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: item.color, boxShadow: `0 0 8px ${item.color}40` }}
+                      ></motion.div>
+                    </div>
+                  </div>
+                ))}
               </div>
-           </div>
-           <div className="mt-6 pt-6 border-t border-dark-border">
-              <div className="bg-dark-main/50 rounded-xl p-3 border border-dark-border flex items-center gap-4">
-                 <div className="w-10 h-10 rounded-lg bg-dark-card border border-dark-border flex items-center justify-center text-dark-accent font-black text-lg">
-                    {assignments.length.toString().padStart(2, '0')}
-                 </div>
-                 <div>
-                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Total Lifecycle Tasks</p>
-                    <p className="text-[9px] text-dark-text-subtle font-mono">Real-time sync active</p>
-                 </div>
-              </div>
-           </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         {/* Assignment Queue Sidebar / List */}
@@ -414,11 +500,50 @@ export function TechnicianDashboard() {
           <div className="flex items-center justify-between px-2 mb-4">
               <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
                 <ClipboardList className="w-3 h-3" />
-                Operational Assignments
+                {portalConfig.collection === 'service_requests' ? 'Service Log' : 'Operational Assignments'}
               </h3>
-            <span className="bg-dark-accent/20 text-dark-accent text-[9px] font-black px-2 py-0.5 rounded-full border border-dark-accent/20">
-              {assignments.length} ACTIVE
-            </span>
+            <div className="flex items-center gap-2">
+              {assignments.some(a => ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(a.status)) && (
+                <div className="flex items-center gap-1">
+                   {isSelectMode ? (
+                     <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
+                        <button 
+                          onClick={handleClearSelected}
+                          disabled={selectedIds.size === 0}
+                          className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-widest px-2 py-1 flex items-center gap-1 transition-colors disabled:opacity-30"
+                        >
+                          Clear ({selectedIds.size})
+                        </button>
+                        <button 
+                          onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }}
+                          className="text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest px-2 py-1"
+                        >
+                          Cancel
+                        </button>
+                     </div>
+                   ) : (
+                     <button 
+                        onClick={() => setIsSelectMode(true)}
+                        className="text-[9px] font-black text-dark-accent hover:text-indigo-300 uppercase tracking-widest px-2 py-1 flex items-center gap-1 transition-colors"
+                      >
+                        Select
+                      </button>
+                   )}
+                   {!isSelectMode && (
+                     <button 
+                        onClick={handleClearFinished}
+                        className="text-[9px] font-black text-red-500/80 hover:text-red-400 uppercase tracking-widest px-1 py-1 flex items-center gap-1 transition-colors"
+                        title="Clear all finished"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                   )}
+                </div>
+              )}
+              <span className="bg-dark-accent/20 text-dark-accent text-[9px] font-black px-2 py-0.5 rounded-full border border-dark-accent/20">
+                {assignments.length} ACTIVE
+              </span>
+            </div>
           </div>
 
           <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-300px)] scrollbar-hide pr-1">
@@ -433,33 +558,58 @@ export function TechnicianDashboard() {
                 <motion.div
                   layout
                   key={work.id}
-                  onClick={() => setSelectedWork(work)}
+                  onClick={() => isSelectMode ? null : setSelectedWork(work)}
                   className={cn(
-                    "p-4 rounded-xl border transition-all cursor-pointer group",
+                    "p-4 rounded-xl border transition-all cursor-pointer group relative",
                     selectedWork?.id === work.id 
                       ? "bg-dark-sidebar border-dark-accent ring-1 ring-dark-accent/10" 
-                      : "bg-dark-card border-dark-border hover:border-dark-text-muted/30"
+                      : "bg-dark-card border-dark-border hover:border-dark-text-muted/30",
+                    isSelectMode && selectedIds.has(work.id) && "border-dark-accent ring-1 ring-dark-accent/10 bg-dark-sidebar/40"
                   )}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5 overflow-hidden">
-                      {work.collectionName === 'camera_requests' ? <Camera className="w-2.5 h-2.5 text-purple-400" /> : 
-                       work.collectionName === 'vehicle_requests' ? <Truck className="w-2.5 h-2.5 text-blue-400" /> : 
-                       <Wrench className="w-2.5 h-2.5 text-emerald-400" />}
-                      <span className={cn("text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded", getStatusStyle(work.status))}>
-                        {work.status === 'COMPLETED' ? 'FINISHED' : work.status}
-                      </span>
+                  {isSelectMode && ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status) && (
+                    <div 
+                      onClick={(e) => toggleSelect(work.id, e)}
+                      className={cn(
+                        "absolute top-4 left-4 w-4 h-4 rounded border flex items-center justify-center transition-all z-20",
+                        selectedIds.has(work.id) ? "bg-dark-accent border-dark-accent" : "bg-dark-main border-dark-border"
+                      )}
+                    >
+                      {selectedIds.has(work.id) && <Check className="w-2.5 h-2.5 text-white" />}
                     </div>
-                    <span className="text-[9px] font-mono text-dark-text-subtle">#{work.id.slice(-4).toUpperCase()}</span>
-                  </div>
-                  <h4 className={cn("text-xs font-medium truncate mb-2", selectedWork?.id === work.id ? "text-white" : "text-slate-300")}>
-                    {work.collectionName === 'camera_requests' ? work.eventTitle : 
-                     work.collectionName === 'vehicle_requests' ? work.destination : 
-                     work.description}
-                  </h4>
-                  <div className="flex items-center gap-2 text-[9px] text-dark-text-subtle font-mono">
-                    <MapPin className="w-2.5 h-2.5 text-dark-accent" />
-                    {work.location || work.destination}
+                  )}
+                  <div className={cn("transition-all", isSelectMode && ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status) ? "pl-8" : "")}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5 overflow-hidden">
+                        {work.collectionName === 'camera_requests' ? <Camera className="w-2.5 h-2.5 text-purple-400" /> : 
+                         work.collectionName === 'vehicle_requests' ? <Truck className="w-2.5 h-2.5 text-blue-400" /> : 
+                         <Wrench className="w-2.5 h-2.5 text-emerald-400" />}
+                        <span className={cn("text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded", getStatusStyle(work.status))}>
+                          {work.status === 'COMPLETED' ? 'FINISHED' : work.status}
+                        </span>
+                        {!isSelectMode && ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status) && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleClearWork(work);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded text-red-400"
+                          >
+                            <Archive className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-[9px] font-mono text-dark-text-subtle">#{work.id.slice(-4).toUpperCase()}</span>
+                    </div>
+                    <h4 className={cn("text-xs font-medium truncate mb-2", selectedWork?.id === work.id ? "text-white" : "text-slate-300")}>
+                      {work.collectionName === 'camera_requests' ? work.eventTitle : 
+                       work.collectionName === 'vehicle_requests' ? work.destination : 
+                       work.description}
+                    </h4>
+                    <div className="flex items-center gap-2 text-[9px] text-dark-text-subtle font-mono">
+                      <MapPin className="w-2.5 h-2.5 text-dark-accent" />
+                      {work.location || work.destination}
+                    </div>
                   </div>
                 </motion.div>
               ))
@@ -578,6 +728,21 @@ export function TechnicianDashboard() {
                       )}>{selectedWork.priority}</p>
                       <p className="text-[11px] text-dark-text-subtle mt-1 italic font-serif">Standard deployment rules apply</p>
                     </div>
+
+                    {(selectedWork.assignedTechnicianName || selectedWork.assignedDriverName) && (
+                      <div className="p-6 bg-dark-main/50 border border-dark-border rounded-xl border-dashed">
+                        <p className="text-[10px] font-black text-dark-accent uppercase tracking-widest mb-3 flex items-center gap-2">
+                          <User className="w-3 h-3" />
+                          Assigned Professional
+                        </p>
+                        <p className="text-[0.9rem] font-medium text-slate-200">
+                          {selectedWork.assignedTechnicianName || selectedWork.assignedDriverName}
+                        </p>
+                        <p className="text-[11px] text-dark-text-subtle mt-1 font-mono">
+                          {selectedWork.assignedTechnicianPhone || selectedWork.assignedDriverPhone || 'Internal assignment'}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="bg-dark-sidebar/20 rounded-2xl p-8 border border-dark-border">

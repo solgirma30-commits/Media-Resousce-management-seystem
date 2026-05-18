@@ -72,10 +72,7 @@ export default function App() {
     sessionStorage.setItem('portal_verified', 'true');
   };
 
-  const [isInIframe, setIsInIframe] = useState(false);
-
   useEffect(() => {
-    setIsInIframe(window.self !== window.top);
     // Test connection as per guidelines (non-blocking)
     const testConnection = async () => {
       try {
@@ -187,9 +184,9 @@ export default function App() {
       <Toaster position="top-right" />
       {/* Connection warning removed from UI to avoid clutter, will remain in background state */}
       {!isPortalAuthenticated ? (
-        <Login onPortalVerify={verifyPortal} isInIframe={isInIframe} />
+        <Login onPortalVerify={verifyPortal} />
       ) : !user ? (
-        <Login onPortalVerify={verifyPortal} isPortalVerified={true} isInIframe={isInIframe} />
+        <Login onPortalVerify={verifyPortal} isPortalVerified={true} />
       ) : (!profile || isSelectingRole) ? (
         <RoleSetup onComplete={() => setIsSelectingRole(false)} />
       ) : (
