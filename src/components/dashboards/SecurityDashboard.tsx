@@ -225,11 +225,11 @@ export function SecurityDashboard() {
                  </li>
                  <li className="flex items-start gap-3">
                     <div className="w-1.5 h-1.5 rounded-full bg-pink-500 mt-1"></div>
-                    <p className="text-[11px] text-dark-text-subtle leading-relaxed">Verify Admin approval status in system before gate-out.</p>
+                    <p className="text-[11px] text-dark-text-subtle leading-relaxed">Verify operational approval status in system before gate-out.</p>
                  </li>
                  <li className="flex items-start gap-3">
                     <div className="w-1.5 h-1.5 rounded-full bg-pink-500 mt-1"></div>
-                    <p className="text-[11px] text-dark-text-subtle leading-relaxed">Ensure requestor identity matches the system assignment.</p>
+                    <p className="text-[11px] text-dark-text-subtle leading-relaxed">Ensure personnel identity matches the system assignment.</p>
                  </li>
               </ul>
            </div>
@@ -277,7 +277,7 @@ export function SecurityDashboard() {
 
                    <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-dark-main border border-dark-border rounded-xl">
-                        <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-1">Requestor</p>
+                        <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-1">Personnel</p>
                         <p className="text-sm font-medium text-slate-200">{selectedRequest.userName}</p>
                       </div>
                       <div className="p-4 bg-dark-main border border-dark-border rounded-xl">

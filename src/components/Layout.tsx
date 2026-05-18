@@ -117,6 +117,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         UserRole.TECHNICIAN,
         UserRole.DRIVER,
         UserRole.CAMERAMAN,
+        UserRole.SECURITY,
       ],
     },
     {
@@ -298,9 +299,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </p>
               <p className="text-[9px] text-dark-text-subtle truncate uppercase tracking-tight">
                 {profile?.role === UserRole.ADMIN
-                  ? "FMC ADMIN"
+                  ? "FMC COMMAND CENTER"
                   : profile?.role === UserRole.DEPT_DIRECTOR
-                    ? "FMC REQUEST"
+                    ? "FMC DEPT OPS"
                     : profile?.role === UserRole.TECHNICIAN
                       ? "FMC ENGINEERS"
                       : profile?.role === UserRole.DRIVER
@@ -464,9 +465,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="w-2 h-2 rounded-full bg-dark-accent animate-pulse"></div>
               <span className="text-xs font-bold text-white uppercase tracking-tight">
                 {profile?.role === UserRole.ADMIN
-                  ? "FMC ADMIN"
+                  ? "FMC COMMAND CENTER"
                   : profile?.role === UserRole.DEPT_DIRECTOR
-                    ? "FMC REQUEST"
+                    ? "FMC DEPT OPS"
                     : profile?.role === UserRole.TECHNICIAN
                       ? "FMC ENGINEERS"
                       : profile?.role === UserRole.DRIVER
