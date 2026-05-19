@@ -48,7 +48,7 @@ import { WeeklyReport } from '../WeeklyReport';
 
 export function AdminDashboard() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
+  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER' | 'SYSTEM'>('SERVICE');
   const [requests, setRequests] = useState<any[]>([]);
   const [cameraRequests, setCameraRequests] = useState<any[]>([]);
   const [vehicleRequests, setVehicleRequests] = useState<any[]>([]);
@@ -81,7 +81,8 @@ export function AdminDashboard() {
     CAMERA: { label: 'Surveillance Director', pin: '2020', icon: Camera },
     VEHICLE: { label: 'Logistics Director', pin: '3030', icon: Car },
     ITEM: { label: 'Security Director', pin: '4040', icon: Tag },
-    OTHER: { label: 'Operations Director', pin: '5050', icon: ClipboardList }
+    OTHER: { label: 'Operations Director', pin: '5050', icon: ClipboardList },
+    SYSTEM: { label: 'IT Systems Director', pin: '9090', icon: Settings }
   };
   
   useEffect(() => {
@@ -660,7 +661,13 @@ export function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <div className="flex items-center gap-3 bg-dark-card p-1.5 rounded-xl border border-dark-border w-fit">
+          <div className="flex items-center gap-3 bg-dark-card p-1.5 rounded-xl border border-dark-border w-full overflow-x-auto scrollbar-hide shrink-0">
+            <TabButton 
+              active={activeTab === 'SYSTEM'} 
+              label="System Control" 
+              icon={Settings} 
+              onClick={() => { setActiveTab('SYSTEM'); setSelectedRequest(null); }} 
+            />
             <TabButton 
               active={activeTab === 'SERVICE'} 
               label="Service & Repair" 
@@ -704,25 +711,142 @@ export function AdminDashboard() {
              </div>
 
              <div className="overflow-auto flex-1 scrollbar-hide">
-               <table className="w-full text-left border-collapse">
-                 <thead className="bg-dark-header sticky top-0 z-10">
-                   <tr>
-                     <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Request Reference</th>
-                     <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Details & Context</th>
-                     <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Status</th>
-                     <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Action</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-dark-border">
-                   {loading ? (
+               {activeTab === 'SYSTEM' ? (
+                 <div className="p-8 space-y-8 bg-dark-main/20">
+                   {/* Communication Gateway Status */}
+                   <div className="space-y-4">
+                     <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
+                       <MessageSquare className="w-3 h-3" />
+                       Communication Gateway Status
+                     </h3>
+                     <div className="flex items-center justify-between gap-4 p-6 rounded-2xl bg-dark-card border border-dark-border shadow-md">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-dark-accent rounded-xl flex items-center justify-center border border-slate-900/10 shadow-sm">
+                            <Settings className="w-6 h-6 text-yellow-400 animate-pulse" />
+                          </div>
+                          <div>
+                            <h4 className="text-white font-bold tracking-tight">Twilio Cloud Gateway</h4>
+                            <p className="text-[11px] text-dark-text-subtle font-serif italic mt-0.5">Primary vector for technician dispatch via SMS</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={async () => {
+                            if (!profile?.phoneNumber) {
+                              toast.error('Mission Protocol Failed: Self-contact number missing from profile. Please update security registry.');
+                              return;
+                            }
+
+                            const testPromise = fetch('/api/send-sms', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ 
+                                to: profile.phoneNumber, 
+                                message: `TEST: FMC Vector System Cloud Gateway Online. Verified at ${new Date().toLocaleTimeString()}` 
+                              }),
+                            }).then(async (res) => {
+                              const data = await res.json();
+                              if (!res.ok) {
+                                const error = new Error(data.message || data.error || 'Gateway offline');
+                                (error as any).code = data.error;
+                                throw error;
+                              }
+                              return data;
+                            });
+
+                            toast.promise(testPromise, {
+                              loading: 'Pinging cloud gateway...',
+                              success: 'Twilio Gateway responds: ONLINE',
+                              error: (err: any) => (
+                                <div className="flex flex-col gap-1">
+                                  <span className="font-bold">Transmission Failure</span>
+                                  <span className="text-[10px] leading-relaxed">
+                                    {err.code?.startsWith('TWILIO_') ? `Gateway Error: ${err.message}` : err.message}
+                                  </span>
+                                  {err.code === 'TWILIO_21608' || err.message.toLowerCase().includes('unverified') ? (
+                                    <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                                      <p className="text-[10px] text-amber-500 font-bold uppercase">Trial Account Restriction</p>
+                                      <p className="text-[9px] text-amber-600 leading-tight mt-1">Recipient number must be verified in your Twilio Console (twilio.com/user/account/phone-numbers/verified)</p>
+                                    </div>
+                                  ) : err.code === 'TWILIO_21211' || err.message.includes('Invalid') ? (
+                                    <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                                      <p className="text-[10px] text-red-500 font-bold uppercase">Invalid Format</p>
+                                      <p className="text-[9px] text-red-600 leading-tight mt-1">Ethiopian numbers must be +251 9... or +251 7... (Total 12 digits)</p>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )
+                            });
+                          }}
+                          className="px-8 py-3 bg-dark-accent text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-900/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        >
+                          Ping Connection
+                        </button>
+                      </div>
+                   </div>
+
+                   {/* Registry Overview */}
+                   <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
+                          <Users className="w-3 h-3" />
+                          Workforce Command
+                        </h3>
+                        <button 
+                          onClick={() => setIsPersonnelModalOpen(true)}
+                          className="text-[10px] font-black text-dark-accent uppercase tracking-widest hover:underline"
+                        >
+                          Expand Registry
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {technicians.slice(0, 4).map(tech => (
+                          <div key={tech.id} className="bg-dark-card border border-dark-border p-4 rounded-xl flex items-center justify-between">
+                             <div className="flex items-center gap-3">
+                               <div className="w-8 h-8 rounded-lg bg-dark-sidebar flex items-center justify-center text-[10px] font-black text-dark-accent border border-dark-border">
+                                {tech.displayName[0]}
+                               </div>
+                               <div>
+                                 <p className="text-xs font-bold text-white">{tech.displayName}</p>
+                                 <p className="text-[10px] text-dark-text-subtle font-mono tracking-tighter">{tech.phoneNumber || 'Contact Null'}</p>
+                               </div>
+                             </div>
+                             <div className={cn(
+                                "w-2 h-2 rounded-full",
+                                tech.phoneNumber ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                             )} />
+                          </div>
+                        ))}
+                        {technicians.length > 4 && (
+                          <button 
+                            onClick={() => setIsPersonnelModalOpen(true)}
+                            className="bg-dark-card/50 border border-dashed border-dark-border p-4 rounded-xl flex items-center justify-center text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-dark-accent transition-all"
+                          >
+                            + View {technicians.length - 4} More Records
+                          </button>
+                        )}
+                      </div>
+                   </div>
+                 </div>
+               ) : (
+                 <table className="w-full text-left border-collapse">
+                   <thead className="bg-dark-header sticky top-0 z-10">
                      <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-dark-text-subtle">Synchronizing data...</td>
+                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Request Reference</th>
+                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Details & Context</th>
+                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Status</th>
+                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Action</th>
                      </tr>
-                   ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).length === 0 ? (
-                     <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
-                     </tr>
-                   ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).map((request) => (
+                   </thead>
+                   <tbody className="divide-y divide-dark-border">
+                     {loading ? (
+                       <tr>
+                          <td colSpan={4} className="px-6 py-12 text-center text-dark-text-subtle">Synchronizing data...</td>
+                       </tr>
+                     ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).length === 0 ? (
+                       <tr>
+                          <td colSpan={4} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
+                       </tr>
+                     ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).map((request) => (
                        <tr key={request.id} className="hover:bg-dark-main/40 transition-colors group">
                          <td className="px-6 py-5">
                              <div className="text-[12px] font-bold text-dark-accent mb-1 tracking-tight">
@@ -803,6 +927,7 @@ export function AdminDashboard() {
                    }
                  </tbody>
                </table>
+              )}
              </div>
           </div>
         </div>
