@@ -405,13 +405,13 @@ export function DeptDirectorDashboard() {
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-medium text-white tracking-tight">FMC REQUEST Portal</h1>
+          <h1 className="text-3xl font-medium text-slate-950 tracking-tight">FMC REQUEST Portal</h1>
           <p className="text-dark-text-subtle mt-1 font-serif italic text-sm">Unified request management system</p>
         </div>
         <button
           id="new-request-btn"
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-dark-accent hover:bg-indigo-600 text-white font-bold py-3.5 px-6 rounded-lg transition-all shadow-lg shadow-indigo-900/40 active:scale-95 text-[0.85rem]"
+          className="flex items-center justify-center gap-2 bg-dark-accent hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-lg transition-all shadow-lg shadow-indigo-900/40 active:scale-95 text-[0.85rem]"
         >
           <Plus className="w-4 h-4" />
           Create New {activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : 'Vehicle'} Request
@@ -464,25 +464,25 @@ export function DeptDirectorDashboard() {
             label="Total Requests" 
             value={requests.length} 
             icon={Tag} 
-            color="text-indigo-400 bg-indigo-500/10" 
+            color="text-indigo-700 bg-indigo-500/10" 
           />
           <StatCard 
             label="Active Tasks" 
             value={requests.filter(r => ['ASSIGNED', 'ACCEPTED', 'IN_PROGRESS'].includes(r.status)).length} 
             icon={Clock} 
-            color="text-amber-400 bg-amber-500/10" 
+            color="text-amber-700 bg-amber-500/10" 
           />
           <StatCard 
             label="Pending Sync" 
             value={requests.filter(r => r.status === 'COMPLETED').length} 
             icon={AlertCircle} 
-            color="text-rose-400 bg-rose-500/10" 
+            color="text-rose-700 bg-rose-500/10" 
           />
           <StatCard 
             label="Finalized" 
             value={requests.filter(r => ['CONFIRMED', 'CLOSED'].includes(r.status)).length} 
             icon={CheckCircle2} 
-            color="text-emerald-400 bg-emerald-500/10" 
+            color="text-emerald-700 bg-emerald-500/10" 
           />
         </div>
       )}
@@ -547,7 +547,7 @@ export function DeptDirectorDashboard() {
                       </span>
                     </div>
                     
-                    <h4 className="font-medium text-slate-200 text-lg group-hover:text-white transition-colors">
+                    <h4 className="font-medium text-slate-900 text-lg group-hover:text-slate-950 transition-colors">
                       {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
                     </h4>
 
@@ -649,7 +649,7 @@ export function DeptDirectorDashboard() {
              >
                 <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                    <div>
-                      <h2 className="text-2xl font-medium text-white tracking-tight">Request Details</h2>
+                      <h2 className="text-2xl font-medium text-slate-950 tracking-tight">Request Details</h2>
                       <p className="text-dark-text-subtle text-sm mt-1">Status: {selectedRequest.status.replace('_', ' ')}</p>
                    </div>
                    <button onClick={() => setSelectedRequest(null)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
@@ -1252,16 +1252,16 @@ function StatCard({ label, value, icon: Icon, color }: any) {
 
 const getStatusStyle = (status: string) => {
   switch (status) {
-    case 'NEW': return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
-    case 'APPROVED': return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
-    case 'ASSIGNED': return 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20';
-    case 'ACCEPTED': return 'bg-violet-500/10 text-violet-400 border border-violet-500/20';
-    case 'IN_PROGRESS': return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
-    case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-    case 'CONFIRMED': return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
-    case 'CLOSED': return 'bg-slate-500/20 text-slate-300 border border-slate-500/30';
-    case 'EXITED': return 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
-    case 'RETURNED': return 'bg-teal-500/10 text-teal-400 border border-teal-500/20';
-    default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
+    case 'NEW': return 'bg-blue-500/10 text-blue-700 border border-blue-500/20';
+    case 'APPROVED': return 'bg-cyan-500/10 text-cyan-700 border border-cyan-500/20';
+    case 'ASSIGNED': return 'bg-indigo-500/10 text-indigo-700 border border-indigo-500/20';
+    case 'ACCEPTED': return 'bg-violet-500/10 text-violet-700 border border-violet-500/20';
+    case 'IN_PROGRESS': return 'bg-amber-500/10 text-amber-900 border border-amber-500/20';
+    case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20';
+    case 'CONFIRMED': return 'bg-slate-500/10 text-emerald-800 border border-emerald-500/20';
+    case 'CLOSED': return 'bg-slate-500/20 text-slate-800 border border-slate-500/30';
+    case 'EXITED': return 'bg-pink-500/10 text-pink-700 border border-pink-500/20';
+    case 'RETURNED': return 'bg-teal-500/10 text-teal-700 border border-teal-500/20';
+    default: return 'bg-slate-500/10 text-slate-700 border border-slate-500/20';
   }
 };

@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-dark-main: #0F1115;
-  --color-dark-sidebar: #16191E;
-  --color-dark-card: #1A1D23;
-  --color-dark-border: #2D323B;
-  --color-dark-header: #23272F;
-  --color-dark-accent: #6366F1;
-  --color-dark-text-muted: #94A3B8;
-  --color-dark-text-subtle: #64748B;
+  --color-dark-main: #FACC15; /* Yellow 400 */
+  --color-dark-sidebar: #EAB308; /* Yellow 500 */
+  --color-dark-card: #FEF08A; /* Yellow 200 */
+  --color-dark-border: #CA8A04; /* Yellow 600 */
+  --color-dark-header: #EAB308; /* Yellow 500 */
+  --color-dark-accent: #000000; /* Black for contrast on yellow */
+  --color-dark-text-muted: #475569; /* Slate 600 */
+  --color-dark-text-subtle: #334155; /* Slate 700 */
   
   --font-serif: "Georgia", serif;
   --font-mono: "Courier New", Courier, monospace;
@@ -16,7 +16,17 @@
 
 @layer base {
   body {
-    @apply bg-dark-main text-slate-200;
+    @apply bg-yellow-400 text-slate-900;
+  }
+
+  /* Prevent browser autofill from changing background colors */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover, 
+  input:-webkit-autofill:focus, 
+  input:-webkit-autofill:active  {
+    -webkit-box-shadow: 0 0 0 1000px black inset !important;
+    -webkit-text-fill-color: white !important;
+    transition: background-color 5000s ease-in-out 0s;
   }
 }
 

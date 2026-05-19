@@ -151,15 +151,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-dark-main flex flex-col md:flex-row text-slate-200">
+    <div className="min-h-screen bg-dark-main flex flex-col md:flex-row text-slate-900">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-dark-sidebar border-r border-dark-border h-screen sticky top-0 p-0">
         <div className="p-8 border-b border-dark-border">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-dark-accent rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/20">
-              <Control className="w-6 h-6 text-white" />
+              <Control className="w-6 h-6 text-yellow-400" />
             </div>
-            <span className="font-serif italic text-xl text-dark-accent tracking-wide">
+            <span className="font-serif italic text-xl text-slate-900 tracking-wide">
               TechOps Central
             </span>
           </div>
@@ -172,8 +172,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               key={item.id}
               className={cn(
                 "w-full flex items-center gap-3 px-8 py-3 transition-all text-[0.85rem] font-medium text-left",
-                "text-dark-text-muted hover:text-white hover:bg-dark-card/50",
-                "active:border-r-4 active:border-dark-accent active:bg-dark-card active:text-white",
+                "text-dark-text-muted hover:text-slate-900 hover:bg-dark-card/50",
+                "active:border-r-4 active:border-dark-accent active:bg-dark-card active:text-slate-900",
               )}
             >
               <item.icon className="w-4 h-4 opacity-70" />
@@ -184,9 +184,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
               className={cn(
-                "w-full flex items-center justify-between px-8 py-3 transition-all text-[0.85rem] font-medium hover:text-white hover:bg-dark-card/50",
+                "w-full flex items-center justify-between px-8 py-3 transition-all text-[0.85rem] font-medium hover:text-slate-900 hover:bg-dark-card/50",
                 isNotificationsOpen
-                  ? "text-white bg-dark-card/30"
+                  ? "text-slate-900 bg-dark-card/30"
                   : "text-dark-text-muted",
               )}
             >
@@ -257,7 +257,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             <div className="flex items-start gap-3">
                               <div className="w-2 h-2 rounded-full bg-dark-accent mt-1.5 shrink-0" />
                               <div>
-                                <p className="text-[11px] font-bold text-white leading-tight">
+                                <p className="text-[11px] font-bold text-slate-900 leading-tight">
                                   {n.title}
                                 </p>
                                 <p className="text-[10px] text-dark-text-subtle mt-1 leading-relaxed">
@@ -294,7 +294,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {profile?.displayName[0]}
             </div>
             <div className="overflow-hidden">
-              <p className="text-[0.75rem] font-bold text-white truncate">
+              <p className="text-[0.75rem] font-bold text-slate-900 truncate">
                 {profile?.displayName}
               </p>
               <p className="text-[9px] text-dark-text-subtle truncate uppercase tracking-tight">
@@ -335,7 +335,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <header className="md:hidden bg-dark-sidebar border-b border-dark-border px-4 py-4 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <Control className="w-6 h-6 text-dark-accent" />
-          <span className="font-serif italic text-lg text-white">
+          <span className="font-serif italic text-lg text-slate-900">
             TechOps Central
           </span>
         </div>
@@ -360,7 +360,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center justify-between mb-12">
               <div className="flex items-center gap-2">
                 <Control className="w-8 h-8 text-dark-accent" />
-                <span className="font-serif italic text-2xl text-white">
+                <span className="font-serif italic text-2xl text-slate-900">
                   TechOps Central
                 </span>
               </div>
@@ -375,7 +375,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   id={`mobile-nav-${item.id}`}
                   key={item.id}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full flex items-center gap-6 text-[1.1rem] text-dark-text-muted font-medium py-2 hover:text-white"
+                  className="w-full flex items-center gap-6 text-[1.1rem] text-dark-text-muted font-medium py-2 hover:text-slate-900"
                 >
                   <item.icon className="w-6 h-6 text-dark-accent" />
                   {item.label}
@@ -387,7 +387,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   setIsNotificationsOpen(true);
                   setIsMobileMenuOpen(false);
                 }}
-                className="w-full flex items-center justify-between text-[1.1rem] text-dark-text-muted font-medium py-2 hover:text-white border-t border-dark-border/50 pt-6"
+                className="w-full flex items-center justify-between text-[1.1rem] text-dark-text-muted font-medium py-2 hover:text-slate-900 border-t border-dark-border/50 pt-6"
               >
                 <div className="flex items-center gap-6">
                   <Bell className="w-6 h-6 text-dark-accent" />
@@ -407,7 +407,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {profile?.displayName[0]}
                 </div>
                 <div>
-                  <p className="font-bold text-white">{profile?.displayName}</p>
+                  <p className="font-bold text-slate-900">{profile?.displayName}</p>
                   <p className="text-sm text-dark-text-subtle">
                     {profile?.role === UserRole.ADMIN
                       ? "FMC COMMAND CENTER"
@@ -463,7 +463,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </span>
             <div className="flex items-center gap-2 justify-end">
               <div className="w-2 h-2 rounded-full bg-dark-accent animate-pulse"></div>
-              <span className="text-xs font-bold text-white uppercase tracking-tight">
+              <span className="text-xs font-bold text-slate-900 uppercase tracking-tight">
                 {profile?.role === UserRole.ADMIN
                   ? "FMC COMMAND CENTER"
                   : profile?.role === UserRole.DEPT_DIRECTOR

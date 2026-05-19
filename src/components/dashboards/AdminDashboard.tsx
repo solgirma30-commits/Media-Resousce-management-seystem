@@ -575,31 +575,31 @@ export function AdminDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-medium text-white tracking-tight">Fleet Operations Command</h1>
+            <h1 className="text-3xl font-medium text-slate-950 tracking-tight">Fleet Operations Command</h1>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  if (unlockedSectors.has(activeTab)) {
-                    setUnlockedSectors(prev => {
-                      const next = new Set(prev);
-                      next.delete(activeTab);
-                      return next;
-                    });
-                  } else {
-                    setPendingAction({ type: 'APPROVE', data: null, sector: activeTab });
-                    setIsUnlockModalOpen(true);
-                  }
-                }}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.1em] flex items-center gap-2 transition-all active:scale-95",
-                  unlockedSectors.has(activeTab) 
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20" 
-                    : "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20"
-                )}
-              >
-                {unlockedSectors.has(activeTab) ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                {unlockedSectors.has(activeTab) ? `${activeTab} Sector Authorized` : `${activeTab} Auth Required`}
-              </button>
+                              <button 
+                                onClick={() => {
+                                  if (unlockedSectors.has(activeTab)) {
+                                    setUnlockedSectors(prev => {
+                                      const next = new Set(prev);
+                                      next.delete(activeTab);
+                                      return next;
+                                    });
+                                  } else {
+                                    setPendingAction({ type: 'APPROVE', data: null, sector: activeTab });
+                                    setIsUnlockModalOpen(true);
+                                  }
+                                }}
+                                className={cn(
+                                  "px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.1em] flex items-center gap-2 transition-all active:scale-95",
+                                  unlockedSectors.has(activeTab) 
+                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20" 
+                                    : "bg-amber-500/10 border-amber-500/20 text-amber-700 hover:bg-amber-500/20"
+                                )}
+                              >
+                                {unlockedSectors.has(activeTab) ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                                {unlockedSectors.has(activeTab) ? `${activeTab} Sector Authorized` : `${activeTab} Auth Required`}
+                              </button>
               
               {unlockedSectors.size > 0 && (
                 <button 
@@ -629,7 +629,7 @@ export function AdminDashboard() {
             <div className={cn("p-2 rounded-lg inline-flex mb-4 bg-dark-main/50", stat.color)}>
               <stat.icon className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-mono font-bold text-white tracking-tighter">{stat.value.toString().padStart(2, '0')}</p>
+            <p className="text-2xl font-mono font-bold text-slate-950 tracking-tighter">{stat.value.toString().padStart(2, '0')}</p>
             <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">{stat.label}</p>
           </div>
         ))}
@@ -716,17 +716,17 @@ export function AdminDashboard() {
                                   {request.departmentName}
                                </span>
                                {activeTab === 'ITEM' && (
-                                  <span className="text-[9px] font-mono text-pink-400 bg-pink-500/5 px-1.5 py-0.5 rounded border border-pink-500/10">
+                                  <span className="text-[9px] font-mono text-pink-700 bg-pink-500/5 px-1.5 py-0.5 rounded border border-pink-500/10">
                                      S/N: {request.serialNumber || 'N/A'}
                                   </span>
                                 )}
                                {activeTab === 'CAMERA' && (
-                                 <span className="text-[9px] font-mono text-amber-400 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10">
+                                 <span className="text-[9px] font-mono text-amber-700 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10">
                                     {request.date}
                                  </span>
                                )}
                                {activeTab === 'VEHICLE' && (
-                                 <span className="text-[9px] font-mono text-indigo-400 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10">
+                                 <span className="text-[9px] font-mono text-indigo-700 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10">
                                     {request.departureDate} @ {request.departureTime}
                                  </span>
                                )}
@@ -752,7 +752,7 @@ export function AdminDashboard() {
                             ) : request.status === 'COMPLETED' ? (
                               <button 
                                 onClick={() => setSelectedRequest(request)}
-                                className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest"
+                                className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-3 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest"
                               >
                                 <CheckCircle2 className="w-3 h-3" />
                                 Review
@@ -791,12 +791,12 @@ export function AdminDashboard() {
           <div className="overflow-auto flex-1 divide-y divide-dark-border">
             {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => (
               <div key={tech.id} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
-                <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-white border border-dark-border uppercase">
+                <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-slate-950 border border-dark-border uppercase">
                   {tech.displayName.split(' ').map((n: string) => n[0]).join('')}
                 </div>
                   <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <div className="text-[0.85rem] font-medium text-slate-200">{tech.displayName}</div>
+                    <div className="text-[0.85rem] font-medium text-slate-900">{tech.displayName}</div>
                     <span className="text-[7px] font-black px-1.5 py-0.5 rounded border border-dark-border uppercase tracking-tight text-dark-text-subtle">
                       {tech.role}
                     </span>
@@ -1338,16 +1338,16 @@ function TabButton({ active, label, icon: Icon, onClick }: { active: boolean, la
 
 const getStatusStyle = (status: string) => {
   switch (status) {
-    case 'NEW': return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
-    case 'APPROVED': return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
-    case 'ASSIGNED': return 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20';
-    case 'ACCEPTED': return 'bg-violet-500/10 text-violet-400 border border-violet-500/20';
-    case 'IN_PROGRESS': return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
-    case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-    case 'CONFIRMED': return 'bg-slate-500/10 text-emerald-400 border border-emerald-500/20';
-    case 'CLOSED': return 'bg-slate-500/20 text-slate-300 border border-slate-500/30';
-    case 'EXITED': return 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
-    case 'RETURNED': return 'bg-teal-500/10 text-teal-400 border border-teal-500/20';
-    default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
+    case 'NEW': return 'bg-blue-500/10 text-blue-700 border border-blue-500/20';
+    case 'APPROVED': return 'bg-cyan-500/10 text-cyan-700 border border-cyan-500/20';
+    case 'ASSIGNED': return 'bg-indigo-500/10 text-indigo-700 border border-indigo-500/20';
+    case 'ACCEPTED': return 'bg-violet-500/10 text-violet-700 border border-violet-500/20';
+    case 'IN_PROGRESS': return 'bg-amber-500/10 text-amber-900 border border-amber-500/20';
+    case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20';
+    case 'CONFIRMED': return 'bg-slate-500/10 text-emerald-800 border border-emerald-500/20';
+    case 'CLOSED': return 'bg-slate-500/20 text-slate-800 border border-slate-500/30';
+    case 'EXITED': return 'bg-pink-500/10 text-pink-700 border border-pink-500/20';
+    case 'RETURNED': return 'bg-teal-500/10 text-teal-700 border border-teal-500/20';
+    default: return 'bg-slate-500/10 text-slate-700 border border-slate-500/20';
   }
 };

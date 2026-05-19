@@ -406,7 +406,7 @@ export function TechnicianDashboard() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-slate-200">
       <div className="flex items-center justify-between px-2">
           <div>
-            <h1 className="text-3xl font-medium text-white tracking-tight uppercase">{portalConfig.title}</h1>
+            <h1 className="text-3xl font-medium text-slate-950 tracking-tight uppercase">{portalConfig.title}</h1>
             <p className="text-dark-text-subtle mt-1 font-serif italic uppercase tracking-widest text-[10px] font-black">{profile?.displayName} • {portalConfig.subtitle}</p>
           </div>
         <div className="flex items-center gap-4">
@@ -427,7 +427,7 @@ export function TechnicianDashboard() {
             </div>
             <div>
               <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Total Requests</p>
-              <h3 className="text-2xl font-mono font-bold text-white mt-1">{stats.total.toString().padStart(2, '0')}</h3>
+              <h3 className="text-2xl font-mono font-bold text-slate-950 mt-1">{stats.total.toString().padStart(2, '0')}</h3>
             </div>
           </div>
         </div>
@@ -440,7 +440,7 @@ export function TechnicianDashboard() {
             </div>
             <div>
               <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Active Task</p>
-              <h3 className="text-2xl font-mono font-bold text-white mt-1">{stats.active.toString().padStart(2, '0')}</h3>
+              <h3 className="text-2xl font-mono font-bold text-slate-950 mt-1">{stats.active.toString().padStart(2, '0')}</h3>
             </div>
           </div>
         </div>
@@ -453,7 +453,7 @@ export function TechnicianDashboard() {
             </div>
             <div>
               <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Pending Sync</p>
-              <h3 className="text-2xl font-mono font-bold text-white mt-1">{stats.pending.toString().padStart(2, '0')}</h3>
+              <h3 className="text-2xl font-mono font-bold text-slate-950 mt-1">{stats.pending.toString().padStart(2, '0')}</h3>
             </div>
           </div>
         </div>
@@ -466,7 +466,7 @@ export function TechnicianDashboard() {
             </div>
             <div>
               <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Finalized</p>
-              <h3 className="text-2xl font-mono font-bold text-white mt-1">{stats.finalized.toString().padStart(2, '0')}</h3>
+              <h3 className="text-2xl font-mono font-bold text-slate-950 mt-1">{stats.finalized.toString().padStart(2, '0')}</h3>
             </div>
           </div>
         </div>
@@ -517,7 +517,7 @@ export function TechnicianDashboard() {
                 {stats.chartData.map((item, i) => (
                   <div key={i} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-white uppercase tracking-widest">{item.name} Lifecycle</span>
+                      <span className="text-[10px] font-black text-slate-950 uppercase tracking-widest">{item.name} Lifecycle</span>
                       <span className="text-[10px] font-mono text-dark-text-subtle">{Math.round((item.value / stats.total) * 100)}%</span>
                     </div>
                     <div className="w-full bg-dark-main h-1.5 rounded-full overflow-hidden">
@@ -644,7 +644,7 @@ export function TechnicianDashboard() {
                       </div>
                       <span className="text-[9px] font-mono text-dark-text-subtle">#{work.id.slice(-4).toUpperCase()}</span>
                     </div>
-                    <h4 className={cn("text-xs font-medium truncate mb-2", selectedWork?.id === work.id ? "text-white" : "text-slate-300")}>
+                    <h4 className={cn("text-xs font-medium truncate mb-2", selectedWork?.id === work.id ? "text-slate-950" : "text-slate-800")}>
                       {work.collectionName === 'camera_requests' ? (work.eventTitle || work.purpose) : 
                        work.collectionName === 'vehicle_requests' ? (work.tripName || work.destination) : 
                        (work.workName || work.description)}
@@ -697,7 +697,7 @@ export function TechnicianDashboard() {
                         </span>
                         <span className="text-[10px] font-mono text-dark-text-subtle">VECT_{selectedWork.id.slice(-6).toUpperCase()}</span>
                       </div>
-                      <h2 className="text-2xl font-medium text-white tracking-tight">
+                      <h2 className="text-2xl font-medium text-slate-950 tracking-tight">
                          {selectedWork.collectionName === 'camera_requests' ? (selectedWork.eventTitle || selectedWork.purpose) : 
                           selectedWork.collectionName === 'vehicle_requests' ? (selectedWork.tripName || selectedWork.destination) : 
                           (selectedWork.workName || selectedWork.description)}
@@ -708,7 +708,7 @@ export function TechnicianDashboard() {
                     <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-1">
                       {selectedWork.collectionName === 'vehicle_requests' ? 'Mission Date' : 'Assigned Date'}
                     </p>
-                    <p className="text-sm font-mono text-slate-200">
+                    <p className="text-sm font-mono text-slate-900">
                       {selectedWork.collectionName === 'vehicle_requests' ? selectedWork.departureDate : 
                        selectedWork.createdAt?.toDate ? format(selectedWork.createdAt.toDate(), 'dd MMM yyyy') : 'Pending'}
                     </p>
@@ -722,7 +722,7 @@ export function TechnicianDashboard() {
                         <MapPin className="w-3 h-3 text-dark-accent" />
                         Target Sector
                       </p>
-                      <p className="text-[0.9rem] font-medium text-slate-200">{selectedWork.location || selectedWork.destination}</p>
+                      <p className="text-[0.9rem] font-medium text-slate-900">{selectedWork.location || selectedWork.destination}</p>
                       <p className="text-[11px] text-dark-text-subtle mt-1">{selectedWork.departmentName}</p>
                     </div>
                     {selectedWork.collectionName === 'vehicle_requests' ? (
@@ -984,16 +984,16 @@ export function TechnicianDashboard() {
 
 const getStatusStyle = (status: string) => {
   switch (status) {
-    case 'NEW': return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
-    case 'APPROVED': return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
-    case 'ASSIGNED': return 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20';
-    case 'ACCEPTED': return 'bg-violet-500/10 text-violet-400 border border-violet-500/20';
-    case 'IN_PROGRESS': return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
-    case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-    case 'CONFIRMED': return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
-    case 'CLOSED': return 'bg-slate-500/20 text-slate-300 border border-slate-500/30';
-    case 'EXITED': return 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
-    case 'RETURNED': return 'bg-teal-500/10 text-teal-400 border border-teal-500/20';
-    default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
+    case 'NEW': return 'bg-blue-500/10 text-blue-700 border border-blue-500/20';
+    case 'APPROVED': return 'bg-cyan-500/10 text-cyan-700 border border-cyan-500/20';
+    case 'ASSIGNED': return 'bg-indigo-500/10 text-indigo-700 border border-indigo-500/20';
+    case 'ACCEPTED': return 'bg-violet-500/10 text-violet-700 border border-violet-500/20';
+    case 'IN_PROGRESS': return 'bg-amber-500/10 text-amber-900 border border-amber-500/20';
+    case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20';
+    case 'CONFIRMED': return 'bg-slate-500/10 text-teal-700 border border-slate-500/20';
+    case 'CLOSED': return 'bg-slate-500/20 text-slate-800 border border-slate-500/30';
+    case 'EXITED': return 'bg-pink-500/10 text-pink-700 border border-pink-500/20';
+    case 'RETURNED': return 'bg-teal-500/10 text-teal-700 border border-teal-500/20';
+    default: return 'bg-slate-500/10 text-slate-700 border border-slate-500/20';
   }
 };

@@ -91,7 +91,7 @@ export function SecurityDashboard() {
     <div className="space-y-8 animate-in fade-in duration-700 text-slate-200">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-medium text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-3xl font-medium text-slate-950 tracking-tight flex items-center gap-3">
             <ShieldCheck className="w-8 h-8 text-pink-500" />
             Security Asset Monitoring
           </h1>
@@ -119,7 +119,7 @@ export function SecurityDashboard() {
                 <LogOut className="w-4 h-4 text-pink-400" />
                 Pending Exit Authorizations
               </h3>
-              <span className="bg-pink-500/10 text-pink-400 text-[10px] font-black px-2 py-0.5 rounded border border-pink-500/20 uppercase tracking-widest">
+              <span className="bg-pink-500/10 text-pink-700 text-[10px] font-black px-2 py-0.5 rounded border border-pink-500/20 uppercase tracking-widest">
                 {pendingExits.length} Active
               </span>
             </div>
@@ -132,18 +132,18 @@ export function SecurityDashboard() {
                 pendingExits.map((req) => (
                   <div key={req.id} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
                     <div className="flex items-center gap-5">
-                      <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-pink-400 group-hover:scale-110 transition-transform">
+                      <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-pink-600 group-hover:scale-110 transition-transform">
                         <Tag className="w-6 h-6" />
                       </div>
                       <div>
                         <div className="flex items-center gap-3">
-                          <h4 className="text-sm font-bold text-white">{req.itemName}</h4>
+                          <h4 className="text-sm font-bold text-slate-900">{req.itemName}</h4>
                           <span className="text-[10px] font-mono text-dark-accent bg-dark-main px-1.5 py-0.5 rounded border border-dark-border">
                             #{req.id.slice(-6).toUpperCase()}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[11px] text-dark-text-subtle">
-                          <span className="font-mono text-pink-400/80">S/N: {req.serialNumber}</span>
+                          <span className="font-mono text-pink-700">S/N: {req.serialNumber}</span>
                           <span className="text-dark-accent/40">•</span>
                           <span className="uppercase tracking-tight">{req.departmentName}</span>
                         </div>
@@ -177,12 +177,12 @@ export function SecurityDashboard() {
                       <div className="flex items-center gap-4">
                         <div className={cn(
                           "w-8 h-8 rounded-lg flex items-center justify-center border",
-                          req.status === 'RETURNED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-pink-500/10 border-pink-500/20 text-pink-400"
+                          req.status === 'RETURNED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700" : "bg-pink-500/10 border-pink-500/20 text-pink-700"
                         )}>
                           <CheckCircle2 className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-200">{req.itemName}</p>
+                          <p className="text-xs font-bold text-slate-900">{req.itemName}</p>
                           <p className="text-[10px] text-dark-text-subtle font-mono">{req.serialNumber}</p>
                         </div>
                       </div>
@@ -206,11 +206,11 @@ export function SecurityDashboard() {
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest mb-4">Verification Stats</h3>
               <div className="grid grid-cols-2 gap-4">
                  <div className="p-4 bg-dark-main border border-dark-border rounded-xl">
-                    <p className="text-2xl font-bold text-white font-mono">{pendingExits.length.toString().padStart(2, '0')}</p>
+                    <p className="text-2xl font-bold text-slate-950 font-mono">{pendingExits.length.toString().padStart(2, '0')}</p>
                     <p className="text-[9px] font-black text-dark-text-subtle uppercase tracking-widest mt-1">Pending Gate</p>
                  </div>
                  <div className="p-4 bg-dark-main border border-dark-border rounded-xl">
-                    <p className="text-2xl font-bold text-white font-mono">{loggedExits.length.toString().padStart(2, '0')}</p>
+                    <p className="text-2xl font-bold text-slate-950 font-mono">{loggedExits.length.toString().padStart(2, '0')}</p>
                     <p className="text-[9px] font-black text-dark-text-subtle uppercase tracking-widest mt-1">Total Verified</p>
                  </div>
               </div>
@@ -254,7 +254,7 @@ export function SecurityDashboard() {
             >
               <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-medium text-white tracking-tight">Gate-Out Verification</h2>
+                  <h2 className="text-2xl font-medium text-slate-950 tracking-tight">Gate-Out Verification</h2>
                   <p className="text-dark-text-subtle text-sm mt-1">Authorized ID: #{selectedRequest.id.slice(-6).toUpperCase()}</p>
                 </div>
                 <button onClick={() => setSelectedRequest(null)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
@@ -267,7 +267,7 @@ export function SecurityDashboard() {
                    <div className="flex items-center justify-between p-4 bg-dark-main border border-dark-border rounded-xl">
                       <div>
                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-1">Asset Model</p>
-                        <p className="text-lg font-bold text-white">{selectedRequest.itemName}</p>
+                        <p className="text-lg font-bold text-slate-950">{selectedRequest.itemName}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-1">Serial Number</p>
@@ -278,11 +278,11 @@ export function SecurityDashboard() {
                    <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-dark-main border border-dark-border rounded-xl">
                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-1">Personnel</p>
-                        <p className="text-sm font-medium text-slate-200">{selectedRequest.userName}</p>
+                        <p className="text-sm font-medium text-slate-900">{selectedRequest.userName}</p>
                       </div>
                       <div className="p-4 bg-dark-main border border-dark-border rounded-xl">
                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-1">Department</p>
-                        <p className="text-sm font-medium text-slate-200">{selectedRequest.departmentName}</p>
+                        <p className="text-sm font-medium text-slate-900">{selectedRequest.departmentName}</p>
                       </div>
                    </div>
 

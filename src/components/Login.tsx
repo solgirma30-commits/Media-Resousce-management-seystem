@@ -121,7 +121,7 @@ export function Login({
       <motion.div 
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-lg p-8 bg-[#0a0a0a] rounded-lg shadow-[0_0_50px_rgba(0,0,0,1)] z-10 border border-[#1a1a1a] relative overflow-hidden"
+        className="w-full max-w-lg p-8 bg-black rounded-lg shadow-[0_0_50px_rgba(0,0,0,1)] z-10 border border-[#1a1a1a] relative overflow-hidden"
       >
         {/* Terminal Header */}
         <div className="flex items-center justify-between mb-10 border-b border-[#1a1a1a] pb-6">
@@ -233,7 +233,7 @@ export function Login({
             animate={{ opacity: 1, y: 0 }}
             className="space-y-8"
           >
-            <div className="bg-[#101010] border border-[#1a1a1a] p-6 rounded-lg">
+            <div className="bg-black border border-[#1a1a1a] p-6 rounded-lg">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-12 h-12 rounded-full border-2 border-emerald-500/30 flex items-center justify-center text-emerald-500">
                   <ShieldCheck className="w-6 h-6 animate-pulse" />
