@@ -410,9 +410,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <p className="font-bold text-white">{profile?.displayName}</p>
                   <p className="text-sm text-dark-text-subtle">
                     {profile?.role === UserRole.ADMIN
-                      ? "FMC ADMIN"
+                      ? "FMC COMMAND CENTER"
                       : profile?.role === UserRole.DEPT_DIRECTOR
-                        ? "FMC REQUEST"
+                        ? "FMC DEPT OPS"
                         : profile?.role === UserRole.TECHNICIAN
                           ? "FMC ENGINEERS"
                           : profile?.role === UserRole.DRIVER
