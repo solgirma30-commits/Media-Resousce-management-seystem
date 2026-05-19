@@ -49,6 +49,7 @@ import { useAuth } from '../../App';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
+import { notificationService } from '../../services/notificationService';
 
 export function TechnicianDashboard() {
   const { profile } = useAuth();
@@ -143,10 +144,9 @@ export function TechnicianDashboard() {
                               path === 'vehicle_requests' ? (data.tripName || data.destination) : 
                               (data.workName || data.description);
             if (data.status === 'ASSIGNED') {
-              toast(`NEW ASSIGNMENT: ${displayName}`, {
-                icon: '📋',
-                duration: 8000,
-                style: { background: '#0a0a0a', color: '#fff', border: '1px solid #27272a' }
+              notificationService.notify(`NEW ASSIGNMENT: ${displayName}`, {
+                body: "Check your portal for details",
+                icon: '/pwa-512x512.png'
               });
             }
           }
@@ -169,10 +169,9 @@ export function TechnicianDashboard() {
             const displayName = path === 'camera_requests' ? (data.eventTitle || data.purpose) : 
                               path === 'vehicle_requests' ? (data.tripName || data.destination) : 
                               (data.workName || data.description);
-            toast(`NEW UNASSIGNED REQUEST: ${displayName}`, {
-              icon: portalConfig.icon === Truck ? '🚗' : portalConfig.icon === Camera ? '📷' : '🛠️',
-              duration: 10000,
-              style: { background: '#1e1b4b', color: '#fff', border: '1px solid #312e81' }
+            notificationService.notify(`NEW UNASSIGNED REQUEST: ${displayName}`, {
+              body: "Available for pick up",
+              icon: '/pwa-512x512.png'
             });
           }
         });

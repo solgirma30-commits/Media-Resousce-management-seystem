@@ -105,6 +105,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleTestNotification = () => {
+    notificationService.notify("Operational Test", {
+      body: "System handshake successful. Notifications are active.",
+    });
+  };
+
   const navItems = [
     {
       id: "dashboard",
@@ -281,13 +287,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="text-[10px] text-dark-text-subtle font-black uppercase tracking-widest">
                 SYSTEM HEALTH
               </div>
-              {permissionStatus !== "granted" && (
+              {permissionStatus !== "granted" ? (
                 <button 
                   onClick={handleRequestPermission}
                   className="text-[9px] font-black text-dark-accent hover:text-dark-accent/80 transition-colors uppercase tracking-[0.1em] flex items-center gap-1"
                 >
                   <Bell className="w-2 h-2" />
                   Enable Alerts
+                </button>
+              ) : (
+                <button 
+                  onClick={handleTestNotification}
+                  className="text-[9px] font-black text-dark-text-subtle hover:text-dark-accent transition-colors uppercase tracking-[0.1em] flex items-center gap-1"
+                >
+                  <Bell className="w-2 h-2" />
+                  Test Alert
                 </button>
               )}
             </div>

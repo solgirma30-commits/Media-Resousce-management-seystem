@@ -114,10 +114,9 @@ export function AdminDashboard() {
             const data = change.doc.data() as any;
             if (data.status === 'NEW' && !data.archived) {
               const displayName = data.workName || data.description;
-              toast(`NEW SERVICE: ${displayName} [${data.departmentName}]`, {
-                icon: '🛠️',
-                duration: 8000,
-                style: { background: '#1e293b', color: '#fff', border: '2px solid #6366f1' }
+              notificationService.notify(`NEW SERVICE: ${displayName}`, {
+                body: `Department: ${data.departmentName}`,
+                icon: '/pwa-512x512.png'
               });
             }
           }
@@ -152,10 +151,9 @@ export function AdminDashboard() {
             const data = change.doc.data() as any;
             if (data.status === 'NEW' && !data.archived) {
               const displayName = data.eventTitle || data.purpose;
-              toast(`NEW CAMERA: ${displayName} [${data.departmentName}]`, {
-                icon: '📷',
-                duration: 8000,
-                style: { background: '#1e293b', color: '#fff', border: '2px solid #f59e0b' }
+              notificationService.notify(`NEW CAMERA: ${displayName}`, {
+                body: `Department: ${data.departmentName}`,
+                icon: '/pwa-512x512.png'
               });
             }
           }
@@ -188,10 +186,9 @@ export function AdminDashboard() {
             const data = change.doc.data() as any;
             if (data.status === 'NEW' && !data.archived) {
               const displayName = data.tripName || data.destination;
-              toast(`NEW SHIPMENT: ${displayName} [${data.departmentName}]`, {
-                icon: '🚗',
-                duration: 8000,
-                style: { background: '#1e293b', color: '#fff', border: '2px solid #3b82f6' }
+              notificationService.notify(`NEW SHIPMENT: ${displayName}`, {
+                body: `Department: ${data.departmentName}`,
+                icon: '/pwa-512x512.png'
               });
             }
           }
@@ -224,10 +221,9 @@ export function AdminDashboard() {
             const data = change.doc.data() as any;
             if (data.status === 'NEW' && !data.archived) {
               const displayName = data.itemName || data.purpose;
-              toast(`NEW EXIT PERMIT: ${displayName} [${data.departmentName}]`, {
-                icon: '📦',
-                duration: 8000,
-                style: { background: '#1e293b', color: '#fff', border: '2px solid #ec4899' }
+              notificationService.notify(`NEW EXIT PERMIT: ${displayName}`, {
+                body: `Department: ${data.departmentName}`,
+                icon: '/pwa-512x512.png'
               });
             }
           }
@@ -260,10 +256,9 @@ export function AdminDashboard() {
             const data = change.doc.data() as any;
             if (data.status === 'NEW' && !data.archived) {
               const displayName = data.projectName || data.deviceModel;
-              toast(`NEW DEVICE REQUEST: ${displayName} [${data.departmentName}]`, {
-                icon: '🛠️',
-                duration: 8000,
-                style: { background: '#1e293b', color: '#fff', border: '2px solid #8b5cf6' }
+              notificationService.notify(`NEW DEVICE REQUEST: ${displayName}`, {
+                body: `Department: ${data.departmentName}`,
+                icon: '/pwa-512x512.png'
               });
             }
           }

@@ -32,7 +32,7 @@ class NotificationService {
     return permission === 'granted';
   }
 
-  public notify(title: string, options?: NotificationOptions) {
+  public async notify(title: string, options?: NotificationOptions) {
     // 1. Show in-app toast always
     toast(title, {
       icon: '🔔',
@@ -43,17 +43,27 @@ class NotificationService {
     // 2. Show browser notification if permitted
     if (typeof window !== 'undefined' && 'Notification' in window && this.permission === 'granted') {
       try {
-        const n = new Notification(title, {
-          icon: '/logo192.png', // Fallback icon path
-          badge: '/logo192.png',
+        const notificationOptions: NotificationOptions = {
+          icon: '/pwa-512x512.png',
+          badge: '/pwa-512x512.png',
           vibrate: [200, 100, 200],
+          tag: 'fmc-notification',
+          renotify: true,
           ...options
-        });
-
-        n.onclick = () => {
-          window.focus();
-          n.close();
         };
+
+        // Prefer service worker for better mobile support
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          await registration.showNotification(title, notificationOptions);
+        } else {
+          // Fallback to legacy Notification API
+          const n = new Notification(title, notificationOptions);
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+        }
       } catch (err) {
         console.error('Failed to show browser notification', err);
       }
