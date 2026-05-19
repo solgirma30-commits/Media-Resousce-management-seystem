@@ -63,28 +63,15 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSelectingRole, setIsSelectingRole] = useState(false);
-  const [connectionError, setConnectionError] = useState(false);
-  const [isPortalAuthenticated, setIsPortalAuthenticated] = useState(() => {
-    return sessionStorage.getItem('portal_verified') === 'true';
-  });
-
-  const verifyPortal = () => {
-    setIsPortalAuthenticated(true);
-    sessionStorage.setItem('portal_verified', 'true');
-  };
 
   useEffect(() => {
     // Test connection as per guidelines (non-blocking)
     const testConnection = async () => {
       try {
         await getDocFromServer(doc(db, 'test', 'connection'));
-        setConnectionError(false);
       } catch (error: any) {
         // Silently log instead of showing toast if it's the expected iframe connectivity issue
         console.log("Firestore reachability check completed.");
-        if (error?.message?.includes('offline') || error?.code === 'unavailable') {
-          setConnectionError(true);
-        }
       }
     };
     testConnection();
@@ -184,10 +171,8 @@ export default function App() {
     <AuthContext.Provider value={{ user, profile, loading, signIn, logout, switchRole }}>
       <Toaster position="top-right" />
       {/* Connection warning removed from UI to avoid clutter, will remain in background state */}
-      {!isPortalAuthenticated ? (
-        <Login onPortalVerify={verifyPortal} />
-      ) : !user ? (
-        <Login onPortalVerify={verifyPortal} isPortalVerified={true} />
+      {!user ? (
+        <Login />
       ) : (!profile || isSelectingRole) ? (
         <RoleSetup onComplete={() => setIsSelectingRole(false)} />
       ) : (
