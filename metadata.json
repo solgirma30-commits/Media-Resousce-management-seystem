@@ -1,6 +1,6 @@
 {
-  "name": "FMC Web Apps",
-  "description": "A comprehensive technical service management platform for FMC RESOURCE MANAGEMENT with real-time tracking.",
+  "name": "FMC Fleet Command",
+  "description": "FMC Fleet Command is a mission-critical resource management platform for technical services, surveillance, and logistics, featuring multi-level authorization and SIM-integrated dispatch protocols.",
   "requestFramePermissions": [
     "camera",
     "notifications"

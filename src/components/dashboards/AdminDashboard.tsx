@@ -10,6 +10,7 @@ import {
   UserPlus,
   BarChart3,
   CheckCircle2,
+  Check,
   AlertCircle,
   Wrench,
   X,
@@ -391,25 +392,37 @@ export function AdminDashboard() {
       if (tech.phoneNumber) {
         const smsMessage = `Vector System: Hello ${tech.displayName}, you have been assigned to ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal.`;
         
-        toast.promise(
-          fetch('/api/send-sms', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              to: tech.phoneNumber, 
-              message: smsMessage 
-            }),
-          }).then(async (res) => {
-            if (!res.ok) {
-              const errorData = await res.json().catch(() => ({}));
-              throw new Error(errorData.error || 'SMS Gateway failure');
-            }
-            return res.json();
+        const smsPromise = fetch('/api/send-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            to: tech.phoneNumber, 
+            message: smsMessage 
           }),
+        }).then(async (res) => {
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'SMS Gateway failure');
+          }
+          return res.json();
+        });
+
+        toast.promise(
+          smsPromise,
           {
             loading: `Syncing dispatch data to ${tech.phoneNumber}...`,
             success: 'Notification delivered via SMS',
-            error: (err) => `SMS Error: ${err.message}`,
+            error: (err) => (
+              <div className="flex flex-col gap-2">
+                <span>{err.message === 'SMS_NOT_CONFIGURED' ? 'Cloud SMS Channel Not Configured' : `SMS Error: ${err.message}`}</span>
+                <a 
+                  href={`sms:${tech.phoneNumber}?body=${encodeURIComponent(smsMessage)}`}
+                  className="bg-white/10 px-2 py-1 rounded text-xs hover:bg-white/20 transition-colors inline-block text-center border border-white/10 font-black uppercase"
+                >
+                  Dispatch via SIM Card
+                </a>
+              </div>
+            ),
           }
         );
       }
@@ -511,9 +524,9 @@ export function AdminDashboard() {
       });
       
       if (pendingAction) {
-        if (pendingAction.type === 'APPROVE') {
+        if (pendingAction.type === 'APPROVE' && pendingAction.data) {
           handleApprove(pendingAction.data.requestId, pendingAction.data.directorId);
-        } else if (pendingAction.type === 'ASSIGN') {
+        } else if (pendingAction.type === 'ASSIGN' && pendingAction.data) {
           const req = pendingAction.data;
           setSelectedRequest(req);
           setIsAssignModalOpen(true);
@@ -548,7 +561,17 @@ export function AdminDashboard() {
     toast.promise(promise, {
       loading: 'Transmitting operational directive...',
       success: 'Notification delivered via SMS channel',
-      error: (err) => `Comms Error: ${err.message}`,
+      error: (err) => (
+        <div className="flex flex-col gap-2">
+          <span>{err.message === 'SMS_NOT_CONFIGURED' ? 'Cloud SMS Gateway Not Configured' : `Comms Error: ${err.message}`}</span>
+          <a 
+            href={`sms:${selectedTechForSms.phoneNumber}?body=${encodeURIComponent(customSmsMessage)}`}
+            className="bg-white/10 px-2 py-1 rounded text-[10px] font-black uppercase hover:bg-white/20 transition-colors inline-block text-center border border-white/10"
+          >
+            Dispatch via SIM Card
+          </a>
+        </div>
+      ),
     });
 
     try {
@@ -571,7 +594,7 @@ export function AdminDashboard() {
   ];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 text-slate-200">
+    <div className="space-y-8 animate-in fade-in duration-700 text-slate-900">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-4">
@@ -593,8 +616,8 @@ export function AdminDashboard() {
                                 className={cn(
                                   "px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.1em] flex items-center gap-2 transition-all active:scale-95",
                                   unlockedSectors.has(activeTab) 
-                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20" 
-                                    : "bg-amber-500/10 border-amber-500/20 text-amber-700 hover:bg-amber-500/20"
+                                    ? "bg-emerald-600 border-emerald-700 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-500/20" 
+                                    : "bg-amber-500 border-amber-600 text-slate-950 hover:bg-amber-600 shadow-md shadow-amber-500/10"
                                 )}
                               >
                                 {unlockedSectors.has(activeTab) ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
@@ -991,13 +1014,40 @@ export function AdminDashboard() {
               <div className="p-8 space-y-6">
                 <div>
                   <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Recipient Identity</label>
-                  <div className="p-4 bg-dark-main border border-dark-border rounded-xl flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-dark-sidebar border border-dark-border flex items-center justify-center text-dark-accent font-bold">
-                      {selectedTechForSms.displayName[0]}
+                  <div className="p-5 bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-slate-700/50 rounded-2xl relative overflow-hidden group shadow-2xl">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-dark-accent/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-dark-accent/10" />
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-500/5 rounded-full -ml-12 -mb-12 blur-2xl" />
+                    
+                    <div className="relative flex items-center gap-5">
+                      <div className="relative">
+                        <div className="w-14 h-14 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-dark-accent font-bold text-xl shadow-inner shadow-black/40">
+                          {selectedTechForSms.displayName[0]}
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-[#1e293b] shadow-lg flex items-center justify-center">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Carrier: FMC Mobile</p>
+                          <div className="flex gap-0.5">
+                            <div className="w-1 h-3 bg-emerald-500 rounded-px" />
+                            <div className="w-1 h-3 bg-emerald-500 rounded-px" />
+                            <div className="w-1 h-3 bg-emerald-500 rounded-px" />
+                            <div className="w-1 h-3 bg-slate-700 rounded-px" />
+                          </div>
+                        </div>
+                        <p className="font-bold text-white text-lg tracking-tight leading-none mb-1">{selectedTechForSms.displayName}</p>
+                        <p className="text-[0.8rem] text-dark-accent font-mono font-medium tracking-wider">{selectedTechForSms.phoneNumber || '+251 912 345 678'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-white text-sm">{selectedTechForSms.displayName}</p>
-                      <p className="text-xs text-dark-accent font-mono">{selectedTechForSms.phoneNumber}</p>
+
+                    <div className="mt-4 pt-4 border-t border-slate-700/50 flex justify-between items-center">
+                      <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">IMSI: VECTOR_AUTH_{selectedTechForSms.id.slice(-6).toUpperCase()}</span>
+                      <div className="w-8 h-5 bg-amber-500/20 rounded border border-amber-500/30 flex items-center justify-center">
+                         <div className="w-4 h-3 bg-amber-500/40 rounded-sm" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1008,7 +1058,7 @@ export function AdminDashboard() {
                     value={customSmsMessage}
                     onChange={(e) => setCustomSmsMessage(e.target.value)}
                     placeholder="Enter message for field operator..."
-                    className="w-full bg-dark-main border border-dark-border rounded-xl p-5 text-sm text-slate-200 focus:ring-1 focus:ring-dark-accent outline-none min-h-[150px] resize-none font-serif italic"
+                    className="w-full bg-dark-main border border-dark-border rounded-xl p-5 text-sm text-slate-100 focus:ring-1 focus:ring-dark-accent outline-none min-h-[150px] resize-none font-serif italic"
                   />
                   <div className="mt-2 flex justify-end">
                     <span className={cn("text-[10px] font-mono", customSmsMessage.length > 160 ? "text-red-400" : "text-dark-text-subtle")}>
@@ -1018,12 +1068,20 @@ export function AdminDashboard() {
                 </div>
 
                 <div className="flex gap-4 pt-4 border-t border-dark-border">
-                  <button 
-                    onClick={() => setIsSmsModalOpen(false)}
-                    className="flex-1 px-8 py-3.5 text-xs font-black uppercase text-dark-text-subtle border border-dark-border rounded-xl hover:text-white"
-                  >
-                    Abort
-                  </button>
+                  <div className="flex-1 flex flex-col gap-2">
+                    <button 
+                      onClick={() => setIsSmsModalOpen(false)}
+                      className="w-full px-8 py-3.5 text-xs font-black uppercase text-dark-text-subtle border border-dark-border rounded-xl hover:text-white"
+                    >
+                      Abort
+                    </button>
+                    <a 
+                      href={`sms:${selectedTechForSms.phoneNumber}?body=${encodeURIComponent(customSmsMessage)}`}
+                      className="w-full px-8 py-2 text-[10px] font-black uppercase text-center text-dark-accent hover:text-indigo-400 transition-colors"
+                    >
+                      Use Device Messages (SIM)
+                    </a>
+                  </div>
                   <button 
                     disabled={!customSmsMessage.trim()}
                     onClick={handleSendSms}
@@ -1055,10 +1113,10 @@ export function AdminDashboard() {
             >
               <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                  <div>
-                    <h2 className="text-2xl font-medium text-white tracking-tight">
+                    <h2 className="text-2xl font-medium text-slate-950 tracking-tight">
                         {activeTab === 'VEHICLE' ? 'Assign FMC DRIVER' : activeTab === 'CAMERA' ? 'Assign FMC CAMERA OPERATOR' : 'Assign FMC ENGINEER'}
                     </h2>
-                    <p className="text-dark-text-subtle text-sm mt-1">
+                    <p className="text-slate-800 text-sm mt-1">
                         {activeTab === 'VEHICLE' ? 'Select an active FMC DRIVER for transportation mission' : 
                          activeTab === 'CAMERA' ? 'Select an FMC CAMERA OPERATOR for media coverage' : 
                          'Select an active FMC ENGINEER for maintenance vector'}

@@ -13,17 +13,6 @@ async function startServer() {
 
   // Twilio Client (Lazy Initialization)
   let twilioClient: any = null;
-  const getTwilioClient = () => {
-    if (!twilioClient) {
-      const accountSid = process.env.TWILIO_ACCOUNT_SID;
-      const authToken = process.env.TWILIO_AUTH_TOKEN;
-      if (!accountSid || !authToken) {
-        throw new Error("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required");
-      }
-      twilioClient = twilio(accountSid, authToken);
-    }
-    return twilioClient;
-  };
 
   // API Routes
   app.get("/api/health", (req, res) => {
@@ -38,14 +27,22 @@ async function startServer() {
     }
 
     try {
-      const client = getTwilioClient();
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
       const from = process.env.TWILIO_PHONE_NUMBER;
-      
-      if (!from) {
-        throw new Error("TWILIO_PHONE_NUMBER is required");
+
+      if (!accountSid || !authToken || !from) {
+        return res.status(412).json({ 
+          error: "SMS_NOT_CONFIGURED", 
+          message: "Twilio credentials missing in environment variables." 
+        });
       }
 
-      const result = await client.messages.create({
+      if (!twilioClient) {
+        twilioClient = twilio(accountSid, authToken);
+      }
+
+      const result = await twilioClient.messages.create({
         body: message,
         to,
         from,
@@ -56,8 +53,8 @@ async function startServer() {
     } catch (error: any) {
       console.error("SMS Error:", error.message);
       res.status(500).json({ 
-        error: "Failed to send SMS. Ensure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER are set in environment variables.",
-        details: error.message 
+        error: "SMS_GATEWAY_ERROR",
+        message: error.message 
       });
     }
   });

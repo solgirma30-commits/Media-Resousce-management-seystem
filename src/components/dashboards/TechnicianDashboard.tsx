@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   Send,
   Phone,
+  Smartphone,
   X,
   User,
   Wrench,
@@ -403,7 +404,7 @@ export function TechnicianDashboard() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-slate-200">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-slate-900">
       <div className="flex items-center justify-between px-2">
           <div>
             <h1 className="text-3xl font-medium text-slate-950 tracking-tight uppercase">{portalConfig.title}</h1>
@@ -735,13 +736,28 @@ export function TechnicianDashboard() {
                         <p className="text-[11px] text-dark-text-subtle mt-1 italic">Ret: {selectedWork.returnTime}</p>
                       </div>
                     ) : (
-                      <div className="p-6 bg-dark-main/50 border border-dark-border rounded-xl group hover:border-dark-accent/40 transition-colors">
-                        <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3 flex items-center gap-2">
-                          <Phone className="w-3 h-3 text-dark-accent" />
-                          Contact Protocol
-                        </p>
-                        <p className="text-[0.9rem] font-medium text-slate-200">{selectedWork.phoneNumber || 'Internal Assignment'}</p>
-                        {selectedWork.phoneNumber && <a href={`tel:${selectedWork.phoneNumber}`} className="text-[10px] text-dark-accent font-black uppercase tracking-widest mt-2 inline-block hover:underline">Establish Link</a>}
+                      <div className="p-1 bg-gradient-to-br from-dark-card to-dark-main border border-dark-border rounded-xl group hover:border-dark-accent/40 transition-colors shadow-lg">
+                        <div className="p-5">
+                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Phone className="w-3 h-3 text-dark-accent" />
+                            Requester Sim Link
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-dark-sidebar border border-dark-border flex items-center justify-center text-dark-accent group-hover:scale-110 transition-transform shadow-inner">
+                              <Smartphone className="w-5 h-5" />
+                            </div>
+                            <div>
+                               <p className="text-[0.9rem] font-medium text-slate-100 leading-tight">{selectedWork.phoneNumber || 'Internal Link'}</p>
+                               <p className="text-[9px] text-dark-text-subtle uppercase tracking-widest mt-0.5">Encrypted Protocol</p>
+                            </div>
+                          </div>
+                          {selectedWork.phoneNumber && (
+                            <div className="flex gap-2 mt-4">
+                              <a href={`tel:${selectedWork.phoneNumber}`} className="flex-1 text-center bg-dark-accent/10 border border-dark-accent/20 hover:bg-dark-accent hover:text-white py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">Voice</a>
+                              <a href={`sms:${selectedWork.phoneNumber}`} className="flex-1 text-center bg-dark-accent/10 border border-dark-accent/20 hover:bg-dark-accent hover:text-white py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all">SMS Card</a>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                     <div className="p-6 bg-dark-main/50 border border-dark-border rounded-xl">

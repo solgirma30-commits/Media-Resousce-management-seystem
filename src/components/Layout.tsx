@@ -294,10 +294,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {profile?.displayName[0]}
             </div>
             <div className="overflow-hidden">
-              <p className="text-[0.75rem] font-bold text-slate-900 truncate">
+              <p className="text-[0.75rem] font-bold text-slate-950 truncate">
                 {profile?.displayName}
               </p>
-              <p className="text-[9px] text-dark-text-subtle truncate uppercase tracking-tight">
+              <p className="text-[9px] text-slate-900 font-black truncate uppercase tracking-tight">
                 {profile?.role === UserRole.ADMIN
                   ? "FMC COMMAND CENTER"
                   : profile?.role === UserRole.DEPT_DIRECTOR
@@ -308,7 +308,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         ? "FMC DRIVERS"
                         : profile?.role === UserRole.CAMERAMAN
                           ? "FMC CAMERA OPERATORS"
-                          : profile?.role.replace("_", " ")}
+                          : "AGENT"}
               </p>
             </div>
           </div>

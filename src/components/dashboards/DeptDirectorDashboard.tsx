@@ -401,7 +401,7 @@ export function DeptDirectorDashboard() {
   const priorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-slate-200">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-slate-900">
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
