@@ -105,7 +105,7 @@ export function SecurityDashboard() {
               placeholder="Search S/N or Item..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-dark-card border border-dark-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-1 focus:ring-pink-500 outline-none w-64 transition-all"
+              className="bg-dark-card border border-dark-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none w-64 transition-all"
             />
           </div>
         </div>

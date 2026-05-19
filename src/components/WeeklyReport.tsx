@@ -119,7 +119,7 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
           <div>
             <div className="flex items-center gap-3 mb-1">
               <Calendar className="w-5 h-5 text-dark-accent" />
-              <h2 className="text-2xl font-medium text-white tracking-tight">Weekly Fleet Summary</h2>
+              <h2 className="text-2xl font-black text-black tracking-tight">Weekly Fleet Summary</h2>
             </div>
             <p className="text-dark-text-subtle text-sm font-serif italic">Operational performance for {format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'MMM d')} - {format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'MMM d, yyyy')}</p>
           </div>
@@ -140,7 +140,7 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
                 </div>
                 <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">+12% vs last week</span>
               </div>
-              <p className="text-3xl font-mono font-bold text-white tracking-tighter">{weeklyData.totalThisWeek.toString().padStart(2, '0')}</p>
+              <p className="text-3xl font-mono font-bold text-black tracking-tighter">{weeklyData.totalThisWeek.toString().padStart(2, '0')}</p>
               <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">Requests Logged</p>
             </div>
 
@@ -151,7 +151,7 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
                 </div>
                 <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">High Efficiency</span>
               </div>
-              <p className="text-3xl font-mono font-bold text-white tracking-tighter">{weeklyData.completedThisWeek.toString().padStart(2, '0')}</p>
+              <p className="text-3xl font-mono font-bold text-black tracking-tighter">{weeklyData.completedThisWeek.toString().padStart(2, '0')}</p>
               <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">Resolutions Confirmed</p>
             </div>
 
@@ -162,7 +162,7 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
                 </div>
                 <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Avg 4.2h</span>
               </div>
-              <p className="text-3xl font-mono font-bold text-white tracking-tighter">
+              <p className="text-3xl font-mono font-bold text-black tracking-tighter">
                 {Math.round((weeklyData.completedThisWeek / (weeklyData.totalThisWeek || 1)) * 100)}%
               </p>
               <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">Resolution Velocity</p>
@@ -256,7 +256,7 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
                       <div className="w-6 h-6 rounded-md bg-dark-card border border-dark-border flex items-center justify-center text-[10px] font-black text-dark-accent">
                         0{i + 1}
                       </div>
-                      <span className="text-sm font-bold text-slate-200">{tech.name}</span>
+                      <span className="text-sm font-bold text-black">{tech.name}</span>
                     </div>
                     <span className="text-xs font-mono font-bold text-dark-accent">{tech.completed} Missions</span>
                   </div>
@@ -280,7 +280,7 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
           <div className="flex items-center gap-4">
             <div className="flex -space-x-3">
               {workforce.slice(0, 4).map((member, i) => (
-                <div key={i} className="w-8 h-8 rounded-full bg-dark-sidebar border-2 border-dark-card flex items-center justify-center text-[10px] font-bold text-white">
+                <div key={i} className="w-8 h-8 rounded-full bg-dark-sidebar border-2 border-dark-card flex items-center justify-center text-[10px] font-black text-black shadow-inner">
                   {member.displayName[0]}
                 </div>
               ))}

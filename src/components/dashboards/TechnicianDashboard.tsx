@@ -775,7 +775,7 @@ export function TechnicianDashboard() {
                           <Clock className="w-3 h-3 text-dark-accent" />
                           Timing Link
                         </p>
-                        <p className="text-[0.9rem] font-medium text-slate-200">Dep: {selectedWork.departureTime}</p>
+                        <p className="text-[0.9rem] font-black text-black">Dep: {selectedWork.departureTime}</p>
                         <p className="text-[11px] text-dark-text-subtle mt-1 italic">Ret: {selectedWork.returnTime}</p>
                       </div>
                     ) : (
@@ -790,7 +790,7 @@ export function TechnicianDashboard() {
                               <Smartphone className="w-5 h-5" />
                             </div>
                             <div>
-                               <p className="text-[0.9rem] font-medium text-slate-100 leading-tight">{selectedWork.phoneNumber || 'Internal Link'}</p>
+                               <p className="text-[0.9rem] font-black text-black leading-tight">{selectedWork.phoneNumber || 'Internal Link'}</p>
                                <p className="text-[9px] text-dark-text-subtle uppercase tracking-widest mt-0.5">Encrypted Protocol</p>
                             </div>
                           </div>
@@ -837,7 +837,7 @@ export function TechnicianDashboard() {
                           <User className="w-3 h-3" />
                           Assigned Professional
                         </p>
-                        <p className="text-[0.9rem] font-medium text-slate-200">
+                        <p className="text-[0.9rem] font-black text-black">
                           {selectedWork.assignedTechnicianName || selectedWork.assignedDriverName}
                         </p>
                         <p className="text-[11px] text-dark-text-subtle mt-1 font-mono">
@@ -853,7 +853,7 @@ export function TechnicianDashboard() {
                         <div className="w-16 h-16 rounded-full bg-dark-accent/10 border border-dark-accent/20 flex items-center justify-center mb-6 text-dark-accent">
                           <Check className="w-8 h-8" />
                         </div>
-                        <h4 className="text-xl font-medium text-white mb-2">Initialize Assignment</h4>
+                        <h4 className="text-xl font-black text-black mb-2">Initialize Assignment</h4>
                         <p className="text-dark-text-subtle text-sm mb-8 max-w-sm">Synchronize your local node with the central portal to accept this work vector.</p>
                         <button
                           onClick={() => updateStatus(selectedWork.id, 'ACCEPTED')}
@@ -870,7 +870,7 @@ export function TechnicianDashboard() {
                         <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6 text-amber-500">
                           <Truck className="w-8 h-8" />
                         </div>
-                        <h4 className="text-xl font-medium text-white mb-2">Ready for Deployment</h4>
+                        <h4 className="text-xl font-black text-black mb-2">Ready for Deployment</h4>
                         <p className="text-dark-text-subtle text-sm mb-8 max-w-sm">Set your status to 'In Progress' when arriving at the operational site.</p>
                         <button
                           onClick={() => updateStatus(selectedWork.id, 'IN_PROGRESS')}
@@ -918,7 +918,7 @@ export function TechnicianDashboard() {
                             placeholder={selectedWork.collectionName === 'vehicle_requests' ? "Document mission outcome, fuel consumption if applicable, and any vehicle incidents..." : "Explain the work done to fix the problem, parts replaced, and operational tests performed..."}
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
-                            className="w-full bg-dark-main/80 border border-dark-border rounded-2xl p-6 text-sm text-slate-200 focus:ring-1 focus:ring-dark-accent outline-none min-h-[180px] resize-none shadow-inner"
+                            className="w-full bg-dark-main/80 border border-dark-border rounded-2xl p-6 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none min-h-[180px] resize-none shadow-inner"
                           />
 
                           <div className="space-y-4">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, 
@@ -14,6 +14,8 @@ import {
   AlertCircle,
   Wrench,
   X,
+  Archive,
+  Trash2,
   Settings,
   ClipboardList,
   Tag,
@@ -70,6 +72,8 @@ export function AdminDashboard() {
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
   const [selectedTechForSms, setSelectedTechForSms] = useState<any | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const [customSmsMessage, setCustomSmsMessage] = useState('');
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [editingTech, setEditingTech] = useState<any | null>(null);
@@ -469,6 +473,49 @@ export function AdminDashboard() {
     }
   };
 
+  const handleClearSelected = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('No records selected');
+      return;
+    }
+
+    const confirm = window.confirm(`Archive ${selectedIds.size} selected records from the queue?`);
+    if (!confirm) return;
+
+    const currentTabRequests = activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests;
+    
+    try {
+      const promises = Array.from(selectedIds).map(async (id) => {
+        const req = currentTabRequests.find(r => r.id === id);
+        if (req) {
+          const collectionName = collectionMap[activeTab as keyof typeof collectionMap];
+          if (collectionName) {
+            return updateDoc(doc(db, collectionName, id), {
+              archived: true,
+              updatedAt: serverTimestamp()
+            });
+          }
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success(`${selectedIds.size} records archived`);
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+    } catch (error) {
+      toast.error('Failed to clear some records');
+      console.error(error);
+    }
+  };
+
+  const toggleSelect = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
   const openAssignModal = (request: any) => {
     if (!unlockedSectors.has(activeTab)) {
       setPendingAction({ type: 'ASSIGN', data: request, sector: activeTab });
@@ -705,9 +752,36 @@ export function AdminDashboard() {
                <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
                  {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'ITEM' ? 'Exit Permits Queue' : 'Other Requests Queue'}
                </h3>
-               <div className="flex items-center gap-2">
-                  <Search className="w-3.5 h-3.5 text-dark-text-subtle" />
-                  <span className="text-[10px] font-bold text-dark-accent uppercase tracking-wide">Live Feed</span>
+               <div className="flex items-center gap-3">
+                  {isSelectMode ? (
+                    <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-300">
+                      <span className="text-[10px] font-black text-dark-accent mr-2 uppercase tracking-widest">{selectedIds.size} Selected</span>
+                      <button 
+                        onClick={handleClearSelected}
+                        disabled={selectedIds.size === 0}
+                        className="px-4 py-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-20"
+                      >
+                        Archive Selected
+                      </button>
+                      <button 
+                        onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }}
+                        className="px-4 py-1.5 bg-dark-main border border-dark-border text-dark-text-subtle rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-white transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setIsSelectMode(true)}
+                      className="px-4 py-1.5 bg-dark-main border border-dark-border text-dark-text-subtle rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-white transition-all flex items-center gap-2"
+                    >
+                      Select Mode
+                    </button>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Search className="w-3.5 h-3.5 text-dark-text-subtle" />
+                    <span className="text-[10px] font-bold text-dark-accent uppercase tracking-wide">Live Feed</span>
+                  </div>
                </div>
              </div>
 
@@ -726,7 +800,7 @@ export function AdminDashboard() {
                             <Settings className="w-6 h-6 text-yellow-400 animate-pulse" />
                           </div>
                           <div>
-                            <h4 className="text-white font-bold tracking-tight">Twilio Cloud Gateway</h4>
+                            <h4 className="text-black font-black tracking-tight">Twilio Cloud Gateway</h4>
                             <p className="text-[11px] text-dark-text-subtle font-serif italic mt-0.5">Primary vector for technician dispatch via SMS</p>
                           </div>
                         </div>
@@ -799,7 +873,7 @@ export function AdminDashboard() {
                                type="text" 
                                value={globalAlertTitle}
                                onChange={(e) => setGlobalAlertTitle(e.target.value)}
-                               className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-2 text-white text-xs font-bold focus:outline-none focus:border-dark-accent transition-all"
+                               className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-2 text-black text-xs font-bold focus:outline-none focus:border-dark-accent transition-all"
                              />
                            </div>
                            <div className="space-y-2">
@@ -808,7 +882,7 @@ export function AdminDashboard() {
                                type="text" 
                                value={globalAlertMessage}
                                onChange={(e) => setGlobalAlertMessage(e.target.value)}
-                               className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-2 text-white text-xs font-bold focus:outline-none focus:border-dark-accent transition-all"
+                               className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-2 text-black text-xs font-bold focus:outline-none focus:border-dark-accent transition-all"
                              />
                            </div>
                          </div>
@@ -860,7 +934,7 @@ export function AdminDashboard() {
                                 {tech.displayName[0]}
                                </div>
                                <div>
-                                 <p className="text-xs font-bold text-white">{tech.displayName}</p>
+                                 <p className="text-xs font-black text-black">{tech.displayName}</p>
                                  <p className="text-[10px] text-dark-text-subtle font-mono tracking-tighter">{tech.phoneNumber || 'Contact Null'}</p>
                                </div>
                              </div>
@@ -883,8 +957,11 @@ export function AdminDashboard() {
                  </div>
                ) : (
                  <table className="w-full text-left border-collapse">
-                   <thead className="bg-dark-header sticky top-0 z-10">
+                    <thead className="bg-dark-header sticky top-0 z-10">
                      <tr>
+                       {isSelectMode && (
+                         <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border w-10"></th>
+                       )}
                        <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Request Reference</th>
                        <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Details & Context</th>
                        <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Status</th>
@@ -894,14 +971,32 @@ export function AdminDashboard() {
                    <tbody className="divide-y divide-dark-border">
                      {loading ? (
                        <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center text-dark-text-subtle">Synchronizing data...</td>
+                          <td colSpan={isSelectMode ? 5 : 4} className="px-6 py-12 text-center text-dark-text-subtle">Synchronizing data...</td>
                        </tr>
                      ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).length === 0 ? (
                        <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
+                          <td colSpan={isSelectMode ? 5 : 4} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
                        </tr>
                      ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).map((request) => (
-                       <tr key={request.id} className="hover:bg-dark-main/40 transition-colors group">
+                       <tr 
+                         key={request.id} 
+                         onClick={() => isSelectMode && toggleSelect(request.id)}
+                         className={cn(
+                           "transition-colors group",
+                           isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/40",
+                           isSelectMode && "cursor-pointer"
+                         )}
+                       >
+                         {isSelectMode && (
+                           <td className="px-6 py-5">
+                             <div className={cn(
+                               "w-4 h-4 rounded border-2 flex items-center justify-center transition-all",
+                               selectedIds.has(request.id) ? "bg-dark-accent border-dark-accent" : "border-dark-border bg-dark-main"
+                             )}>
+                               {selectedIds.has(request.id) && <Check className="w-3 h-3 text-white" />}
+                             </div>
+                           </td>
+                         )}
                          <td className="px-6 py-5">
                              <div className="text-[12px] font-bold text-dark-accent mb-1 tracking-tight">
                                 {activeTab === 'SERVICE' ? (request.workName || 'SVC-RQ') : activeTab === 'CAMERA' ? (request.eventTitle || 'CAM-RQ') : activeTab === 'ITEM' ? (request.itemName || 'EXIT-RQ') : activeTab === 'OTHER' ? (request.projectName || 'DEV-RQ') : (request.tripName || 'TRP-RQ')}
@@ -909,11 +1004,11 @@ export function AdminDashboard() {
                              <div className="text-[10px] font-mono text-dark-text-subtle opacity-50 uppercase tracking-widest">#{request.id.slice(-6).toUpperCase()}</div>
                           </td>
                          <td className="px-6 py-5">
-                            <div className="text-[13px] font-medium text-slate-200">
+                            <div className="text-[13px] font-black text-black">
                                {activeTab === 'SERVICE' ? (request.workName || request.description) : activeTab === 'CAMERA' ? (request.eventTitle || request.purpose) : activeTab === 'ITEM' ? (request.itemName || request.purpose) : activeTab === 'OTHER' ? (request.projectName || request.deviceModel) : (request.tripName || request.destination)}
                             </div>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
-                               <span className="text-[10px] text-dark-text-subtle font-mono uppercase tracking-tighter bg-dark-main px-1.5 py-0.5 rounded border border-dark-border">
+                               <span className="text-[10px] text-black font-mono uppercase tracking-tighter bg-dark-main px-1.5 py-0.5 rounded border border-dark-border">
                                   {request.departmentName}
                                </span>
                                {activeTab === 'ITEM' && (
@@ -1078,7 +1173,7 @@ export function AdminDashboard() {
              >
                 <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                    <div>
-                      <h2 className="text-2xl font-medium text-white tracking-tight">Post-Operational Review</h2>
+                      <h2 className="text-2xl font-black text-black tracking-tight">Post-Operational Review</h2>
                       <p className="text-dark-text-subtle text-sm mt-1">Verify technical summary before ledger finalization</p>
                    </div>
                    <button onClick={() => setSelectedRequest(null)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
@@ -1091,7 +1186,7 @@ export function AdminDashboard() {
                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
                             {activeTab === 'VEHICLE' ? 'Assigned Driver' : 'Assigned Agent'}
                           </p>
-                          <p className="text-sm font-medium text-slate-200">
+                          <p className="text-sm font-black text-black">
                             {activeTab === 'VEHICLE' ? selectedRequest.assignedDriverName : selectedRequest.assignedTechnicianName}
                           </p>
                           {(selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone) && (
@@ -1104,7 +1199,7 @@ export function AdminDashboard() {
                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
                             {activeTab === 'VEHICLE' ? 'Service Asset' : 'Fleet Asset'}
                           </p>
-                          <p className="text-sm font-medium text-slate-200">
+                          <p className="text-sm font-black text-black">
                              {activeTab === 'VEHICLE' ? (
                                selectedRequest.vehicleType || 'Company Vehicle'
                              ) : 'General Service'}
@@ -1116,7 +1211,7 @@ export function AdminDashboard() {
                       <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1">
                         {activeTab === 'VEHICLE' ? 'Mission Report' : 'Work Completion Summary'}
                       </label>
-                      <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 text-sm text-slate-300 font-serif italic border-dashed">
+                      <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 text-sm text-black font-bold font-serif italic border-dashed">
                         {(activeTab === 'VEHICLE' ? selectedRequest.driverNotes : selectedRequest.technicianNotes) || "No summary provided by agent."}
                       </div>
                    </div>
@@ -1139,7 +1234,7 @@ export function AdminDashboard() {
                            <MessageSquare className="w-3 h-3" />
                            Department Feedback
                         </label>
-                        <div className="w-full bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-6 text-sm text-indigo-200 font-medium italic">
+                        <div className="w-full bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-6 text-sm text-black font-bold italic">
                            {selectedRequest.directorComments}
                         </div>
                      </div>
@@ -1182,7 +1277,7 @@ export function AdminDashboard() {
             >
               <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-medium text-white tracking-tight">Direct Comms</h2>
+                  <h2 className="text-2xl font-black text-black tracking-tight">Direct Comms</h2>
                   <p className="text-dark-text-subtle text-sm mt-1">Send SMS directive to {selectedTechForSms.displayName}</p>
                 </div>
                 <button onClick={() => setIsSmsModalOpen(false)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
@@ -1217,7 +1312,7 @@ export function AdminDashboard() {
                             <div className="w-1 h-3 bg-slate-700 rounded-px" />
                           </div>
                         </div>
-                        <p className="font-bold text-white text-lg tracking-tight leading-none mb-1">{selectedTechForSms.displayName}</p>
+                        <p className="font-black text-black text-lg tracking-tight leading-none mb-1">{selectedTechForSms.displayName}</p>
                         <p className="text-[0.8rem] text-dark-accent font-mono font-medium tracking-wider">{selectedTechForSms.phoneNumber || '+251 912 345 678'}</p>
                       </div>
                     </div>
@@ -1237,7 +1332,7 @@ export function AdminDashboard() {
                     value={customSmsMessage}
                     onChange={(e) => setCustomSmsMessage(e.target.value)}
                     placeholder="Enter message for field operator..."
-                    className="w-full bg-dark-main border border-dark-border rounded-xl p-5 text-sm text-slate-100 focus:ring-1 focus:ring-dark-accent outline-none min-h-[150px] resize-none font-serif italic"
+                    className="w-full bg-dark-main border border-dark-border rounded-xl p-5 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none min-h-[150px] resize-none"
                   />
                   <div className="mt-2 flex justify-end">
                     <span className={cn("text-[10px] font-mono", customSmsMessage.length > 160 ? "text-red-400" : "text-dark-text-subtle")}>
@@ -1333,7 +1428,7 @@ export function AdminDashboard() {
                                 </div>
                                 <div className="flex-1">
                                    <div className="flex items-center gap-2">
-                                     <p className="font-bold text-white text-sm">{tech.displayName}</p>
+                                     <p className="font-black text-black text-sm">{tech.displayName}</p>
                                      {tech.id === profile?.uid && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-1 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">Self</span>}
                                    </div>
                                    <div className="flex items-center gap-2 mt-0.5">
@@ -1385,7 +1480,7 @@ export function AdminDashboard() {
             >
                <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-medium text-white tracking-tight">Workforce Registry</h2>
+                    <h2 className="text-2xl font-black text-black tracking-tight">Workforce Registry</h2>
                     <p className="text-dark-text-subtle text-sm mt-1">Manage personnel and communication protocols</p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -1415,7 +1510,7 @@ export function AdminDashboard() {
                              {tech.displayName[0]}
                            </div>
                            <div>
-                              <p className="font-bold text-white text-base">{tech.displayName}</p>
+                              <p className="font-black text-black text-base">{tech.displayName}</p>
                               <p className="text-xs text-dark-text-subtle font-mono">{tech.phoneNumber || 'Contact Not Synchronized'}</p>
                            </div>
                         </div>
@@ -1451,7 +1546,7 @@ export function AdminDashboard() {
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
                                 placeholder="User Name"
-                                className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-white focus:ring-1 focus:ring-dark-accent outline-none font-medium"
+                                className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none"
                               />
                            </div>
                            <div>

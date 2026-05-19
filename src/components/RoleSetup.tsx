@@ -127,7 +127,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-dark-main flex items-center justify-center p-4 font-sans text-slate-200 overflow-y-auto">
+    <div className="min-h-screen bg-dark-main flex items-center justify-center p-4 font-sans text-black font-bold overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -135,7 +135,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
         className="w-full max-w-2xl bg-dark-card rounded-xl shadow-2xl p-6 md:p-10 border border-dark-border my-8"
       >
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-medium text-white tracking-tight">FMC RESOURCE MANAGEMENT</h2>
+          <h2 className="text-3xl font-black text-black tracking-tight">FMC RESOURCE MANAGEMENT</h2>
           <p className="text-dark-text-subtle mt-2 font-serif italic text-sm">Define your operational role within the TechFlow ecosystem</p>
         </div>
 
@@ -157,7 +157,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
               )}>
                 <role.icon className={cn("w-6 h-6", selectedRole === role.id ? role.color : "text-dark-text-subtle")} />
               </div>
-              <h3 className="font-bold text-white text-xs uppercase tracking-widest mb-2">{role.title}</h3>
+              <h3 className="font-black text-black text-xs uppercase tracking-widest mb-2">{role.title}</h3>
               <p className="text-[10px] text-dark-text-subtle text-center leading-relaxed font-medium">{role.description}</p>
             </button>
           ))}
@@ -172,7 +172,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
                 placeholder="e.g. john_doe"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-slate-200 focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm"
+                className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm"
               />
             </div>
             <div>
@@ -182,7 +182,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
                 placeholder="••••••••"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-slate-200 focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm font-mono"
+                className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm font-mono"
               />
             </div>
           </div>
@@ -199,7 +199,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
                 placeholder="e.g. Finance Sector, Strategic Ops"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-slate-200 focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm"
+                className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm"
               />
             </motion.div>
           )}

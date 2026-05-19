@@ -48,6 +48,8 @@ export function DeptDirectorDashboard() {
   const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const [directorComments, setDirectorComments] = useState('');
   const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -369,6 +371,46 @@ export function DeptDirectorDashboard() {
     }
   };
 
+  const handleClearSelected = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('No records selected');
+      return;
+    }
+
+    const confirm = window.confirm(`Archive ${selectedIds.size} selected records from your log?`);
+    if (!confirm) return;
+
+    const currentTabRequests = activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests;
+    
+    try {
+      const promises = Array.from(selectedIds).map(async (id) => {
+        const req = currentTabRequests.find(r => r.id === id);
+        if (req) {
+          const collectionName = (req as any).collectionName || 'service_requests';
+          return updateDoc(doc(db, collectionName, id), {
+            archived: true,
+            updatedAt: serverTimestamp()
+          });
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success(`${selectedIds.size} records archived`);
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+    } catch (error) {
+      toast.error('Failed to clear some records');
+      console.error(error);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
   const resetForm = () => {
     setWorkName('');
     setDescription('');
@@ -493,13 +535,38 @@ export function DeptDirectorDashboard() {
           <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
             {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : activeTab === 'ITEM' ? 'Exit Permit Log' : 'Other Device Log'}
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {isSelectMode ? (
+              <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-300">
+                <span className="text-[10px] font-black text-dark-accent mr-2 uppercase tracking-widest">{selectedIds.size} Selected</span>
+                <button 
+                  onClick={handleClearSelected}
+                  disabled={selectedIds.size === 0}
+                  className="px-4 py-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-20"
+                >
+                  Archive Selected
+                </button>
+                <button 
+                  onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }}
+                  className="px-4 py-1.5 bg-dark-main border border-dark-border text-dark-text-subtle rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-white transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsSelectMode(true)}
+                className="px-4 py-1.5 bg-dark-main border border-dark-border text-dark-text-subtle rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-white transition-all flex items-center gap-2"
+              >
+                Select Mode
+              </button>
+            )}
             <div className="relative hidden sm:block">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-dark-text-subtle" />
               <input 
                 type="text" 
                 placeholder="Find record..." 
-                className="pl-9 pr-4 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-slate-300 focus:ring-1 focus:ring-indigo-500 outline-none w-48 transition-all"
+                className="pl-9 pr-4 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold focus:ring-1 focus:ring-indigo-500 outline-none w-48 transition-all"
               />
             </div>
           </div>
@@ -521,9 +588,25 @@ export function DeptDirectorDashboard() {
               <motion.div 
                 layout
                 key={request.id} 
-                className="p-6 hover:bg-dark-main/40 transition-colors group"
+                onClick={() => isSelectMode && toggleSelect(request.id)}
+                className={cn(
+                  "p-6 transition-colors group relative cursor-pointer",
+                  isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/40"
+                )}
               >
                 <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+                  {isSelectMode && (
+                    <div className="shrink-0">
+                      <div className={cn(
+                        "w-5 h-5 rounded border-2 flex items-center justify-center transition-all",
+                        selectedIds.has(request.id) ? "bg-dark-accent border-dark-accent" : "border-dark-border bg-dark-main"
+                      )}>
+                        {selectedIds.has(request.id) && <Plus className="w-3 h-3 text-white rotate-45" />}
+                        {/* Using rotate-45 Plus as a checkmark if Check isn't imported, but Check is likely there if CheckCircle2 is. Wait, Lucide has Check. */}
+                        {selectedIds.has(request.id) && <div className="w-2 h-2 bg-white rounded-sm" />}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex-1 space-y-3">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="text-[10px] font-black text-dark-accent bg-dark-accent/10 px-2 py-0.5 rounded border border-dark-accent/20 font-mono">
@@ -541,7 +624,7 @@ export function DeptDirectorDashboard() {
                           {request.priority}
                         </span>
                       )}
-                      <span className="text-[10px] text-dark-text-subtle flex items-center gap-1 font-mono uppercase tracking-tighter">
+                      <span className="text-[10px] text-black flex items-center gap-1 font-mono uppercase tracking-tighter">
                         <Clock className="w-3 h-3 opacity-50" />
                         {request.createdAt ? format(request.createdAt.toDate(), 'MMM d, HH:mm') : 'Syncing...'}
                       </span>
@@ -551,7 +634,7 @@ export function DeptDirectorDashboard() {
                       {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
                     </h4>
 
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-[0.75rem] text-dark-text-subtle font-medium">
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-[0.75rem] text-black font-medium">
                       {activeTab === 'SERVICE' && (
                         <>
                           <div className="flex items-center gap-2">
@@ -663,7 +746,7 @@ export function DeptDirectorDashboard() {
                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
                            {activeTab === 'VEHICLE' ? 'Driver Details' : 'Assigned Agent'}
                          </p>
-                         <p className="text-sm font-medium text-slate-200">
+                         <p className="text-sm font-black text-black">
                            {activeTab === 'VEHICLE' 
                              ? (selectedRequest.assignedDriverName || 'Pending Allocation')
                              : (selectedRequest.assignedTechnicianName || 'Pending Assignment')}
@@ -679,7 +762,7 @@ export function DeptDirectorDashboard() {
                       </div>
                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Fleet Asset</p>
-                         <p className="text-sm font-medium text-slate-200">
+                         <p className="text-sm font-black text-black">
                             {selectedRequest.fleetId ? (
                               fleet.find(f => f.id === selectedRequest.fleetId)?.plateNumber || 'Linked Asset'
                             ) : 'No specific asset'}
@@ -691,7 +774,7 @@ export function DeptDirectorDashboard() {
                       <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">
                         {activeTab === 'SERVICE' ? 'Incident Description' : activeTab === 'CAMERA' ? 'Purpose / Equipment' : 'Trip Purpose'}
                       </p>
-                      <p className="text-sm text-slate-300 leading-relaxed">
+                      <p className="text-sm text-black font-bold leading-relaxed">
                         {activeTab === 'SERVICE' ? selectedRequest.description : activeTab === 'CAMERA' ? selectedRequest.purpose : selectedRequest.purpose}
                       </p>
                    </div>
@@ -700,11 +783,11 @@ export function DeptDirectorDashboard() {
                      <div className="grid grid-cols-2 gap-6">
                         <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Start Time</p>
-                           <p className="text-sm font-medium text-slate-200">{selectedRequest.startTime}</p>
+                           <p className="text-sm font-black text-black">{selectedRequest.startTime}</p>
                         </div>
                         <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">End Time</p>
-                           <p className="text-sm font-medium text-slate-200">{selectedRequest.endTime}</p>
+                           <p className="text-sm font-black text-black">{selectedRequest.endTime}</p>
                         </div>
                      </div>
                    )}
@@ -713,11 +796,11 @@ export function DeptDirectorDashboard() {
                      <div className="grid grid-cols-2 gap-6">
                         <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Passengers</p>
-                           <p className="text-sm font-medium text-slate-200">{selectedRequest.passengersCount}</p>
+                           <p className="text-sm font-black text-black">{selectedRequest.passengersCount}</p>
                         </div>
                         <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Return Time</p>
-                           <p className="text-sm font-medium text-slate-200">{selectedRequest.returnTime}</p>
+                           <p className="text-sm font-black text-black">{selectedRequest.returnTime}</p>
                         </div>
                      </div>
                    )}
@@ -729,7 +812,7 @@ export function DeptDirectorDashboard() {
                             <CheckCircle2 className="w-3 h-3" />
                             {activeTab === 'VEHICLE' ? 'Mission Report' : activeTab === 'CAMERA' ? 'Event Report' : 'Work Completion Summary'}
                           </label>
-                          <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 text-sm text-slate-300 font-serif italic border-dashed">
+                          <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 text-sm text-black font-bold font-serif italic border-dashed">
                             {(activeTab === 'VEHICLE' ? selectedRequest.driverNotes : selectedRequest.technicianNotes) || "No summary provided by agent."}
                           </div>
                         </div>
@@ -756,7 +839,7 @@ export function DeptDirectorDashboard() {
                                placeholder="Add your comments or feedback on the completed work..."
                                value={directorComments}
                                onChange={(e) => setDirectorComments(e.target.value)}
-                               className="w-full bg-dark-main border border-dark-border rounded-xl p-5 text-sm text-slate-200 focus:ring-1 focus:ring-indigo-500 outline-none min-h-[120px] resize-none"
+                               className="w-full bg-dark-main border border-dark-border rounded-xl p-5 text-sm text-black font-bold focus:ring-1 focus:ring-indigo-500 outline-none min-h-[120px] resize-none"
                              />
                           </div>
                         )}
@@ -767,7 +850,7 @@ export function DeptDirectorDashboard() {
                                <MessageSquare className="w-3 h-3" />
                                Your Feedback
                              </label>
-                             <div className="w-full bg-dark-main/40 border border-dark-border rounded-xl p-5 text-sm text-slate-300 italic border-dotted">
+                             <div className="w-full bg-dark-main/40 border border-dark-border rounded-xl p-5 text-sm text-black font-bold italic border-dotted">
                                {selectedRequest.directorComments}
                              </div>
                           </div>
@@ -833,7 +916,7 @@ export function DeptDirectorDashboard() {
                         <select
                           value={category}
                           onChange={(e) => setCategory(e.target.value)}
-                          className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
+                          className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
                         >
                           {categories.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
@@ -843,7 +926,7 @@ export function DeptDirectorDashboard() {
                         <select
                           value={selectedFleetId}
                           onChange={(e) => setSelectedFleetId(e.target.value)}
-                          className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
+                          className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
                         >
                           <option value="">No specific asset</option>
                           {fleet.map(f => (
@@ -861,7 +944,7 @@ export function DeptDirectorDashboard() {
                         <select
                           value={priority}
                           onChange={(e) => setPriority(e.target.value)}
-                          className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all font-bold appearance-none"
+                          className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
                         >
                           {priorities.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
@@ -876,7 +959,7 @@ export function DeptDirectorDashboard() {
                             placeholder="Location ID"
                             value={location}
                             onChange={(e) => setLocation(e.target.value)}
-                            className="w-full pl-11 pr-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                            className="w-full pl-11 pr-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                           />
                         </div>
                       </div>
@@ -892,7 +975,7 @@ export function DeptDirectorDashboard() {
                           placeholder="Direct phone"
                           value={phoneNumber}
                           onChange={(e) => setPhoneNumber(e.target.value)}
-                          className="w-full pl-11 pr-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full pl-11 pr-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                     </div>
@@ -905,7 +988,7 @@ export function DeptDirectorDashboard() {
                         placeholder="e.g., Office AC Repair"
                         value={workName}
                         onChange={(e) => setWorkName(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold placeholder:text-dark-text-muted/50 focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
                       />
                       <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Issue Specifications</label>
                       <textarea
@@ -914,7 +997,7 @@ export function DeptDirectorDashboard() {
                         placeholder="Provide technical descriptors..."
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold placeholder:text-dark-text-muted/50 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
                       />
                     </div>
                   </>
@@ -923,59 +1006,59 @@ export function DeptDirectorDashboard() {
                 {activeTab === 'OTHER' && (
                   <>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Project / Work Name</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Project / Work Name</label>
                       <input
                         required
                         type="text"
                         placeholder="Project name using the device"
                         value={workName}
                         onChange={(e) => setWorkName(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Device Model / Type</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Device Model / Type</label>
                       <input
                         required
                         type="text"
                         placeholder="Specify device needed"
                         value={deviceModel}
                         onChange={(e) => setDeviceModel(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Quantity</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Quantity</label>
                         <input
                           required
                           type="number"
                           min="1"
                           value={requestQty}
                           onChange={(e) => setRequestQty(parseInt(e.target.value))}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Needed By Date</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Needed By Date</label>
                         <input
                           required
                           type="date"
                           value={needDate}
                           onChange={(e) => setNeedDate(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Reason for Request</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Reason for Request</label>
                       <textarea
                         required
                         rows={3}
                         placeholder="Explain why this device is needed"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
                       />
                     </div>
                   </>
@@ -984,14 +1067,14 @@ export function DeptDirectorDashboard() {
                 {activeTab === 'CAMERA' && (
                   <>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Event Title</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Event Title</label>
                       <input
                         required
                         type="text"
                         placeholder="Event name or project title"
                         value={eventTitle}
                         onChange={(e) => setEventTitle(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1003,51 +1086,51 @@ export function DeptDirectorDashboard() {
                           placeholder="Location"
                           value={location}
                           onChange={(e) => setLocation(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Event Date</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Event Date</label>
                         <input
                           required
                           type="date"
                           value={eventDate}
                           onChange={(e) => setEventDate(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Start Time</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Start Time</label>
                         <input
                           required
                           type="time"
                           value={startTime}
                           onChange={(e) => setStartTime(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">End Time</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">End Time</label>
                         <input
                           required
                           type="time"
                           value={endTime}
                           onChange={(e) => setEndTime(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Purpose / Equipment Needed</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Purpose / Equipment Needed</label>
                       <textarea
                         required
                         rows={3}
                         placeholder="Explain coverage requirements..."
                         value={cameraPurpose}
                         onChange={(e) => setCameraPurpose(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
                       />
                     </div>
                   </>
@@ -1056,81 +1139,81 @@ export function DeptDirectorDashboard() {
                 {activeTab === 'VEHICLE' && (
                   <>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Trip Name / Purpose Title</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Trip Name / Purpose Title</label>
                       <input
                         required
                         type="text"
                         placeholder="e.g., Site Inspection Trip"
                         value={workName}
                         onChange={(e) => setWorkName(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Destination</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Destination</label>
                       <input
                         required
                         type="text"
                         placeholder="Trip destination"
                         value={destination}
                         onChange={(e) => setDestination(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Passengers</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Passengers</label>
                         <input
                           required
                           type="number"
                           min={1}
                           value={passengersCount}
                           onChange={(e) => setPassengersCount(parseInt(e.target.value))}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Departure Date</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Departure Date</label>
                         <input
                           required
                           type="date"
                           value={depDate}
                           onChange={(e) => setDepDate(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Departure Time</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Departure Time</label>
                         <input
                           required
                           type="time"
                           value={depTime}
                           onChange={(e) => setDepTime(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Estimated Return</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Estimated Return</label>
                         <input
                           required
                           type="time"
                           value={retTime}
                           onChange={(e) => setRetTime(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Purpose of Trip</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Purpose of Trip</label>
                       <textarea
                         required
                         rows={3}
                         placeholder="Explain mission details..."
                         value={vehiclePurpose}
                         onChange={(e) => setVehiclePurpose(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
                       />
                     </div>
                   </>
@@ -1140,47 +1223,47 @@ export function DeptDirectorDashboard() {
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Item Name / Model</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Item Name / Model</label>
                         <input
                           required
                           type="text"
                           placeholder="e.g., Dell Laptop XPS 15"
                           value={itemName}
                           onChange={(e) => setItemName(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Serial Number / Asset Tag</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Serial Number / Asset Tag</label>
                         <input
                           required
                           type="text"
                           placeholder="e.g., S/N 12345678"
                           value={serialNumber}
                           onChange={(e) => setSerialNumber(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                     </div>
                     <div className="mb-6">
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Expected Return Date (Optional)</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Expected Return Date (Optional)</label>
                       <input
                         type="date"
                         value={expectedReturnDate}
                         onChange={(e) => setExpectedReturnDate(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
                       <p className="text-[10px] text-dark-text-subtle mt-1 italic font-serif">Leave blank if the item is not expected to return</p>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Reason for Exit</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Reason for Exit</label>
                       <textarea
                         required
                         rows={3}
                         placeholder="Explain why this item is leaving the premises..."
                         value={exitReason}
                         onChange={(e) => setExitReason(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-slate-300 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
                       />
                     </div>
                   </>
@@ -1243,7 +1326,7 @@ function StatCard({ label, value, icon: Icon, color }: any) {
         </div>
       </div>
       <div>
-        <p className="text-3xl font-mono font-bold text-white tracking-widest">{value.toString().padStart(3, '0')}</p>
+        <p className="text-3xl font-mono font-bold text-black tracking-widest">{value.toString().padStart(3, '0')}</p>
         <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">{label}</p>
       </div>
     </div>
