@@ -25,7 +25,9 @@ import {
   Phone,
   Camera,
   Car,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Bell,
+  TowerControl
 } from 'lucide-react';
 import { 
   collection, 
@@ -46,9 +48,13 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { WeeklyReport } from '../WeeklyReport';
 
+import { notificationService } from '../../services/notificationService';
+
 export function AdminDashboard() {
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER' | 'SYSTEM'>('SERVICE');
+  const [globalAlertTitle, setGlobalAlertTitle] = useState('SYSTEM ADVISORY');
+  const [globalAlertMessage, setGlobalAlertMessage] = useState('Operational vector established. All stations verify handshake.');
   const [requests, setRequests] = useState<any[]>([]);
   const [cameraRequests, setCameraRequests] = useState<any[]>([]);
   const [vehicleRequests, setVehicleRequests] = useState<any[]>([]);
@@ -784,7 +790,60 @@ export function AdminDashboard() {
                       </div>
                    </div>
 
-                   {/* Registry Overview */}
+                    {/* Global Alert Dispatcher */}
+                    <div className="space-y-4">
+                       <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
+                         <Bell className="w-3 h-3" />
+                         Global Alert Dispatcher
+                       </h3>
+                       <div className="p-6 rounded-2xl bg-dark-card border border-dark-border shadow-md space-y-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                             <label className="text-[9px] font-black text-dark-text-subtle uppercase tracking-widest">Alert Header</label>
+                             <input 
+                               type="text" 
+                               value={globalAlertTitle}
+                               onChange={(e) => setGlobalAlertTitle(e.target.value)}
+                               className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-2 text-white text-xs font-bold focus:outline-none focus:border-dark-accent transition-all"
+                             />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-[9px] font-black text-dark-text-subtle uppercase tracking-widest">Broadcast Narrative</label>
+                             <input 
+                               type="text" 
+                               value={globalAlertMessage}
+                               onChange={(e) => setGlobalAlertMessage(e.target.value)}
+                               className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-2 text-white text-xs font-bold focus:outline-none focus:border-dark-accent transition-all"
+                             />
+                           </div>
+                         </div>
+                         <div className="flex items-center justify-between pt-2 border-t border-dark-border">
+                           <div className="flex items-center gap-2">
+                             <div className={cn(
+                               "w-2 h-2 rounded-full",
+                               notificationService.getPermissionStatus() === 'granted' ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                             )} />
+                             <span className="text-[9px] font-bold text-dark-text-subtle uppercase tracking-widest">
+                               {notificationService.getPermissionStatus() === 'granted' ? 'Native Alerts Active' : 'Native Alerts Restricted'}
+                             </span>
+                           </div>
+                           <button 
+                             onClick={() => {
+                               notificationService.notify(globalAlertTitle, {
+                                 body: globalAlertMessage,
+                                 icon: '/favicon.ico'
+                               });
+                             }}
+                             className="px-6 py-2 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+                           >
+                             <TowerControl className="w-4 h-4" />
+                             Broadcast to All Vectors
+                           </button>
+                         </div>
+                       </div>
+                    </div>
+
+                    {/* Registry Overview */}
                    <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">

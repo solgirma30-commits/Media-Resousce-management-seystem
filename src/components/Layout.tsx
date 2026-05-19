@@ -26,27 +26,27 @@ import { toast } from "react-hot-toast";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { useAuth, UserRole } from "../App";
 import { cn } from "../lib/utils";
+import { notificationService } from "../services/notificationService";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { profile, logout, switchRole } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
-
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>("default");
 
   useEffect(() => {
     if (!profile) return;
+    
+    // Update permission status
+    setPermissionStatus(notificationService.getPermissionStatus());
+
     const path = "notifications";
     const q = query(
       collection(db, path),
       where("userId", "==", profile.uid),
       where("read", "==", false),
     );
-
-    // Request permission on mount
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
 
     let isFirstLoad = true;
     return onSnapshot(
@@ -67,20 +67,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
               const newNotif = change.doc.data() as any;
-              toast(newNotif.message, {
-                icon: "🔔",
-                duration: 5000,
-                position: "top-right",
+              notificationService.notify(newNotif.title, {
+                body: newNotif.message,
               });
-              if (
-                "Notification" in window &&
-                Notification.permission === "granted"
-              ) {
-                new Notification(newNotif.title, {
-                  body: newNotif.message,
-                  icon: "/favicon.ico",
-                });
-              }
             }
           });
         }
@@ -93,6 +82,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
       },
     );
   }, [profile]);
+
+  const handleRequestPermission = async () => {
+    const granted = await notificationService.requestPermission();
+    setPermissionStatus(granted ? "granted" : "denied");
+    if (granted) {
+      toast.success("Push notifications enabled!");
+    } else {
+      toast.error("Permission denied. Check browser settings.");
+    }
+  };
 
   const markAllAsRead = async () => {
     try {
@@ -278,8 +277,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <div className="mt-auto p-8 border-t border-dark-border bg-dark-main/20">
           <div className="mb-4">
-            <div className="text-[10px] text-dark-text-subtle font-black uppercase tracking-widest mb-3">
-              SYSTEM HEALTH
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[10px] text-dark-text-subtle font-black uppercase tracking-widest">
+                SYSTEM HEALTH
+              </div>
+              {permissionStatus !== "granted" && (
+                <button 
+                  onClick={handleRequestPermission}
+                  className="text-[9px] font-black text-dark-accent hover:text-dark-accent/80 transition-colors uppercase tracking-[0.1em] flex items-center gap-1"
+                >
+                  <Bell className="w-2 h-2" />
+                  Enable Alerts
+                </button>
+              )}
             </div>
             <div className="h-1 bg-dark-border rounded-full overflow-hidden">
               <div className="h-full bg-emerald-500 w-[94%] rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)]"></div>
