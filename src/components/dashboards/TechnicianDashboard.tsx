@@ -56,6 +56,7 @@ export function TechnicianDashboard() {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [permission, setPermission] = useState<NotificationPermission>(notificationService.getPermissionStatus());
   
   // Role-based portal configuration
   const portalConfig = React.useMemo(() => {
@@ -410,12 +411,55 @@ export function TechnicianDashboard() {
             <p className="text-dark-text-subtle mt-1 font-serif italic uppercase tracking-widest text-[10px] font-black">{profile?.displayName} • {portalConfig.subtitle}</p>
           </div>
         <div className="flex items-center gap-4">
+          {permission === 'granted' && (
+            <button 
+              onClick={() => notificationService.notify("Operational Test", { body: "Mobile alert handshake verified." })}
+              className="hidden sm:flex text-[9px] font-black text-dark-accent/60 hover:text-dark-accent uppercase tracking-widest px-2 py-1 flex items-center gap-1 transition-colors"
+            >
+              <Activity className="w-3 h-3" />
+              Test Sync
+            </button>
+          )}
           <div className="hidden sm:flex bg-dark-card px-4 py-2 rounded-lg border border-dark-border items-center gap-3 shadow-xl">
             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.6)] animate-pulse"></div>
             <span className="text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Network Synchronized</span>
           </div>
         </div>
       </div>
+
+      {/* Notification Onboarding Card */}
+      {permission !== 'granted' && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-dark-accent/10 border border-dark-accent/30 rounded-2xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-dark-accent/20 flex items-center justify-center text-dark-accent">
+              <Smartphone className="w-6 h-6 animate-bounce" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-slate-950 uppercase tracking-widest">Enable Mobile Alerts</h3>
+              <p className="text-xs text-dark-text-subtle mt-1 italic">Get real-time popups on your phone when new work is assigned.</p>
+              <p className="text-[9px] text-dark-accent/60 mt-1 uppercase font-bold">iOS Users: Add to Home Screen first</p>
+            </div>
+          </div>
+          <button 
+            onClick={async () => {
+              const granted = await notificationService.requestPermission();
+              setPermission(notificationService.getPermissionStatus());
+              if (granted) {
+                toast.success("Push Alerts Synchronized");
+              } else {
+                toast.error("Handshake Failed: Permission Denied");
+              }
+            }}
+            className="px-8 py-3 bg-dark-accent text-white rounded-xl text-xs font-black uppercase tracking-[0.2em] shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+          >
+            Authorize Notifications
+          </button>
+        </motion.div>
+      )}
 
       {/* Analytics Stats Deck */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

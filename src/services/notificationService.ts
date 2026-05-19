@@ -43,7 +43,7 @@ class NotificationService {
     // 2. Show browser notification if permitted
     if (typeof window !== 'undefined' && 'Notification' in window && this.permission === 'granted') {
       try {
-        const notificationOptions: NotificationOptions = {
+        const notificationOptions: any = {
           icon: '/pwa-512x512.png',
           badge: '/pwa-512x512.png',
           vibrate: [200, 100, 200],
