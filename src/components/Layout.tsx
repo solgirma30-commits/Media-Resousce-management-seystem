@@ -12,6 +12,7 @@ import {
   X,
   TowerControl as Control,
   ArrowLeft,
+  Globe,
 } from "lucide-react";
 import {
   collection,
@@ -27,9 +28,11 @@ import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { useAuth, UserRole } from "../App";
 import { cn } from "../lib/utils";
 import { notificationService } from "../services/notificationService";
+import { useLanguage } from "../lib/LanguageContext";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { profile, logout, switchRole } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -182,7 +185,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
               )}
             >
               <item.icon className="w-4 h-4 opacity-70" />
-              {item.label}
+              {item.id === 'dashboard' ? t('nav_dashboard', 'Dashboard Overview') :
+               item.id === 'requests' ? t('nav_requests', 'Service Requests') :
+               item.id === 'all-requests' ? t('nav_service_queue', 'Service Queue') :
+               item.id === 'assignments' ? t('nav_technician_fleet', 'Technician Fleet') :
+               item.id === 'technicians' ? t('nav_technicians', 'Technicians') :
+               item.label}
             </button>
           ))}
           <div className="relative">
@@ -197,7 +205,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               <div className="flex items-center gap-3 text-left">
                 <Bell className="w-4 h-4 opacity-70" />
-                Notifications
+                {t('nav_notifications', 'Notifications')}
               </div>
               {notifications.length > 0 && (
                 <span className="bg-dark-accent text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
@@ -227,7 +235,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   >
                     <div className="p-4 border-b border-dark-border flex items-center justify-between bg-dark-main/40">
                       <span className="text-[10px] font-black uppercase tracking-widest text-dark-text-subtle">
-                        System Alerts
+                        {t('nav_system_alerts', 'System Alerts')}
                       </span>
                       <div className="flex items-center gap-4">
                         {notifications.length > 0 && (
@@ -235,7 +243,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             onClick={markAllAsRead}
                             className="text-[9px] font-bold text-dark-accent hover:underline uppercase tracking-tight"
                           >
-                            Clear All
+                            {t('nav_clear_all', 'Clear All')}
                           </button>
                         )}
                         <button
@@ -250,7 +258,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       {notifications.length === 0 ? (
                         <div className="p-8 text-center">
                           <p className="text-xs text-dark-text-subtle font-serif italic">
-                            No pending notifications
+                            {t('nav_no_notifications', 'No pending notifications')}
                           </p>
                         </div>
                       ) : (
@@ -282,26 +290,60 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="mt-auto p-8 border-t border-dark-border bg-dark-main/20">
+          {/* Dynamic Language Switcher in Sidebar */}
           <div className="mb-4">
+            <div className="text-[10px] text-dark-text-subtle font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Globe className="w-3 h-3 text-dark-accent" />
+              <span>Language / ቋንቋ</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-dark-card/60 border border-dark-border rounded-lg p-1">
+              <button
+                onClick={() => setLanguage('en')}
+                className={`flex-1 text-center py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                  language === 'en' ? 'bg-dark-accent text-white font-black shadow-sm' : 'text-dark-text-subtle hover:text-slate-900 bg-transparent'
+                }`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => setLanguage('om')}
+                className={`flex-1 text-center py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                  language === 'om' ? 'bg-dark-accent text-white font-black shadow-sm' : 'text-dark-text-subtle hover:text-slate-900 bg-transparent'
+                }`}
+              >
+                OM
+              </button>
+              <button
+                onClick={() => setLanguage('am')}
+                className={`flex-1 text-center py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                  language === 'am' ? 'bg-dark-accent text-white font-black shadow-sm' : 'text-dark-text-subtle hover:text-slate-900 bg-transparent'
+                }`}
+              >
+                አማ
+              </button>
+            </div>
+          </div>
+
+          <div className="mb-4 pt-4 border-t border-dark-border">
             <div className="flex items-center justify-between mb-3">
               <div className="text-[10px] text-dark-text-subtle font-black uppercase tracking-widest">
-                SYSTEM HEALTH
+                {t('system_health', 'SYSTEM HEALTH')}
               </div>
               {permissionStatus !== "granted" ? (
                 <button 
                   onClick={handleRequestPermission}
-                  className="text-[9px] font-black text-dark-accent hover:text-dark-accent/80 transition-colors uppercase tracking-[0.1em] flex items-center gap-1"
+                  className="text-[9px] font-black text-dark-accent hover:text-dark-accent/80 transition-colors uppercase tracking-[0.1em] flex items-center gap-1 cursor-pointer"
                 >
                   <Bell className="w-2 h-2" />
-                  Enable Alerts
+                  {t('enable_alerts', 'Enable Alerts')}
                 </button>
               ) : (
                 <button 
                   onClick={handleTestNotification}
-                  className="text-[9px] font-black text-dark-text-subtle hover:text-dark-accent transition-colors uppercase tracking-[0.1em] flex items-center gap-1"
+                  className="text-[9px] font-black text-dark-text-subtle hover:text-dark-accent transition-colors uppercase tracking-[0.1em] flex items-center gap-1 cursor-pointer"
                 >
                   <Bell className="w-2 h-2" />
-                  Test Alert
+                  {t('test_alert', 'Test Alert')}
                 </button>
               )}
             </div>
@@ -309,7 +351,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="h-full bg-emerald-500 w-[94%] rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)]"></div>
             </div>
             <div className="text-[9px] text-dark-text-muted mt-2">
-              All servers operational
+              {t('all_servers_operational', 'All servers operational')}
             </div>
           </div>
 
@@ -323,34 +365,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </p>
               <p className="text-[9px] text-slate-900 font-black truncate uppercase tracking-tight">
                 {profile?.role === UserRole.ADMIN
-                  ? "FMC COMMAND CENTER"
+                  ? t('fmc_admin', 'FMC COMMAND CENTER')
                   : profile?.role === UserRole.DEPT_DIRECTOR
-                    ? "FMC DEPT OPS"
+                    ? t('fmc_request', 'FMC DEPT OPS')
                     : profile?.role === UserRole.TECHNICIAN
-                      ? "FMC ENGINEERS"
+                      ? t('fmc_engineers', 'FMC ENGINEERS')
                       : profile?.role === UserRole.DRIVER
-                        ? "FMC DRIVERS"
+                        ? t('fmc_drivers', 'FMC DRIVERS')
                         : profile?.role === UserRole.CAMERAMAN
-                          ? "FMC CAMERA OPERATORS"
-                          : "AGENT"}
+                          ? t('fmc_cameramen', 'FMC CAMERA OPERATORS')
+                          : profile?.role === UserRole.SECURITY
+                            ? t('fmc_security', 'FMC SECURITY')
+                            : "AGENT"}
               </p>
             </div>
           </div>
           <button
             id="switch-portal-btn"
             onClick={switchRole}
-            className="w-full flex items-center gap-3 py-1 mb-4 text-dark-text-subtle hover:text-dark-accent transition-all font-medium text-[0.75rem] text-left"
+            className="w-full flex items-center gap-3 py-1 mb-4 text-dark-text-subtle hover:text-dark-accent transition-all font-medium text-[0.75rem] text-left cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Switch Portal
+            {t('switch_portal', 'Switch Portal')}
           </button>
           <button
             id="logout-btn"
             onClick={logout}
-            className="w-full flex items-center gap-3 py-1 text-dark-text-subtle hover:text-red-400 transition-all font-medium text-[0.75rem] text-left"
+            className="w-full flex items-center gap-3 py-1 text-dark-text-subtle hover:text-red-400 transition-all font-medium text-[0.75rem] text-left cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
-            Sign Out
+            {t('sign_out', 'Sign Out')}
           </button>
         </div>
       </aside>
@@ -399,10 +443,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   id={`mobile-nav-${item.id}`}
                   key={item.id}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full flex items-center gap-6 text-[1.1rem] text-dark-text-muted font-medium py-2 hover:text-slate-900"
+                  className="w-full flex items-center gap-6 text-[1.1rem] text-dark-text-muted font-medium py-2 hover:text-slate-900 cursor-pointer"
                 >
                   <item.icon className="w-6 h-6 text-dark-accent" />
-                  {item.label}
+                  {item.id === 'dashboard' ? t('nav_dashboard', 'Dashboard Overview') :
+                   item.id === 'requests' ? t('nav_requests', 'Service Requests') :
+                   item.id === 'all-requests' ? t('nav_service_queue', 'Service Queue') :
+                   item.id === 'assignments' ? t('nav_technician_fleet', 'Technician Fleet') :
+                   item.id === 'technicians' ? t('nav_technicians', 'Technicians') :
+                   item.label}
                 </button>
               ))}
               <button
@@ -411,11 +460,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   setIsNotificationsOpen(true);
                   setIsMobileMenuOpen(false);
                 }}
-                className="w-full flex items-center justify-between text-[1.1rem] text-dark-text-muted font-medium py-2 hover:text-slate-900 border-t border-dark-border/50 pt-6"
+                className="w-full flex items-center justify-between text-[1.1rem] text-dark-text-muted font-medium py-2 hover:text-slate-900 border-t border-dark-border/50 pt-6 cursor-pointer"
               >
                 <div className="flex items-center gap-6">
                   <Bell className="w-6 h-6 text-dark-accent" />
-                  Notifications
+                  {t('nav_notifications', 'Notifications')}
                 </div>
                 {notifications.length > 0 && (
                   <span className="bg-dark-accent text-white text-[12px] px-2 py-0.5 rounded-full font-bold">
@@ -426,6 +475,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="mt-auto pt-8 border-t border-dark-border">
+              {/* Mobile Language Selection */}
+              <div className="mb-6">
+                <div className="flex items-center gap-1 bg-dark-card border border-dark-border rounded-xl p-1">
+                  <button
+                    onClick={() => setLanguage('en')}
+                    className={`flex-1 text-center py-2 rounded-lg text-xs font-bold transition-all ${
+                      language === 'en' ? 'bg-dark-accent text-white' : 'text-dark-text-muted bg-transparent'
+                    }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    onClick={() => setLanguage('om')}
+                    className={`flex-1 text-center py-2 rounded-lg text-xs font-bold transition-all ${
+                      language === 'om' ? 'bg-dark-accent text-white' : 'text-dark-text-muted bg-transparent'
+                    }`}
+                  >
+                    Oromo
+                  </button>
+                  <button
+                    onClick={() => setLanguage('am')}
+                    className={`flex-1 text-center py-2 rounded-lg text-xs font-bold transition-all ${
+                      language === 'am' ? 'bg-dark-accent text-white' : 'text-dark-text-muted bg-transparent'
+                    }`}
+                  >
+                    አማርኛ
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-center gap-4 mb-8">
                 <div className="w-12 h-12 rounded-full bg-dark-accent flex items-center justify-center text-white font-bold text-xl">
                   {profile?.displayName[0]}
@@ -434,33 +513,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <p className="font-bold text-slate-900">{profile?.displayName}</p>
                   <p className="text-sm text-dark-text-subtle">
                     {profile?.role === UserRole.ADMIN
-                      ? "FMC COMMAND CENTER"
+                      ? t('fmc_admin', 'FMC COMMAND CENTER')
                       : profile?.role === UserRole.DEPT_DIRECTOR
-                        ? "FMC DEPT OPS"
+                        ? t('fmc_request', 'FMC DEPT OPS')
                         : profile?.role === UserRole.TECHNICIAN
-                          ? "FMC ENGINEERS"
+                          ? t('fmc_engineers', 'FMC ENGINEERS')
                           : profile?.role === UserRole.DRIVER
-                            ? "FMC DRIVERS"
+                            ? t('fmc_drivers', 'FMC DRIVERS')
                             : profile?.role === UserRole.CAMERAMAN
-                              ? "FMC CAMERA OPERATORS"
-                              : profile?.role.replace("_", " ")}
+                              ? t('fmc_cameramen', 'FMC CAMERA OPERATORS')
+                              : profile?.role === UserRole.SECURITY
+                                ? t('fmc_security', 'FMC SECURITY')
+                                : "AGENT"}
                   </p>
                 </div>
               </div>
               <button
                 id="mobile-switch-portal-btn"
                 onClick={switchRole}
-                className="w-full flex items-center justify-center gap-3 py-4 mb-4 rounded-2xl bg-dark-card text-dark-accent font-bold border border-dark-border"
+                className="w-full flex items-center justify-center gap-3 py-4 mb-4 rounded-2xl bg-dark-card text-dark-accent font-bold border border-dark-border cursor-pointer select-none"
               >
                 <ArrowLeft className="w-6 h-6" />
-                Switch Portal
+                {t('switch_portal', 'Switch Portal')}
               </button>
               <button
                 onClick={logout}
-                className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-dark-card text-red-400 font-bold border border-dark-border"
+                className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-dark-card text-red-400 font-bold border border-dark-border cursor-pointer select-none"
               >
                 <LogOut className="w-6 h-6" />
-                Sign Out
+                {t('sign_out', 'Sign Out')}
               </button>
             </div>
           </motion.div>
@@ -479,27 +560,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="w-8 h-8 rounded-full bg-dark-card border border-dark-border flex items-center justify-center group-hover:border-dark-accent group-hover:bg-dark-accent/10 transition-all">
               <ArrowLeft className="w-4 h-4" />
             </div>
-            Portal Selection
+            {t('portal_selection', 'Portal Selection')}
           </button>
           <div className="text-right hidden sm:block">
             <span className="text-[10px] text-dark-text-subtle font-black uppercase tracking-widest block mb-1">
-              SYSTEM CONTEXT
+              {t('system_context', 'SYSTEM CONTEXT')}
             </span>
             <div className="flex items-center gap-2 justify-end">
               <div className="w-2 h-2 rounded-full bg-dark-accent animate-pulse"></div>
               <span className="text-xs font-bold text-slate-900 uppercase tracking-tight">
                 {profile?.role === UserRole.ADMIN
-                  ? "FMC COMMAND CENTER"
+                  ? t('fmc_admin', 'FMC COMMAND CENTER')
                   : profile?.role === UserRole.DEPT_DIRECTOR
-                    ? "FMC DEPT OPS"
+                    ? t('fmc_request', 'FMC DEPT OPS')
                     : profile?.role === UserRole.TECHNICIAN
-                      ? "FMC ENGINEERS"
+                      ? t('fmc_engineers', 'FMC ENGINEERS')
                       : profile?.role === UserRole.DRIVER
-                        ? "FMC DRIVERS"
+                        ? t('fmc_drivers', 'FMC DRIVERS')
                         : profile?.role === UserRole.CAMERAMAN
-                          ? "FMC CAMERA OPERATORS"
-                          : profile?.role.replace("_", " ")}{" "}
-                PORTAL
+                          ? t('fmc_cameramen', 'FMC CAMERA OPERATORS')
+                          : profile?.role === UserRole.SECURITY
+                            ? t('fmc_security', 'FMC SECURITY')
+                            : "AGENT"}{" "}
+                {t('portal', 'PORTAL')}
               </span>
             </div>
           </div>

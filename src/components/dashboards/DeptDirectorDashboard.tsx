@@ -92,6 +92,8 @@ export function DeptDirectorDashboard() {
   const [serialNumber, setSerialNumber] = useState('');
   const [exitReason, setExitReason] = useState('');
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
+  const [itemQuantity, setItemQuantity] = useState(1);
+  const [responsiblePerson, setResponsiblePerson] = useState('');
 
   // Other Device Request unique
   const [deviceModel, setDeviceModel] = useState('');
@@ -265,7 +267,7 @@ export function DeptDirectorDashboard() {
         } else if (activeTab === 'VEHICLE') {
           updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengersCount, departureDate: depDate, departureTime: depTime, returnTime: retTime };
         } else if (activeTab === 'ITEM') {
-          updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate };
+          updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate, quantity: itemQuantity, responsiblePerson };
         } else if (activeTab === 'OTHER') {
           updateData = { ...updateData, projectName: workName, deviceModel, quantity: requestQty, purpose: description, neededBy: needDate };
         }
@@ -339,7 +341,9 @@ export function DeptDirectorDashboard() {
           serialNumber,
           purpose: exitReason,
           expectedReturnDate,
-          status: 'APPROVED',
+          quantity: itemQuantity,
+          responsiblePerson,
+          status: 'NEW',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
@@ -393,10 +397,17 @@ export function DeptDirectorDashboard() {
           ...staffDocs.map(d => d.id)
         ]));
 
+        const isApprovedItem = activeTab === 'ITEM';
         const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : activeTab === 'OTHER' ? 'Device Request' : 'Service';
         const displayName = activeTab === 'SERVICE' ? workName : activeTab === 'CAMERA' ? eventTitle : activeTab === 'ITEM' ? itemName : activeTab === 'OTHER' ? deviceModel : workName;
-        const notificationTitle = `[${profile.department}] ${requestTypeLabel}: ${displayName}`;
-        const notificationMessage = `ALERT: ${profile.displayName} submitted a new ${requestTypeLabel.toLowerCase()} request: "${displayName}" for ${location || destination || 'unspecified site'}.`;
+        
+        const notificationTitle = isApprovedItem
+          ? `[APPROVED] [${profile.department}] ${requestTypeLabel}: ${displayName}`
+          : `[${profile.department}] ${requestTypeLabel}: ${displayName}`;
+          
+        const notificationMessage = isApprovedItem
+          ? `APPROVED EXIT: ${profile.displayName} approved Exit Permit for item "${displayName}". Security clearance authorized.`
+          : `ALERT: ${profile.displayName} submitted a new ${requestTypeLabel.toLowerCase()} request: "${displayName}" for ${location || destination || 'unspecified site'}.`;
         
         const notificationPromises = audienceIds.map(userId => {
           const notificationId = `notif_new_${Date.now()}_${userId}`;
@@ -430,6 +441,29 @@ export function DeptDirectorDashboard() {
         approvedByName: profile?.displayName,
         updatedAt: serverTimestamp(),
       });
+
+      // If approved request is of type 'ITEM' (item_requests), also send APPROVED notification to all SECURITY users
+      if (collectionName === 'item_requests') {
+        const foundReq = itemRequests.find(r => r.id === requestId);
+        const displayName = foundReq?.itemName || 'Item';
+        const securityUsers = await getDocs(query(collection(db, 'users'), where('role', '==', 'SECURITY')));
+        const notificationPromises = securityUsers.docs.map(uDoc => {
+          const userSecId = uDoc.id;
+          const notifSecId = `notif_app_item_${Date.now()}_${userSecId}`;
+          return setDoc(doc(db, 'notifications', notifSecId), {
+            userId: userSecId,
+            title: `[APPROVED] [${profile?.department || 'Dept'}] Exit Permit: ${displayName}`,
+            message: `APPROVED EXIT: ${profile?.displayName || 'Director'} approved Exit Permit for item "${displayName}". Security clearance authorized.`,
+            read: false,
+            role: 'ADMIN_OR_STAFF',
+            type: 'APPROVAL',
+            requestId: requestId,
+            createdAt: serverTimestamp(),
+          });
+        });
+        await Promise.all(notificationPromises);
+      }
+
       toast.success('Request approved and released to operations');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${collectionName}/${requestId}`);
@@ -513,6 +547,8 @@ export function DeptDirectorDashboard() {
     setSerialNumber('');
     setExitReason('');
     setExpectedReturnDate('');
+    setItemQuantity(1);
+    setResponsiblePerson('');
     setEventTitle('');
     setEventDate('');
     setStartTime('');
@@ -547,6 +583,8 @@ export function DeptDirectorDashboard() {
     setSerialNumber(request.serialNumber || '');
     setExitReason(request.purpose || '');
     setExpectedReturnDate(request.expectedReturnDate || '');
+    setItemQuantity(request.quantity || 1);
+    setResponsiblePerson(request.responsiblePerson || '');
     setEventTitle(request.eventTitle || '');
     setEventDate(request.date || '');
     setStartTime(request.startTime || '');
@@ -728,11 +766,11 @@ export function DeptDirectorDashboard() {
                         <div className="flex items-center gap-2">
                           <div className="w-1 h-3 bg-dark-accent rounded-full" />
                           <span className="text-[10px] font-black text-dark-text-muted uppercase tracking-[0.2em]">{dept}</span>
-                          <span className="text-[9px] font-mono text-dark-text-subtle ml-2 opacity-50">{deptRequests.length} Operations</span>
+                          <span className="text-[9px] font-mono text-dark-text-subtle ml-2 opacity-50">{(deptRequests as any[]).length} Operations</span>
                         </div>
                       </td>
                     </tr>
-                    {deptRequests.map((request) => (
+                    {(deptRequests as any[]).map((request) => (
                       <tr 
                         key={request.id} 
                         className={cn(
@@ -758,12 +796,22 @@ export function DeptDirectorDashboard() {
                           <p className="text-[10px] text-dark-text-subtle font-medium uppercase tracking-widest">{request.directorName || 'Unknown Agent'}</p>
                         </td>
                         <td className="py-4 px-6">
-                          <p className="text-sm font-bold text-slate-900 line-clamp-1">
-                            {activeTab === 'SERVICE' ? request.workName : activeTab === 'CAMERA' ? request.eventTitle : activeTab === 'ITEM' ? request.itemName : activeTab === 'OTHER' ? request.projectName : request.tripName}
+                          <p className="text-sm font-bold text-slate-900 line-clamp-1 flex items-center gap-2">
+                            <span>{activeTab === 'SERVICE' ? request.workName : activeTab === 'CAMERA' ? request.eventTitle : activeTab === 'ITEM' ? request.itemName : activeTab === 'OTHER' ? request.projectName : request.tripName}</span>
+                            {activeTab === 'ITEM' && (
+                              <span className="text-[10px] font-mono font-bold text-pink-500 bg-pink-500/10 px-1.5 py-0.5 rounded border border-pink-500/20">
+                                Qty: {request.quantity || 1}
+                              </span>
+                            )}
                           </p>
                           <p className="text-[10px] text-dark-text-subtle line-clamp-1 italic font-serif">
                             {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
                           </p>
+                          {activeTab === 'ITEM' && request.responsiblePerson && (
+                            <p className="text-[9px] font-black uppercase text-dark-text-muted mt-1 font-mono tracking-wider">
+                              Responsible: <span className="text-dark-accent">{request.responsiblePerson}</span>
+                            </p>
+                          )}
                         </td>
                         <td className="py-4 px-6">
                           <span className={cn("status-pill text-[9px]", getStatusStyle(request.status))}>
@@ -862,7 +910,25 @@ export function DeptDirectorDashboard() {
                 </div>
 
                 <div className="p-10 space-y-8">
-                   <div className="grid grid-cols-2 gap-6">
+                   {activeTab === 'ITEM' ? (
+                     <div className="grid grid-cols-2 gap-6">
+                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Responsible Person</p>
+                         <p className="text-sm font-black text-black">{selectedRequest.responsiblePerson || 'Not Specified'}</p>
+                       </div>
+                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Quantity / Serial Number</p>
+                         <p className="text-sm font-black text-black">Qty: {selectedRequest.quantity || 1} ({selectedRequest.serialNumber || 'No S/N'})</p>
+                       </div>
+                       {selectedRequest.expectedReturnDate && (
+                         <div className="p-5 bg-dark-main border border-dark-border rounded-xl col-span-2">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Expected Return Date</p>
+                           <p className="text-sm font-black text-black">{selectedRequest.expectedReturnDate}</p>
+                         </div>
+                       )}
+                     </div>
+                   ) : (
+                     <div className="grid grid-cols-2 gap-6">
                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
                            {activeTab === 'VEHICLE' ? 'Driver Details' : 'Assigned Agent'}
@@ -889,7 +955,8 @@ export function DeptDirectorDashboard() {
                             ) : 'No specific asset'}
                          </p>
                       </div>
-                   </div>
+                    </div>
+                   )}
 
                    <div className="p-6 bg-dark-main border border-dark-border rounded-xl">
                       <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">
@@ -1362,6 +1429,32 @@ export function DeptDirectorDashboard() {
                           placeholder="e.g., S/N 12345678"
                           value={serialNumber}
                           onChange={(e) => setSerialNumber(e.target.value)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                      <div>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Quantity</label>
+                        <input
+                          required
+                          type="number"
+                          min="1"
+                          placeholder="e.g., 1"
+                          value={itemQuantity}
+                          onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Responsible for Item</label>
+                        <input
+                          required
+                          type="text"
+                          placeholder="Name of person responsible"
+                          value={responsiblePerson}
+                          onChange={(e) => setResponsiblePerson(e.target.value)}
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>

@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Shield, UserRound, Wrench, ArrowRight, Truck, Camera } from 'lucide-react';
+import { Shield, UserRound, Wrench, ArrowRight, Truck, Camera, Globe } from 'lucide-react';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth, UserRole } from '../App';
 import { toast } from 'react-hot-toast';
 import { cn } from '../lib/utils';
+import { useLanguage } from '../lib/LanguageContext';
 
 export function RoleSetup({ onComplete }: { onComplete: () => void }) {
   const { user, profile: existingProfile } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(existingProfile?.role || null);
   const [fullName, setFullName] = useState(existingProfile?.displayName || user?.displayName || '');
   const [phoneNumber, setPhoneNumber] = useState(existingProfile?.phoneNumber || '');
@@ -136,7 +138,32 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-dark-main flex items-center justify-center p-4 font-sans text-black font-bold overflow-y-auto">
+    <div className="min-h-screen bg-dark-main flex items-center justify-center p-4 font-sans text-black font-bold overflow-y-auto relative">
+      {/* Floating Language Switcher */}
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-2 bg-dark-card border border-dark-border rounded-full px-3 py-1.5 text-xs text-dark-text-subtle">
+        <Globe className="w-3.5 h-3.5 text-dark-accent" />
+        <button
+          onClick={() => setLanguage('en')}
+          className={`px-2 py-0.5 rounded transition-all text-[10px] font-black uppercase cursor-pointer ${language === 'en' ? 'bg-dark-accent text-white font-bold' : 'hover:text-slate-900 text-dark-text-subtle'}`}
+        >
+          EN
+        </button>
+        <span className="opacity-35 select-none text-[8px]">|</span>
+        <button
+          onClick={() => setLanguage('om')}
+          className={`px-2 py-0.5 rounded transition-all text-[10px] font-black uppercase cursor-pointer ${language === 'om' ? 'bg-dark-accent text-white font-bold' : 'hover:text-slate-900 text-dark-text-subtle'}`}
+        >
+          OM
+        </button>
+        <span className="opacity-35 select-none text-[8px]">|</span>
+        <button
+          onClick={() => setLanguage('am')}
+          className={`px-2 py-0.5 rounded transition-all text-[10px] font-black uppercase cursor-pointer ${language === 'am' ? 'bg-dark-accent text-white font-bold' : 'hover:text-slate-900 text-dark-text-subtle'}`}
+        >
+          አማ
+        </button>
+      </div>
+
       <motion.div 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -144,8 +171,8 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
         className="w-full max-w-2xl bg-dark-card rounded-xl shadow-2xl p-6 md:p-10 border border-dark-border my-8"
       >
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-black text-black tracking-tight">FMC RESOURCE MANAGEMENT</h2>
-          <p className="text-dark-text-subtle mt-2 font-serif italic text-sm">Define your operational role within the TechFlow ecosystem</p>
+          <h2 className="text-3xl font-black text-black tracking-tight">{t('role_resource_mgmt', 'FMC RESOURCE MANAGEMENT')}</h2>
+          <p className="text-dark-text-subtle mt-2 font-serif italic text-sm">{t('role_define_role', 'Define your operational role within the TechFlow ecosystem')}</p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-10">
@@ -166,7 +193,15 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
               )}>
                 <role.icon className={cn("w-6 h-6", selectedRole === role.id ? role.color : "text-dark-text-subtle")} />
               </div>
-              <h3 className="font-black text-black text-xs uppercase tracking-widest mb-2">{role.title}</h3>
+              <h3 className="font-black text-black text-xs uppercase tracking-widest mb-2">
+                {role.id === UserRole.ADMIN ? t('fmc_admin', 'FMC ADMIN') :
+                 role.id === UserRole.DEPT_DIRECTOR ? t('fmc_request', 'FMC REQUEST') :
+                 role.id === UserRole.TECHNICIAN ? t('fmc_engineers', 'FMC ENGINEERS') :
+                 role.id === UserRole.DRIVER ? t('fmc_drivers', 'FMC DRIVERS') :
+                 role.id === UserRole.CAMERAMAN ? t('fmc_cameramen', 'FMC CAMERA OPERATORS') :
+                 role.id === UserRole.SECURITY ? t('fmc_security', 'FMC SECURITY') :
+                 role.title}
+              </h3>
               <p className="text-[10px] text-dark-text-subtle text-center leading-relaxed font-medium">{role.description}</p>
             </button>
           ))}
@@ -175,7 +210,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
         <div className="grid grid-cols-1 gap-6 mb-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">User Name</label>
+              <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t('role_user_name', 'User Name')}</label>
               <input
                 type="text"
                 placeholder="e.g. john_doe"
@@ -185,7 +220,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
               />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Password</label>
+              <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t('role_contact_password', 'Password / Contact Number')}</label>
               <input
                 type="password"
                 placeholder="••••••••"
@@ -200,7 +235,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
         <div className="grid grid-cols-1 gap-6 mb-10">
           <div>
             <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">
-              Operational Department {selectedRole === UserRole.DEPT_DIRECTOR && <span className="text-rose-500">*</span>}
+              {t('role_dept_label', 'Operational Department')} {selectedRole === UserRole.DEPT_DIRECTOR && <span className="text-rose-500">*</span>}
             </label>
             <input
               id="dept-input"
@@ -218,18 +253,18 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
             id="complete-setup-btn"
             disabled={!selectedRole || isSubmitting}
             onClick={handleComplete}
-            className="w-full flex items-center justify-center gap-3 bg-dark-accent hover:bg-indigo-600 disabled:opacity-20 text-white font-bold py-4 px-6 rounded-lg transition-all shadow-xl shadow-indigo-900/30 active:scale-[0.98] uppercase tracking-widest text-xs"
+            className="w-full flex items-center justify-center gap-3 bg-dark-accent hover:bg-indigo-600 disabled:opacity-20 text-white font-bold py-4 px-6 rounded-lg transition-all shadow-xl shadow-indigo-900/30 active:scale-[0.98] uppercase tracking-widest text-xs cursor-pointer"
           >
-            {isSubmitting ? 'Syncing...' : 'Initialize Portal'}
+            {isSubmitting ? t('saving', 'Syncing...') : t('role_init_portal', 'Initialize Portal')}
             {!isSubmitting && <ArrowRight className="w-4 h-4" />}
           </button>
           
           {existingProfile && (
             <button
               onClick={onComplete}
-              className="w-full py-4 text-xs font-black text-dark-text-subtle hover:text-white uppercase tracking-widest transition-all"
+              className="w-full py-4 text-xs font-black text-dark-text-subtle hover:text-white uppercase tracking-widest transition-all cursor-pointer"
             >
-              Discard Changes
+              {t('role_discard_changes', 'Discard Changes')}
             </button>
           )}
         </div>

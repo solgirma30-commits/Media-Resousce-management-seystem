@@ -24,8 +24,7 @@ import {
   BarChart3,
   CheckCircle,
   Activity,
-  Layers,
-  Plus
+  Layers
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -44,7 +43,6 @@ import {
   serverTimestamp,
   getDocs,
   setDoc,
-  addDoc,
   deleteDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
@@ -102,69 +100,6 @@ export function TechnicianDashboard() {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [notes, setNotes] = useState('');
   
-  // Item Request states
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [itemName, setItemName] = useState('');
-  const [serialNumber, setSerialNumber] = useState('');
-  const [exitReason, setExitReason] = useState('');
-  const [expectedReturnDate, setExpectedReturnDate] = useState('');
-
-  const handleRequestItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!profile) return;
-
-    try {
-      const path = 'item_requests';
-      const newRequest = {
-        requestId: `EX-${Date.now()}`,
-        requesterId: profile.uid,
-        requesterName: profile.displayName,
-        departmentName: profile.department || 'Unknown Dept',
-        itemName,
-        serialNumber,
-        purpose: exitReason,
-        expectedReturnDate,
-        status: 'NEW',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      
-      const docRef = await addDoc(collection(db, path), newRequest);
-      
-      // Notify Director of this department
-      const directorsSnapshot = await getDocs(query(
-        collection(db, 'users'), 
-        where('role', '==', 'DEPT_DIRECTOR'),
-        where('department', '==', profile.department || '')
-      ));
-      
-      const directorIds = directorsSnapshot.docs.map(d => d.id);
-      
-      const notificationPromises = directorIds.map(directorId => {
-        const notificationId = `notif_item_req_${Date.now()}_${directorId}`;
-        return setDoc(doc(db, 'notifications', notificationId), {
-          userId: directorId,
-          title: `NEW Item Exit Request: ${itemName}`,
-          message: `STAFF ALERT: ${profile.displayName} submitted a new item exit permit for review.`,
-          read: false,
-          type: 'NEW_REQUEST',
-          requestId: docRef.id,
-          createdAt: serverTimestamp(),
-        });
-      });
-
-      await Promise.all(notificationPromises);
-      
-      toast.success('Item Exit Request submitted for Director approval');
-      setIsRequestModalOpen(false);
-      setItemName('');
-      setSerialNumber('');
-      setExitReason('');
-      setExpectedReturnDate('');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'item_requests');
-    }
-  };
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -507,13 +442,6 @@ export function TechnicianDashboard() {
             <p className="text-dark-text-subtle mt-1 font-serif italic uppercase tracking-widest text-[10px] font-black">{profile?.displayName} • {portalConfig.subtitle}</p>
           </div>
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setIsRequestModalOpen(true)}
-            className="flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Request Exit Permit
-          </button>
           {permission === 'granted' && profile?.role !== 'DRIVER' && (
             <button 
               onClick={() => notificationService.notify("Operational Test", { body: "Mobile alert handshake verified." })}
@@ -1114,99 +1042,6 @@ export function TechnicianDashboard() {
           </AnimatePresence>
         </div>
       </div>
-
-      <AnimatePresence>
-        {isRequestModalOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsRequestModalOpen(false)}
-              className="absolute inset-0 bg-dark-main/90 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-dark-card rounded-2xl border border-dark-border shadow-2xl overflow-hidden"
-            >
-              <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-medium text-slate-950 tracking-tight">Request Item Exit Permit</h2>
-                  <p className="text-dark-text-subtle text-sm mt-1">Submit asset for operational release verification</p>
-                </div>
-                <button onClick={() => setIsRequestModalOpen(false)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <form onSubmit={handleRequestItem} className="p-8 space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Item Name / Model</label>
-                    <input
-                      required
-                      type="text"
-                      placeholder="e.g. Sony A7 III"
-                      value={itemName}
-                      onChange={(e) => setItemName(e.target.value)}
-                      className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Serial Number / Asset Tag</label>
-                    <input
-                      required
-                      type="text"
-                      placeholder="S/N: XXXX-XXXX"
-                      value={serialNumber}
-                      onChange={(e) => setSerialNumber(e.target.value)}
-                      className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none transition-all font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Reason for Exit</label>
-                    <textarea
-                      required
-                      rows={3}
-                      placeholder="Explain the mission purpose..."
-                      value={exitReason}
-                      onChange={(e) => setExitReason(e.target.value)}
-                      className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none transition-all resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Return Date (Optional)</label>
-                    <input
-                      type="date"
-                      value={expectedReturnDate}
-                      onChange={(e) => setExpectedReturnDate(e.target.value)}
-                      className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3 pt-4">
-                  <button 
-                    type="submit"
-                    className="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 rounded-xl transition-all shadow-xl shadow-pink-900/40 flex items-center justify-center gap-3 text-sm"
-                  >
-                    SUBMIT PERMIT REQUEST
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setIsRequestModalOpen(false)}
-                    className="w-full py-2 text-[10px] font-black text-dark-text-subtle hover:text-white uppercase tracking-widest transition-all"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

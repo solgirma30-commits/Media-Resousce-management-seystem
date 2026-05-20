@@ -23,6 +23,7 @@ import { Layout } from './components/Layout';
 import { Login } from './components/Login';
 import { RoleSetup } from './components/RoleSetup';
 import { Dashboard } from './components/Dashboard';
+import { LanguageProvider } from './lib/LanguageContext';
 
 export enum UserRole {
   ADMIN = 'ADMIN',
@@ -169,42 +170,44 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, signIn, logout, switchRole }}>
-      <Toaster 
-        position="top-right" 
-        toastOptions={{
-          style: {
-            background: '#0f172a',
-            color: '#fff',
-            border: '1px solid #1e293b',
-            borderRadius: '12px',
-            fontSize: '14px',
-            padding: '16px',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-          },
-          success: {
-            iconTheme: {
-              primary: '#10b981',
-              secondary: '#fff',
+      <LanguageProvider>
+        <Toaster 
+          position="top-right" 
+          toastOptions={{
+            style: {
+              background: '#0f172a',
+              color: '#fff',
+              border: '1px solid #1e293b',
+              borderRadius: '12px',
+              fontSize: '14px',
+              padding: '16px',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             },
-          },
-          error: {
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
+            success: {
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#fff',
+              },
             },
-          },
-        }}
-      />
-      {/* Connection warning removed from UI to avoid clutter, will remain in background state */}
-      {!user ? (
-        <Login />
-      ) : (!profile || isSelectingRole) ? (
-        <RoleSetup onComplete={() => setIsSelectingRole(false)} />
-      ) : (
-        <Layout>
-          <Dashboard />
-        </Layout>
-      )}
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
+        {/* Connection warning removed from UI to avoid clutter, will remain in background state */}
+        {!user ? (
+          <Login />
+        ) : (!profile || isSelectingRole) ? (
+          <RoleSetup onComplete={() => setIsSelectingRole(false)} />
+        ) : (
+          <Layout>
+            <Dashboard />
+          </Layout>
+        )}
+      </LanguageProvider>
     </AuthContext.Provider>
   );
 }

@@ -105,7 +105,7 @@ export function AdminDashboard() {
     let isFirstLoad = true;
     const unsubscribeReq = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Service', ...doc.data() }))
           .filter((req: any) => !req.archived);
       
       docs.sort((a: any, b: any) => {
@@ -142,7 +142,7 @@ export function AdminDashboard() {
     const qCam = query(collection(db, camPath));
     const unsubscribeCam = onSnapshot(qCam, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Camera', ...doc.data() }))
           .filter((req: any) => !req.archived);
       
       docs.sort((a: any, b: any) => {
@@ -177,7 +177,7 @@ export function AdminDashboard() {
     const qVeh = query(collection(db, vehPath));
     const unsubscribeVeh = onSnapshot(qVeh, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Vehicle', ...doc.data() }))
           .filter((req: any) => !req.archived);
       
       docs.sort((a: any, b: any) => {
@@ -212,7 +212,7 @@ export function AdminDashboard() {
     const qItem = query(collection(db, itemPath));
     const unsubscribeItem = onSnapshot(qItem, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Exit Permit', ...doc.data() }))
           .filter((req: any) => !req.archived);
       
       docs.sort((a: any, b: any) => {
@@ -247,7 +247,7 @@ export function AdminDashboard() {
     const qDev = query(collection(db, devPath));
     const unsubscribeDev = onSnapshot(qDev, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Device', ...doc.data() }))
           .filter((req: any) => !req.archived);
       
       docs.sort((a: any, b: any) => {
@@ -335,8 +335,8 @@ export function AdminDashboard() {
       toast.error('Update failed');
     }
   };
-  const handleApprove = async (requestId: string, directorId: string) => {
-    if (!unlockedSectors.has(activeTab)) {
+  const handleApprove = async (requestId: string, directorId: string, bypassLockCheck = false) => {
+    if (!bypassLockCheck && !unlockedSectors.has(activeTab)) {
       setPendingAction({ type: 'APPROVE', data: { requestId, directorId }, sector: activeTab });
       setIsUnlockModalOpen(true);
       return;
@@ -344,7 +344,7 @@ export function AdminDashboard() {
 
     const colName = collectionMap[activeTab];
     const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
-    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Device Request') : (req?.tripName || 'Untitled Trip');
+    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : (req?.tripName || 'Untitled Trip');
     const path = `${colName}/${requestId}`;
     try {
       await updateDoc(doc(db, colName, requestId), {
@@ -363,6 +363,26 @@ export function AdminDashboard() {
         requestId: requestId,
         createdAt: serverTimestamp(),
       });
+
+      // If activeTab is ITEM, also send APPROVED notification to all SECURITY users
+      if (activeTab === 'ITEM') {
+        const securityUsers = await getDocs(query(collection(db, 'users'), where('role', '==', 'SECURITY')));
+        const notificationPromises = securityUsers.docs.map(uDoc => {
+          const userSecId = uDoc.id;
+          const notifSecId = `notif_app_item_admin_${Date.now()}_${userSecId}`;
+          return setDoc(doc(db, 'notifications', notifSecId), {
+            userId: userSecId,
+            title: `[APPROVED] Exit Permit: ${displayName}`,
+            message: `APPROVED EXIT: Administrator approved Exit Permit for item "${displayName}". Security clearance authorized.`,
+            read: false,
+            role: 'ADMIN_OR_STAFF',
+            type: 'APPROVAL',
+            requestId: requestId,
+            createdAt: serverTimestamp(),
+          });
+        });
+        await Promise.all(notificationPromises);
+      }
 
       toast.success('Request approved');
     } catch (error) {
@@ -635,7 +655,7 @@ export function AdminDashboard() {
       
       if (pendingAction) {
         if (pendingAction.type === 'APPROVE' && pendingAction.data) {
-          handleApprove(pendingAction.data.requestId, pendingAction.data.directorId);
+          handleApprove(pendingAction.data.requestId, pendingAction.data.directorId, true);
         } else if (pendingAction.type === 'ASSIGN' && pendingAction.data) {
           const req = pendingAction.data;
           setSelectedRequest(req);
@@ -904,11 +924,16 @@ export function AdminDashboard() {
                           <div className="text-[10px] font-mono text-dark-accent font-bold uppercase tracking-widest">#{request.id.slice(-6).toUpperCase()}</div>
                        </td>
                        <td className="px-6 py-5">
-                          <div className="text-[13px] font-black text-black">
-                             {request.departmentName || 'General Ops'}
+                          <div className="text-[13px] font-black text-black flex items-center gap-2">
+                             <span>{request.departmentName || 'General Ops'}</span>
+                             {activeTab === 'ITEM' && (
+                               <span className="text-[9px] font-mono font-bold text-pink-500 bg-pink-500/10 px-1.5 py-0.5 rounded border border-pink-500/20">
+                                 Qty: {request.quantity || 1}
+                               </span>
+                             )}
                           </div>
                           <div className="text-[10px] text-dark-text-subtle mt-0.5 line-clamp-1 opacity-70 italic">
-                             {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
+                             {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? `Item: ${request.itemName || 'Unnamed'} — S/N: ${request.serialNumber || 'N/A'}` : activeTab === 'OTHER' ? request.deviceModel : request.destination}
                           </div>
                        </td>
                        <td className="px-6 py-5">
@@ -949,15 +974,30 @@ export function AdminDashboard() {
                                    destination: request.destination || '',
                                    itemName: request.itemName || '',
                                    deviceModel: request.deviceModel || '',
-                                   serialNumber: request.serialNumber || ''
+                                   serialNumber: request.serialNumber || '',
+                                   quantity: request.quantity || 1,
+                                   responsiblePerson: request.responsiblePerson || ''
                                  });
                                  setIsEditing(false);
                                }}
-                               className="p-2 rounded bg-dark-main border border-dark-border text-dark-text-subtle hover:text-dark-accent transition-all"
+                               className="p-2 rounded bg-dark-main border border-dark-border text-dark-text-subtle hover:text-dark-accent transition-all animate-none"
                                title="Edit/View Detail"
                              >
                                <FileText className="w-3.5 h-3.5" />
                              </button>
+                             {request.status === 'NEW' && (
+                               <button 
+                                 onClick={async (e) => {
+                                   e.stopPropagation();
+                                   handleApprove(request.id, request.directorId || '');
+                                 }}
+                                 className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest rounded transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                                 title="Approve Request"
+                               >
+                                 <CheckCircle2 className="w-3 h-3" />
+                                 Approve
+                               </button>
+                             )}
                              <button 
                                onClick={async (e) => {
                                  e.stopPropagation();
@@ -1154,7 +1194,7 @@ export function AdminDashboard() {
                                onChange={e => setEditFormData({...editFormData, departmentName: e.target.value})}
                                className="w-full bg-dark-card border border-dark-border rounded px-3 py-1.5 text-sm text-black font-bold focus:border-dark-accent outline-none"
                              />
-                           ) : (
+                            ) : (
                              <p className="text-sm font-black text-black">
                                {selectedRequest.departmentName || 'General Operations'}
                              </p>
@@ -1203,14 +1243,80 @@ export function AdminDashboard() {
                               }}
                               className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-3 text-sm text-black font-bold focus:border-dark-accent outline-none min-h-[100px]"
                            />
+                           {activeTab === 'ITEM' && (
+                             <div className="grid grid-cols-3 gap-4 mt-3">
+                               <div>
+                                 <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Serial Number</label>
+                                 <input 
+                                   type="text" 
+                                   placeholder="Serial Number"
+                                   value={editFormData.serialNumber || ''}
+                                   onChange={e => setEditFormData({...editFormData, serialNumber: e.target.value})}
+                                   className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                                 />
+                               </div>
+                               <div>
+                                 <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Quantity</label>
+                                 <input 
+                                   type="number" 
+                                   min="1"
+                                   placeholder="Qty"
+                                   value={editFormData.quantity || 1}
+                                   onChange={e => setEditFormData({...editFormData, quantity: parseInt(e.target.value) || 1})}
+                                   className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none font-mono"
+                                 />
+                               </div>
+                               <div>
+                                 <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Carrier / Responsible</label>
+                                 <input 
+                                   type="text" 
+                                   placeholder="Responsible Carrier"
+                                   value={editFormData.responsiblePerson || ''}
+                                   onChange={e => setEditFormData({...editFormData, responsiblePerson: e.target.value})}
+                                   className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                                 />
+                               </div>
+                             </div>
+                           )}
                          </div>
                        ) : (
-                         <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 text-sm text-black font-bold font-serif italic">
-                           {selectedRequest.workName || selectedRequest.eventTitle || selectedRequest.tripName || selectedRequest.itemName || selectedRequest.deviceModel || 'Vector Operational Objective'}
-                           <div className="mt-2 text-xs font-sans not-italic text-slate-700 opacity-80 border-t border-dark-border pt-2 mt-4">
-                             {selectedRequest.description || selectedRequest.purpose || selectedRequest.destination || 'No secondary intelligence provided.'}
-                           </div>
-                         </div>
+                          activeTab === 'ITEM' ? (
+                            <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 space-y-4">
+                              <div className="flex justify-between items-center border-b border-dark-border pb-2">
+                                <span className="text-xs font-black uppercase text-dark-text-subtle font-mono">Item Name</span>
+                                <span className="text-sm font-black text-slate-900">{selectedRequest.itemName || 'Unnamed Item'}</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4 text-xs font-sans text-black font-bold">
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Serial / Asset Tag</p>
+                                  <p className="font-bold text-slate-900">{selectedRequest.serialNumber || 'N/A'}</p>
+                                </div>
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Quantity</p>
+                                  <p className="font-bold text-slate-900 font-mono">{selectedRequest.quantity || 1}</p>
+                                </div>
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Carrier Personnel</p>
+                                  <p className="font-bold text-slate-900">{selectedRequest.responsiblePerson || 'Not Specified'}</p>
+                                </div>
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Expected Return</p>
+                                  <p className="font-bold text-slate-900">{selectedRequest.expectedReturnDate || 'Clearance Only'}</p>
+                                </div>
+                              </div>
+                              <div className="pt-2 border-t border-dark-border">
+                                <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Exit Purpose</p>
+                                <p className="text-sm text-slate-800 font-serif italic">{selectedRequest.purpose || 'FMC Security Clearance Protocol'}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 text-sm text-black font-bold font-serif italic">
+                              {selectedRequest.workName || selectedRequest.eventTitle || selectedRequest.tripName || selectedRequest.itemName || selectedRequest.deviceModel || 'Vector Operational Objective'}
+                              <div className="mt-2 text-xs font-sans not-italic text-slate-700 opacity-80 border-t border-dark-border pt-2 mt-4">
+                                {selectedRequest.description || selectedRequest.purpose || selectedRequest.destination || 'No secondary intelligence provided.'}
+                              </div>
+                            </div>
+                          )
                        )}
                     </div>
 
