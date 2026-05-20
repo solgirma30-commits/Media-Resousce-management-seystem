@@ -24,7 +24,8 @@ import {
   BarChart3,
   CheckCircle,
   Activity,
-  Layers
+  Layers,
+  Plus
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -42,7 +43,9 @@ import {
   doc,
   serverTimestamp,
   getDocs,
-  setDoc
+  setDoc,
+  addDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -98,8 +101,73 @@ export function TechnicianDashboard() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [notes, setNotes] = useState('');
+  
+  // Item Request states
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [itemName, setItemName] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+  const [exitReason, setExitReason] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+
+  const handleRequestItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile) return;
+
+    try {
+      const path = 'item_requests';
+      const newRequest = {
+        requestId: `EX-${Date.now()}`,
+        requesterId: profile.uid,
+        requesterName: profile.displayName,
+        departmentName: profile.department || 'Unknown Dept',
+        itemName,
+        serialNumber,
+        purpose: exitReason,
+        expectedReturnDate,
+        status: 'NEW',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      
+      const docRef = await addDoc(collection(db, path), newRequest);
+      
+      // Notify Director of this department
+      const directorsSnapshot = await getDocs(query(
+        collection(db, 'users'), 
+        where('role', '==', 'DEPT_DIRECTOR'),
+        where('department', '==', profile.department || '')
+      ));
+      
+      const directorIds = directorsSnapshot.docs.map(d => d.id);
+      
+      const notificationPromises = directorIds.map(directorId => {
+        const notificationId = `notif_item_req_${Date.now()}_${directorId}`;
+        return setDoc(doc(db, 'notifications', notificationId), {
+          userId: directorId,
+          title: `NEW Item Exit Request: ${itemName}`,
+          message: `STAFF ALERT: ${profile.displayName} submitted a new item exit permit for review.`,
+          read: false,
+          type: 'NEW_REQUEST',
+          requestId: docRef.id,
+          createdAt: serverTimestamp(),
+        });
+      });
+
+      await Promise.all(notificationPromises);
+      
+      toast.success('Item Exit Request submitted for Director approval');
+      setIsRequestModalOpen(false);
+      setItemName('');
+      setSerialNumber('');
+      setExitReason('');
+      setExpectedReturnDate('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'item_requests');
+    }
+  };
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedWork) {
@@ -403,6 +471,34 @@ export function TechnicianDashboard() {
     setSelectedIds(next);
   };
 
+  const handleDeleteWork = async (e: React.MouseEvent, work: any) => {
+    e.stopPropagation();
+    
+    if (deleteConfirmId === work.id) {
+      try {
+        const colName = work.collectionName || (
+          profile?.role === 'CAMERAMAN' ? 'camera_requests' :
+          profile?.role === 'DRIVER' ? 'vehicle_requests' : 'service_requests'
+        );
+        await deleteDoc(doc(db, colName, work.id));
+        toast.success('Record purged permanently');
+        setDeleteConfirmId(null);
+        if (selectedWork?.id === work.id) setSelectedWork(null);
+      } catch (error) {
+        toast.error('Purge failure');
+        console.error(error);
+      }
+    } else {
+      if (!['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status)) {
+        toast.error('Only completed vectors can be purged');
+        return;
+      }
+      setDeleteConfirmId(work.id);
+      setTimeout(() => setDeleteConfirmId(null), 3000);
+      toast('Click again to confirm PERMANENT purge', { icon: '⚠️' });
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-slate-900">
       <div className="flex items-center justify-between px-2">
@@ -411,7 +507,14 @@ export function TechnicianDashboard() {
             <p className="text-dark-text-subtle mt-1 font-serif italic uppercase tracking-widest text-[10px] font-black">{profile?.displayName} • {portalConfig.subtitle}</p>
           </div>
         <div className="flex items-center gap-4">
-          {permission === 'granted' && (
+          <button 
+            onClick={() => setIsRequestModalOpen(true)}
+            className="flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Request Exit Permit
+          </button>
+          {permission === 'granted' && profile?.role !== 'DRIVER' && (
             <button 
               onClick={() => notificationService.notify("Operational Test", { body: "Mobile alert handshake verified." })}
               className="hidden sm:flex text-[9px] font-black text-dark-accent/60 hover:text-dark-accent uppercase tracking-widest px-2 py-1 flex items-center gap-1 transition-colors"
@@ -427,159 +530,133 @@ export function TechnicianDashboard() {
         </div>
       </div>
 
-      {/* Notification Onboarding Card */}
-      {permission !== 'granted' && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-dark-accent/10 border border-dark-accent/30 rounded-2xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-dark-accent/20 flex items-center justify-center text-dark-accent">
-              <Smartphone className="w-6 h-6 animate-bounce" />
+      {/* Work Request Data Table */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-dark-card border border-dark-border rounded-2xl shadow-xl overflow-hidden"
+      >
+        <div className="p-6 border-b border-dark-border bg-dark-sidebar/20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-dark-accent/10 rounded-lg text-dark-accent">
+              <ClipboardList className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-950 uppercase tracking-widest">Enable Mobile Alerts</h3>
-              <p className="text-xs text-dark-text-subtle mt-1 italic">Get real-time popups on your phone when new work is assigned.</p>
-              <p className="text-[9px] text-dark-accent/60 mt-1 uppercase font-bold">iOS Users: Add to Home Screen first</p>
+              <h3 className="text-xs font-black text-slate-950 uppercase tracking-widest">Global Work Registry</h3>
+              <p className="text-[10px] text-dark-text-subtle mt-0.5 font-medium uppercase tracking-tight">Consolidated operational ledger</p>
             </div>
           </div>
-          <button 
-            onClick={async () => {
-              const granted = await notificationService.requestPermission();
-              setPermission(notificationService.getPermissionStatus());
-              if (granted) {
-                toast.success("Push Alerts Synchronized");
-              } else {
-                toast.error("Handshake Failed: Permission Denied");
-              }
-            }}
-            className="px-8 py-3 bg-dark-accent text-white rounded-xl text-xs font-black uppercase tracking-[0.2em] shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-          >
-            Authorize Notifications
-          </button>
-        </motion.div>
-      )}
-
-      {/* Analytics Stats Deck */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-dark-accent/5 rounded-full -mr-12 -mt-12 blur-3xl"></div>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-dark-main border border-dark-border flex items-center justify-center text-dark-accent">
-              <Layers className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Total Requests</p>
-              <h3 className="text-2xl font-mono font-bold text-slate-950 mt-1">{stats.total.toString().padStart(2, '0')}</h3>
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-dark-main rounded-full border border-dark-border">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-[9px] font-mono text-dark-text-muted uppercase">{assignments.length} Total Records</span>
             </div>
           </div>
         </div>
-
-        <div className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full -mr-12 -mt-12 blur-3xl"></div>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-dark-main border border-dark-border flex items-center justify-center text-amber-500">
-              <Activity className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Active Task</p>
-              <h3 className="text-2xl font-mono font-bold text-slate-950 mt-1">{stats.active.toString().padStart(2, '0')}</h3>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full -mr-12 -mt-12 blur-3xl"></div>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-dark-main border border-dark-border flex items-center justify-center text-blue-400">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Pending Sync</p>
-              <h3 className="text-2xl font-mono font-bold text-slate-950 mt-1">{stats.pending.toString().padStart(2, '0')}</h3>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full -mr-12 -mt-12 blur-3xl"></div>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-dark-main border border-dark-border flex items-center justify-center text-emerald-400">
-              <CheckCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Finalized</p>
-              <h3 className="text-2xl font-mono font-bold text-slate-950 mt-1">{stats.finalized.toString().padStart(2, '0')}</h3>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Finalized Chart & Distribution */}
-      {stats.total > 0 && (
-        <div className="bg-dark-card border border-dark-border rounded-2xl p-6 shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
-              <BarChart3 className="w-3 h-3 text-dark-accent" />
-              Operational Cycle Chart
-            </h3>
-            <div className="flex items-center gap-4">
-              {stats.chartData.map((item, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.color }}></div>
-                  <span className="text-[10px] font-mono text-dark-text-subtle uppercase">{item.name}</span>
-                </div>
+        <div className="overflow-x-auto scrollbar-hide">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-dark-header">
+              <tr>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Order No</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Work Description</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Department</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Assigned Agent</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Timeline Link</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border text-right whitespace-nowrap whitespace-nowrap">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-dark-border/40">
+              {assignments.map((work) => (
+                <tr 
+                  key={work.id} 
+                  onClick={() => setSelectedWork(work)}
+                  className={cn(
+                    "group transition-all cursor-pointer hover:bg-dark-main/30",
+                    selectedWork?.id === work.id ? "bg-dark-accent/5 translate-x-1" : ""
+                  )}
+                >
+                  <td className="px-6 py-5">
+                    <span className="text-[10px] font-mono text-dark-accent font-black tracking-widest group-hover:text-dark-accent transition-colors">
+                      #{work.id.slice(-6).toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-slate-900 group-hover:text-dark-accent transition-colors truncate max-w-[250px]">
+                        {work.collectionName === 'camera_requests' ? (work.eventTitle || work.purpose) : 
+                         work.collectionName === 'vehicle_requests' ? (work.tripName || work.destination) : 
+                         (work.workName || work.description)}
+                      </span>
+                      <span className="text-[10px] text-dark-text-subtle mt-0.5 font-serif italic truncate max-w-[200px]">
+                        {work.description || work.purpose || 'Standard Task'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-3 bg-dark-border rounded-full group-hover:bg-dark-accent transition-colors"></div>
+                      <span className="text-[10px] font-black text-slate-800 uppercase tracking-tighter">{work.departmentName || 'Ops Sector'}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-dark-main border border-dark-border flex items-center justify-center text-[9px] font-black text-dark-text-muted shadow-inner group-hover:border-dark-accent/40 transition-colors">
+                        {(work.assignedTechnicianName || work.assignedDriverName || '??').charAt(0)}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-slate-900 leading-none">{work.assignedTechnicianName || work.assignedDriverName || 'Unassigned'}</span>
+                        <span className="text-[9px] text-dark-text-subtle mt-1 uppercase font-bold tracking-tight">Active Duty</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <span className={cn(
+                      "px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight border shadow-sm",
+                      getStatusStyle(work.status)
+                    )}>
+                      {work.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-5 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-2 text-dark-text-subtle">
+                      <Clock className="w-3 h-3 group-hover:text-dark-accent transition-colors" />
+                      <span className="text-[10px] font-mono group-hover:text-slate-900 transition-colors">
+                        {work.createdAt?.toDate ? format(work.createdAt.toDate(), 'dd/MM HH:mm') : 'Sync...'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                      {['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status) && (
+                        <button 
+                          onClick={(e) => handleDeleteWork(e, work)}
+                          className={cn(
+                            "p-2 rounded-lg transition-all border",
+                            deleteConfirmId === work.id
+                              ? "bg-rose-500 border-rose-600 text-white animate-pulse shadow-lg shadow-rose-900/40"
+                              : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                          )}
+                          title={deleteConfirmId === work.id ? "Confirm Purge" : "Delete Record"}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
               ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            <div className="lg:col-span-4 h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.chartData}
-                    innerRadius={55}
-                    outerRadius={75}
-                    paddingAngle={5}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {stats.chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', fontSize: '10px' }}
-                    itemStyle={{ color: '#94a3b8' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="lg:col-span-8">
-              <div className="space-y-6">
-                {stats.chartData.map((item, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-slate-950 uppercase tracking-widest">{item.name} Lifecycle</span>
-                      <span className="text-[10px] font-mono text-dark-text-subtle">{Math.round((item.value / stats.total) * 100)}%</span>
-                    </div>
-                    <div className="w-full bg-dark-main h-1.5 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(item.value / stats.total) * 100}%` }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        className="h-full rounded-full"
-                        style={{ backgroundColor: item.color, boxShadow: `0 0 8px ${item.color}40` }}
-                      ></motion.div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+              {assignments.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-dark-text-subtle font-serif italic text-sm">
+                    No active work vectors detected in current sector.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         {/* Assignment Queue Sidebar / List */}
@@ -1037,6 +1114,99 @@ export function TechnicianDashboard() {
           </AnimatePresence>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isRequestModalOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsRequestModalOpen(false)}
+              className="absolute inset-0 bg-dark-main/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-dark-card rounded-2xl border border-dark-border shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-medium text-slate-950 tracking-tight">Request Item Exit Permit</h2>
+                  <p className="text-dark-text-subtle text-sm mt-1">Submit asset for operational release verification</p>
+                </div>
+                <button onClick={() => setIsRequestModalOpen(false)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleRequestItem} className="p-8 space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Item Name / Model</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g. Sony A7 III"
+                      value={itemName}
+                      onChange={(e) => setItemName(e.target.value)}
+                      className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Serial Number / Asset Tag</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="S/N: XXXX-XXXX"
+                      value={serialNumber}
+                      onChange={(e) => setSerialNumber(e.target.value)}
+                      className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none transition-all font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Reason for Exit</label>
+                    <textarea
+                      required
+                      rows={3}
+                      placeholder="Explain the mission purpose..."
+                      value={exitReason}
+                      onChange={(e) => setExitReason(e.target.value)}
+                      className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none transition-all resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Return Date (Optional)</label>
+                    <input
+                      type="date"
+                      value={expectedReturnDate}
+                      onChange={(e) => setExpectedReturnDate(e.target.value)}
+                      className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 pt-4">
+                  <button 
+                    type="submit"
+                    className="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 rounded-xl transition-all shadow-xl shadow-pink-900/40 flex items-center justify-center gap-3 text-sm"
+                  >
+                    SUBMIT PERMIT REQUEST
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setIsRequestModalOpen(false)}
+                    className="w-full py-2 text-[10px] font-black text-dark-text-subtle hover:text-white uppercase tracking-widest transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

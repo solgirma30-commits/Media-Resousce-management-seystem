@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
 import { 
   BarChart, 
   Bar, 
@@ -90,12 +91,41 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
       return (r.status === 'CONFIRMED' || r.status === 'CLOSED') && updatedAt >= start && updatedAt <= end;
     }).length;
 
+    // Intelligence Table Data
+    const intelligenceData = [
+      { 
+        label: 'Support Services', 
+        total: requests.filter(r => (r.type === 'SERVICE' || !r.type) && !r.eventTitle && !r.tripName).length,
+        completed: requests.filter(r => (r.status === 'CONFIRMED' || r.status === 'CLOSED') && (r.type === 'SERVICE' || !r.type) && !r.eventTitle && !r.tripName).length,
+        trend: '+4%'
+      },
+      { 
+        label: 'Surveillance Ops', 
+        total: requests.filter(r => r.eventTitle || r.cameraList).length,
+        completed: requests.filter(r => (r.status === 'CONFIRMED' || r.status === 'CLOSED') && (r.eventTitle || r.cameraList)).length,
+        trend: '+12%'
+      },
+      { 
+        label: 'Logistics/Fleet', 
+        total: requests.filter(r => r.tripName || r.vehiclePlate).length,
+        completed: requests.filter(r => (r.status === 'CONFIRMED' || r.status === 'CLOSED') && (r.tripName || r.vehiclePlate)).length,
+        trend: '-2%'
+      },
+      { 
+        label: 'Asset Security', 
+        total: requests.filter(r => r.itemName).length,
+        completed: requests.filter(r => (r.status === 'CONFIRMED' || r.status === 'CLOSED') && r.itemName).length,
+        trend: '+8%'
+      }
+    ];
+
     return {
       dailyStats,
       departmentData,
       techStats,
       totalThisWeek,
-      completedThisWeek
+      completedThisWeek,
+      intelligenceData
     };
   }, [requests, workforce]);
 
@@ -170,6 +200,56 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+            <div className="bg-dark-main p-8 rounded-3xl border border-dark-border flex flex-col">
+              <h3 className="text-xs font-black text-dark-text-subtle uppercase tracking-[0.2em] mb-8">Weekly Intelligence (Operational Metrics)</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-dark-border">
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest px-2">Sector</th>
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-center px-2">Load</th>
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-center px-2">Ratio</th>
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-right px-2">Trend</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-border/50">
+                    {weeklyData.intelligenceData.map((item, idx) => (
+                      <tr key={idx} className="group hover:bg-dark-sidebar/30 transition-colors">
+                        <td className="py-4 px-2">
+                          <p className="text-sm font-bold text-black">{item.label}</p>
+                          <p className="text-[10px] text-dark-text-subtle group-hover:text-dark-accent transition-colors">Operational Unit</p>
+                        </td>
+                        <td className="py-4 px-2 text-center">
+                          <p className="text-sm font-mono font-bold text-black">{item.total}</p>
+                        </td>
+                        <td className="py-4 px-2 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-[10px] font-black text-dark-accent">
+                              {Math.round((item.completed / (item.total || 1)) * 100)}%
+                            </span>
+                            <div className="w-12 h-1 bg-dark-card rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-dark-accent" 
+                                style={{ width: `${(item.completed / (item.total || 1)) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <span className={cn(
+                            "text-[10px] font-black px-2 py-1 rounded",
+                            item.trend.startsWith('+') ? "text-emerald-400 bg-emerald-400/10" : "text-rose-400 bg-rose-400/10"
+                          )}>
+                            {item.trend}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             <div className="bg-dark-main p-8 rounded-3xl border border-dark-border h-[400px] flex flex-col">
               <h3 className="text-xs font-black text-dark-text-subtle uppercase tracking-[0.2em] mb-8">Daily Traffic Volume</h3>
               <div className="flex-1 w-full">

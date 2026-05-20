@@ -79,7 +79,16 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
       return;
     }
     if (!phoneNumber) {
-      toast.error('Identity update failed: Password specification required');
+      toast.error('Identity update failed: Contact Number specification required');
+      return;
+    }
+    const cleanPhone = phoneNumber.trim();
+    if (!cleanPhone.startsWith('+')) {
+      toast.error('Contact Number must start with + and include country code (e.g. +251...)');
+      return;
+    }
+    if (/[a-zA-Z?*]/.test(cleanPhone)) {
+      toast.error('Contact Number cannot contain alphabetical characters or unverified masks (e.g. XXXX)');
       return;
     }
     if (selectedRole === UserRole.DEPT_DIRECTOR && !department) {
@@ -96,7 +105,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
         displayName: fullName,
         phoneNumber: phoneNumber,
         role: selectedRole,
-        department: selectedRole === UserRole.DEPT_DIRECTOR ? department : null,
+        department: department || null,
         updatedAt: serverTimestamp(),
       };
 
@@ -186,23 +195,22 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
               />
             </div>
           </div>
+        </div>
 
-          {selectedRole === UserRole.DEPT_DIRECTOR && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Operational Department</label>
-              <input
-                id="dept-input"
-                type="text"
-                placeholder="e.g. Finance Sector, Strategic Ops"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm"
-              />
-            </motion.div>
-          )}
+        <div className="grid grid-cols-1 gap-6 mb-10">
+          <div>
+            <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">
+              Operational Department {selectedRole === UserRole.DEPT_DIRECTOR && <span className="text-rose-500">*</span>}
+            </label>
+            <input
+              id="dept-input"
+              type="text"
+              placeholder="e.g. Finance Sector, Strategic Ops"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm"
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-3">

@@ -38,8 +38,24 @@ async function startServer() {
         });
       }
 
+      // Check for common placeholders or unverified/masked formats
+      const normalizedTo = String(to).trim();
+      const isPlaceholder = /[a-zA-Z?*]/.test(normalizedTo) || 
+                            normalizedTo.toLowerCase().includes("placeholder") ||
+                            normalizedTo.toLowerCase().includes("null") ||
+                            normalizedTo.toLowerCase().includes("undefined") ||
+                            normalizedTo.toLowerCase() === "na" ||
+                            normalizedTo.toLowerCase() === "n/a";
+
+      if (isPlaceholder) {
+        return res.status(400).json({
+          error: "INVALID_PHONE_NUMBER",
+          message: `Contact number "${to}" is a placeholder. Please configure a valid mobile number.`
+        });
+      }
+
       // Format phone number to E.164
-      let clean = to.replace(/\D/g, ''); // Remove all non-digits
+      let clean = normalizedTo.replace(/\D/g, ''); // Remove all non-digits
       
       // Ethiopian mobile numbers are 9 digits after the '0' prefix (e.g., 0911234567 -> 9 digits)
       // Standard format: +251 <9-digits>
@@ -53,6 +69,15 @@ async function startServer() {
       } else if (clean.length === 9 && (clean.startsWith('9') || clean.startsWith('7'))) {
         // 911223344 -> 251911223344
         clean = '251' + clean;
+      }
+      
+      // Prevent short codes or invalid numbers from being processed.
+      // Valid mobile numbers should generally carry at least 9 digits (local format) or 12 digits (E.164 for Ethiopia).
+      if (clean.length < 9) {
+        return res.status(400).json({
+          error: "INVALID_PHONE_NUMBER",
+          message: `Recipient number "${to}" parsed as "+${clean}" has only ${clean.length} digits, which is too short. SMS dispatch does not support short codes or invalid contact formats.`
+        });
       }
       
       const formattedTo = '+' + clean;
@@ -78,9 +103,13 @@ async function startServer() {
       res.json({ success: true, sid: result.sid });
     } catch (error: any) {
       console.error("SMS Error:", error.message, error.code ? `(Code: ${error.code})` : "");
+      let errMsg = error.message;
+      if (error.code === 21608) {
+        errMsg = `The recipient number is not verified in Twilio. Trial accounts can only send messages to verified numbers. Please verify the destination phone number in your Twilio Console or dispatch via the local SIM card option.`;
+      }
       res.status(error.status || 500).json({ 
         error: error.code ? `TWILIO_${error.code}` : "SMS_GATEWAY_ERROR",
-        message: error.message,
+        message: errMsg,
         code: error.code
       });
     }

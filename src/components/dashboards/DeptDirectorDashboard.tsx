@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
@@ -7,6 +7,7 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle, 
+  TrendingUp,
   MoreVertical,
   ChevronRight,
   Phone,
@@ -17,7 +18,8 @@ import {
   Image as ImageIcon,
   Camera,
   Car,
-  Users
+  Users,
+  Pencil
 } from 'lucide-react';
 import { 
   collection, 
@@ -30,7 +32,8 @@ import {
   updateDoc,
   doc,
   getDocs,
-  setDoc
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -47,9 +50,13 @@ export function DeptDirectorDashboard() {
   const [itemRequests, setItemRequests] = useState<any[]>([]);
   const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [directorComments, setDirectorComments] = useState('');
   const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +107,7 @@ export function DeptDirectorDashboard() {
     const srPath = 'service_requests';
     const srQ = query(
       collection(db, srPath),
-      where('directorId', '==', profile.uid),
+      where('departmentName', '==', profile.department || 'Unknown'),
       orderBy('createdAt', 'desc')
     );
     const unsubscribeSR = onSnapshot(srQ, (snapshot) => {
@@ -118,7 +125,7 @@ export function DeptDirectorDashboard() {
     const crPath = 'camera_requests';
     const crQ = query(
       collection(db, crPath),
-      where('directorId', '==', profile.uid),
+      where('departmentName', '==', profile.department || 'Unknown'),
       orderBy('createdAt', 'desc')
     );
     const unsubscribeCR = onSnapshot(crQ, (snapshot) => {
@@ -136,7 +143,7 @@ export function DeptDirectorDashboard() {
     const vrPath = 'vehicle_requests';
     const vrQ = query(
       collection(db, vrPath),
-      where('directorId', '==', profile.uid),
+      where('departmentName', '==', profile.department || 'Unknown'),
       orderBy('createdAt', 'desc')
     );
     const unsubscribeVR = onSnapshot(vrQ, (snapshot) => {
@@ -154,7 +161,7 @@ export function DeptDirectorDashboard() {
     const irPath = 'item_requests';
     const irQ = query(
       collection(db, irPath),
-      where('directorId', '==', profile.uid),
+      where('departmentName', '==', profile.department || 'Unknown'),
       orderBy('createdAt', 'desc')
     );
     const unsubscribeIR = onSnapshot(irQ, (snapshot) => {
@@ -172,7 +179,7 @@ export function DeptDirectorDashboard() {
     const drPath = 'device_requests';
     const drQ = query(
       collection(db, drPath),
-      where('directorId', '==', profile.uid),
+      where('departmentName', '==', profile.department || 'Unknown'),
       orderBy('createdAt', 'desc')
     );
     const unsubscribeDR = onSnapshot(drQ, (snapshot) => {
@@ -204,13 +211,69 @@ export function DeptDirectorDashboard() {
     };
   }, [profile, activeTab]);
 
+  const currentList = useMemo(() => {
+    switch(activeTab) {
+      case 'SERVICE': return requests;
+      case 'CAMERA': return cameraRequests;
+      case 'VEHICLE': return vehicleRequests;
+      case 'ITEM': return itemRequests;
+      case 'OTHER': return deviceRequests;
+      default: return [];
+    }
+  }, [activeTab, requests, cameraRequests, vehicleRequests, itemRequests, deviceRequests]);
+
+  const groupedByDept = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    currentList.forEach(req => {
+      const dept = req.departmentName || 'Default Sector';
+      if (!groups[dept]) groups[dept] = [];
+      groups[dept].push(req);
+    });
+    return groups;
+  }, [currentList]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
 
+    const cleanPhone = phoneNumber.trim();
+    if (!cleanPhone.startsWith('+')) {
+      toast.error('Direct Phone must start with + and include country code (e.g., +251...)');
+      return;
+    }
+    if (/[a-zA-Z?*]/.test(cleanPhone)) {
+      toast.error('Direct Phone cannot contain letters or placeholder indices (e.g., XXXX)');
+      return;
+    }
+
     try {
       let docRef;
-      if (activeTab === 'SERVICE') {
+      if (isEditing && editingId) {
+        const colName = activeTab === 'SERVICE' ? 'service_requests' : 
+                        activeTab === 'CAMERA' ? 'camera_requests' : 
+                        activeTab === 'VEHICLE' ? 'vehicle_requests' : 
+                        activeTab === 'ITEM' ? 'item_requests' : 'device_requests';
+        
+        let updateData: any = {
+          updatedAt: serverTimestamp(),
+        };
+
+        if (activeTab === 'SERVICE') {
+          updateData = { ...updateData, phoneNumber, location, serviceCategory: category, workName, description, priority, fleetId: selectedFleetId || null };
+        } else if (activeTab === 'CAMERA') {
+          updateData = { ...updateData, eventTitle, location, date: eventDate, startTime, endTime, purpose: cameraPurpose };
+        } else if (activeTab === 'VEHICLE') {
+          updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengersCount, departureDate: depDate, departureTime: depTime, returnTime: retTime };
+        } else if (activeTab === 'ITEM') {
+          updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate };
+        } else if (activeTab === 'OTHER') {
+          updateData = { ...updateData, projectName: workName, deviceModel, quantity: requestQty, purpose: description, neededBy: needDate };
+        }
+
+        await updateDoc(doc(db, colName, editingId), updateData);
+        toast.success('Request updated successfully');
+      } else {
+        if (activeTab === 'SERVICE') {
         const path = 'service_requests';
         const newRequest = {
           departmentName: profile.department || 'Unknown Dept',
@@ -276,7 +339,7 @@ export function DeptDirectorDashboard() {
           serialNumber,
           purpose: exitReason,
           expectedReturnDate,
-          status: 'NEW',
+          status: 'APPROVED',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
@@ -293,63 +356,83 @@ export function DeptDirectorDashboard() {
           quantity: requestQty,
           purpose: description,
           neededBy: needDate,
-          status: 'NEW',
+          status: 'APPROVED',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
         docRef = await addDoc(collection(db, path), newRequest);
       }
+    } // End of creation block
 
-      toast.success('Request submitted for processing');
-      setIsModalOpen(false);
+    toast.success(isEditing ? 'Record synchronized' : 'Request submitted for processing');
+    setIsModalOpen(false);
+    setIsEditing(false);
+    setEditingId(null);
       
-      const realRequestId = docRef?.id || `REQ-${Date.now()}`;
-      
-      // Create notifications for Admins and relevant operators
-      const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'ADMIN')));
-      const adminDocs = adminsSnapshot.docs;
-      
-      // Target roles based on request type
-      let targetRole = '';
-      if (activeTab === 'CAMERA') targetRole = 'CAMERAMAN';
-      else if (activeTab === 'VEHICLE') targetRole = 'DRIVER';
-      else if (activeTab === 'SERVICE') targetRole = 'TECHNICIAN';
-      else if (activeTab === 'ITEM') targetRole = 'SECURITY';
-      else if (activeTab === 'OTHER') targetRole = 'TECHNICIAN'; // Generic device requests go to Tech Team
+      if (!isEditing) {
+        const realRequestId = docRef?.id || `REQ-${Date.now()}`;
+        
+        // Create notifications for Admins and relevant operators
+        const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'ADMIN')));
+        const adminDocs = adminsSnapshot.docs;
+        
+        // Target roles based on request type
+        let targetRole = '';
+        if (activeTab === 'CAMERA') targetRole = 'CAMERAMAN';
+        else if (activeTab === 'VEHICLE') targetRole = 'DRIVER';
+        else if (activeTab === 'SERVICE') targetRole = 'TECHNICIAN';
+        else if (activeTab === 'ITEM') targetRole = 'SECURITY';
+        else if (activeTab === 'OTHER') targetRole = 'TECHNICIAN'; // Generic device requests go to Tech Team
 
-      const staffSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
-      const staffDocs = staffSnapshot.docs;
+        const staffSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
+        const staffDocs = staffSnapshot.docs;
 
-      // Combine audiences (Admins + Relevant Staff)
-      const audienceIds = Array.from(new Set([
-        ...adminDocs.map(d => d.id),
-        ...staffDocs.map(d => d.id)
-      ]));
+        // Combine audiences (Admins + Relevant Staff)
+        const audienceIds = Array.from(new Set([
+          ...adminDocs.map(d => d.id),
+          ...staffDocs.map(d => d.id)
+        ]));
 
-      const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : activeTab === 'OTHER' ? 'Device Request' : 'Service';
-      const displayName = activeTab === 'SERVICE' ? workName : activeTab === 'CAMERA' ? eventTitle : activeTab === 'ITEM' ? itemName : activeTab === 'OTHER' ? deviceModel : workName;
-      const notificationTitle = `[${profile.department}] ${requestTypeLabel}: ${displayName}`;
-      const notificationMessage = `ALERT: ${profile.displayName} submitted a new ${requestTypeLabel.toLowerCase()} request: "${displayName}" for ${location || destination || 'unspecified site'}.`;
-      
-      const notificationPromises = audienceIds.map(userId => {
-        const notificationId = `notif_new_${Date.now()}_${userId}`;
-        return setDoc(doc(db, 'notifications', notificationId), {
-          userId,
-          title: notificationTitle,
-          message: notificationMessage,
-          read: false,
-          role: 'ADMIN_OR_STAFF', // Helpful for filtering if needed
-          type: 'NEW_REQUEST',
-          requestId: realRequestId, 
-          createdAt: serverTimestamp(),
+        const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : activeTab === 'OTHER' ? 'Device Request' : 'Service';
+        const displayName = activeTab === 'SERVICE' ? workName : activeTab === 'CAMERA' ? eventTitle : activeTab === 'ITEM' ? itemName : activeTab === 'OTHER' ? deviceModel : workName;
+        const notificationTitle = `[${profile.department}] ${requestTypeLabel}: ${displayName}`;
+        const notificationMessage = `ALERT: ${profile.displayName} submitted a new ${requestTypeLabel.toLowerCase()} request: "${displayName}" for ${location || destination || 'unspecified site'}.`;
+        
+        const notificationPromises = audienceIds.map(userId => {
+          const notificationId = `notif_new_${Date.now()}_${userId}`;
+          return setDoc(doc(db, 'notifications', notificationId), {
+            userId,
+            title: notificationTitle,
+            message: notificationMessage,
+            read: false,
+            role: 'ADMIN_OR_STAFF', // Helpful for filtering if needed
+            type: 'NEW_REQUEST',
+            requestId: realRequestId, 
+            createdAt: serverTimestamp(),
+          });
         });
-      });
 
-      await Promise.all(notificationPromises);
+        await Promise.all(notificationPromises);
+      }
       resetForm();
     } catch (error) {
       const path = activeTab === 'SERVICE' ? 'service_requests' : activeTab === 'CAMERA' ? 'camera_requests' : 'vehicle_requests';
       handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  };
+
+  const handleApprove = async (requestId: string, collectionName: string) => {
+    try {
+      await updateDoc(doc(db, collectionName, requestId), {
+        status: 'APPROVED',
+        approvedAt: serverTimestamp(),
+        approvedById: profile?.uid,
+        approvedByName: profile?.displayName,
+        updatedAt: serverTimestamp(),
+      });
+      toast.success('Request approved and released to operations');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${collectionName}/${requestId}`);
     }
   };
 
@@ -377,8 +460,12 @@ export function DeptDirectorDashboard() {
       return;
     }
 
-    const confirm = window.confirm(`Archive ${selectedIds.size} selected records from your log?`);
-    if (!confirm) return;
+    if (!bulkDeleteConfirm) {
+      setBulkDeleteConfirm(true);
+      setTimeout(() => setBulkDeleteConfirm(false), 3000);
+      toast('Click again to confirm PERMANENT purge of selected records', { icon: '⚠️' });
+      return;
+    }
 
     const currentTabRequests = activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests;
     
@@ -386,20 +473,23 @@ export function DeptDirectorDashboard() {
       const promises = Array.from(selectedIds).map(async (id) => {
         const req = currentTabRequests.find(r => r.id === id);
         if (req) {
-          const collectionName = (req as any).collectionName || 'service_requests';
-          return updateDoc(doc(db, collectionName, id), {
-            archived: true,
-            updatedAt: serverTimestamp()
-          });
+          const collectionName = (req as any).collectionName || (
+            activeTab === 'SERVICE' ? 'service_requests' :
+            activeTab === 'CAMERA' ? 'camera_requests' :
+            activeTab === 'VEHICLE' ? 'vehicle_requests' :
+            activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
+          );
+          return deleteDoc(doc(db, collectionName as string, id as string));
         }
       });
 
       await Promise.all(promises);
-      toast.success(`${selectedIds.size} records archived`);
+      toast.success(`${selectedIds.size} records purged permanently`);
       setSelectedIds(new Set());
       setIsSelectMode(false);
+      setBulkDeleteConfirm(false);
     } catch (error) {
-      toast.error('Failed to clear some records');
+      toast.error('Purge failure');
       console.error(error);
     }
   };
@@ -439,6 +529,65 @@ export function DeptDirectorDashboard() {
     setNeedDate('');
   };
 
+  const handleEdit = (e: React.MouseEvent, request: any) => {
+    e.stopPropagation();
+    setIsEditing(true);
+    setEditingId(request.id);
+    setIsModalOpen(true);
+    
+    // Populate form
+    setWorkName(request.workName || request.tripName || request.projectName || '');
+    setDescription(request.description || request.purpose || '');
+    setCategory(request.serviceCategory || 'Hardware');
+    setLocation(request.location || '');
+    setPriority(request.priority || 'MEDIUM');
+    setPhoneNumber(request.phoneNumber || profile?.phoneNumber || '');
+    setSelectedFleetId(request.fleetId || '');
+    setItemName(request.itemName || '');
+    setSerialNumber(request.serialNumber || '');
+    setExitReason(request.purpose || '');
+    setExpectedReturnDate(request.expectedReturnDate || '');
+    setEventTitle(request.eventTitle || '');
+    setEventDate(request.date || '');
+    setStartTime(request.startTime || '');
+    setEndTime(request.endTime || '');
+    setCameraPurpose(request.purpose || '');
+    setDestination(request.destination || '');
+    setVehiclePurpose(request.purpose || '');
+    setPassengersCount(request.passengersCount || 1);
+    setDepDate(request.departureDate || '');
+    setDepTime(request.departureTime || '');
+    setRetTime(request.returnTime || '');
+    setDeviceModel(request.deviceModel || '');
+    setRequestQty(request.quantity || 1);
+    setNeedDate(request.neededBy || '');
+  };
+
+  const handleDeleteOne = async (e: React.MouseEvent, request: any) => {
+    e.stopPropagation();
+    
+    if (deleteConfirmId === request.id) {
+      try {
+        const colName = request.collectionName || (
+          activeTab === 'SERVICE' ? 'service_requests' :
+          activeTab === 'CAMERA' ? 'camera_requests' :
+          activeTab === 'VEHICLE' ? 'vehicle_requests' :
+          activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
+        );
+        await deleteDoc(doc(db, colName, request.id));
+        toast.success('Record purged permanently');
+        setDeleteConfirmId(null);
+      } catch (error) {
+        toast.error('Purge failure');
+        console.error(error);
+      }
+    } else {
+      setDeleteConfirmId(request.id);
+      setTimeout(() => setDeleteConfirmId(null), 3000);
+      toast('Click again to confirm PERMANENT purge', { icon: '⚠️' });
+    }
+  };
+
   const categories = ['Hardware', 'Software', 'Network', 'Electrical', 'Furniture', 'Other'];
   const priorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
@@ -452,7 +601,12 @@ export function DeptDirectorDashboard() {
         </div>
         <button
           id="new-request-btn"
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setIsEditing(false);
+            setEditingId(null);
+            resetForm();
+            setIsModalOpen(true);
+          }}
           className="flex items-center justify-center gap-2 bg-dark-accent hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-lg transition-all shadow-lg shadow-indigo-900/40 active:scale-95 text-[0.85rem]"
         >
           <Plus className="w-4 h-4" />
@@ -499,42 +653,15 @@ export function DeptDirectorDashboard() {
         />
       </div>
 
-      {/* Stats row */}
-      {activeTab === 'SERVICE' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard 
-            label="Total Requests" 
-            value={requests.length} 
-            icon={Tag} 
-            color="text-indigo-700 bg-indigo-500/10" 
-          />
-          <StatCard 
-            label="Active Tasks" 
-            value={requests.filter(r => ['ASSIGNED', 'ACCEPTED', 'IN_PROGRESS'].includes(r.status)).length} 
-            icon={Clock} 
-            color="text-amber-700 bg-amber-500/10" 
-          />
-          <StatCard 
-            label="Pending Sync" 
-            value={requests.filter(r => r.status === 'COMPLETED').length} 
-            icon={AlertCircle} 
-            color="text-rose-700 bg-rose-500/10" 
-          />
-          <StatCard 
-            label="Finalized" 
-            value={requests.filter(r => ['CONFIRMED', 'CLOSED'].includes(r.status)).length} 
-            icon={CheckCircle2} 
-            color="text-emerald-700 bg-emerald-500/10" 
-          />
-        </div>
-      )}
-
-      {/* Requests List */}
+      {/* Service Log Table section */}
       <div className="bg-dark-card rounded-xl border border-dark-border shadow-2xl overflow-hidden">
         <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
-          <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-            {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : activeTab === 'ITEM' ? 'Exit Permit Log' : 'Other Device Log'}
-          </h3>
+          <div>
+            <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
+              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : activeTab === 'ITEM' ? 'Exit Permit Log' : 'Other Device Log'}
+            </h3>
+            <p className="text-[10px] text-dark-text-subtle mt-1">Operational records categorized by department resource load</p>
+          </div>
           <div className="flex items-center gap-3">
             {isSelectMode ? (
               <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-300">
@@ -542,9 +669,14 @@ export function DeptDirectorDashboard() {
                 <button 
                   onClick={handleClearSelected}
                   disabled={selectedIds.size === 0}
-                  className="px-4 py-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-20"
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-20 border",
+                    bulkDeleteConfirm 
+                      ? "bg-rose-500 border-rose-600 text-white animate-pulse shadow-lg shadow-rose-900/40" 
+                      : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                  )}
                 >
-                  Archive Selected
+                  {bulkDeleteConfirm ? 'CONFIRM PURGE' : 'Delete Selected'}
                 </button>
                 <button 
                   onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }}
@@ -558,158 +690,147 @@ export function DeptDirectorDashboard() {
                 onClick={() => setIsSelectMode(true)}
                 className="px-4 py-1.5 bg-dark-main border border-dark-border text-dark-text-subtle rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-white transition-all flex items-center gap-2"
               >
-                Select Mode
+                Bulk Action Mode
               </button>
             )}
-            <div className="relative hidden sm:block">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-dark-text-subtle" />
-              <input 
-                type="text" 
-                placeholder="Find record..." 
-                className="pl-9 pr-4 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold focus:ring-1 focus:ring-indigo-500 outline-none w-48 transition-all"
-              />
-            </div>
           </div>
         </div>
 
-        <div className="divide-y divide-dark-border">
-          {loading ? (
-             <div className="p-12 text-center text-dark-text-subtle">Retreiving records...</div>
-          ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).length === 0 ? (
-            <div className="p-16 text-center">
-              <div className="w-16 h-16 bg-dark-main rounded-xl flex items-center justify-center mx-auto mb-4 border border-dark-border">
-                {activeTab === 'SERVICE' ? <Clock className="w-8 h-8 text-dark-border" /> : activeTab === 'CAMERA' ? <Camera className="w-8 h-8 text-dark-border" /> : activeTab === 'VEHICLE' ? <Car className="w-8 h-8 text-dark-border" /> : activeTab === 'ITEM' ? <Tag className="w-8 h-8 text-dark-border" /> : <Plus className="w-8 h-8 text-dark-border" />}
-              </div>
-              <p className="text-slate-400 font-medium">No records found</p>
-              <p className="text-dark-text-subtle text-xs mt-1">Submit a new request to populate your logs</p>
-            </div>
-          ) : (
-            (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).map((request) => (
-              <motion.div 
-                layout
-                key={request.id} 
-                onClick={() => isSelectMode && toggleSelect(request.id)}
-                className={cn(
-                  "p-6 transition-colors group relative cursor-pointer",
-                  isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/40"
-                )}
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                  {isSelectMode && (
-                    <div className="shrink-0">
-                      <div className={cn(
-                        "w-5 h-5 rounded border-2 flex items-center justify-center transition-all",
-                        selectedIds.has(request.id) ? "bg-dark-accent border-dark-accent" : "border-dark-border bg-dark-main"
-                      )}>
-                        {selectedIds.has(request.id) && <Plus className="w-3 h-3 text-white rotate-45" />}
-                        {/* Using rotate-45 Plus as a checkmark if Check isn't imported, but Check is likely there if CheckCircle2 is. Wait, Lucide has Check. */}
-                        {selectedIds.has(request.id) && <div className="w-2 h-2 bg-white rounded-sm" />}
-                      </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-dark-border bg-dark-main/30">
+                {isSelectMode && <th className="py-4 px-6 w-10"></th>}
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Dept / Requester</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Request Details</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Status</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Schedule</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-dark-border">
+              {loading ? (
+                <tr><td colSpan={6} className="p-12 text-center text-dark-text-subtle">Retreiving records...</td></tr>
+              ) : currentList.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-16 text-center">
+                    <div className="w-16 h-16 bg-dark-main rounded-xl flex items-center justify-center mx-auto mb-4 border border-dark-border">
+                      {activeTab === 'SERVICE' ? <Clock className="w-8 h-8 text-dark-border" /> : activeTab === 'CAMERA' ? <Camera className="w-8 h-8 text-dark-border" /> : activeTab === 'VEHICLE' ? <Car className="w-8 h-8 text-dark-border" /> : activeTab === 'ITEM' ? <Tag className="w-8 h-8 text-dark-border" /> : <Plus className="w-8 h-8 text-dark-border" />}
                     </div>
-                  )}
-                  <div className="flex-1 space-y-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-[10px] font-black text-dark-accent bg-dark-accent/10 px-2 py-0.5 rounded border border-dark-accent/20 font-mono">
-                        {activeTab === 'SERVICE' ? (request.workName || 'UNNAMED JOB') : activeTab === 'CAMERA' ? (request.eventTitle || 'UNNAMED EVENT') : activeTab === 'ITEM' ? (request.itemName || 'UNNAMED ITEM') : activeTab === 'OTHER' ? (request.projectName || 'UNNAMED DEVICE REQ') : (request.tripName || 'UNNAMED TRIP')}
-                      </span>
-                      <span className={cn("status-pill", getStatusStyle(request.status))}>
-                        {request.status.replace('_', ' ')}
-                      </span>
-                      {request.priority && (
-                        <span className={cn(
-                          "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border",
-                          request.priority === 'URGENT' ? 'text-red-400 border-red-500/20 bg-red-500/5' : 
-                          request.priority === 'HIGH' ? 'text-orange-400 border-orange-500/20 bg-orange-500/5' : 'text-slate-400 border-dark-border bg-dark-main'
-                        )}>
-                          {request.priority}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-black flex items-center gap-1 font-mono uppercase tracking-tighter">
-                        <Clock className="w-3 h-3 opacity-50" />
-                        {request.createdAt ? format(request.createdAt.toDate(), 'MMM d, HH:mm') : 'Syncing...'}
-                      </span>
-                    </div>
-                    
-                    <h4 className="font-medium text-slate-900 text-lg group-hover:text-slate-950 transition-colors">
-                      {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
-                    </h4>
-
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-[0.75rem] text-black font-medium">
-                      {activeTab === 'SERVICE' && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Tag className="w-3.5 h-3.5" />
-                            {request.serviceCategory}
+                    <p className="text-slate-400 font-medium">No records found</p>
+                  </td>
+                </tr>
+              ) : (
+                Object.entries(groupedByDept).map(([dept, deptRequests]) => (
+                  <React.Fragment key={dept}>
+                    <tr className="bg-dark-main/40">
+                      <td colSpan={6} className="px-6 py-2 border-y border-dark-border">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1 h-3 bg-dark-accent rounded-full" />
+                          <span className="text-[10px] font-black text-dark-text-muted uppercase tracking-[0.2em]">{dept}</span>
+                          <span className="text-[9px] font-mono text-dark-text-subtle ml-2 opacity-50">{deptRequests.length} Operations</span>
+                        </div>
+                      </td>
+                    </tr>
+                    {deptRequests.map((request) => (
+                      <tr 
+                        key={request.id} 
+                        className={cn(
+                          "group transition-colors",
+                          isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
+                        )}
+                      >
+                        {isSelectMode && (
+                          <td className="py-4 px-6">
+                            <div 
+                              onClick={() => toggleSelect(request.id)}
+                              className={cn(
+                                "w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer",
+                                selectedIds.has(request.id) ? "bg-dark-accent border-dark-accent" : "border-dark-border bg-dark-main"
+                              )}
+                            >
+                              {selectedIds.has(request.id) && <div className="w-2 h-2 bg-white rounded-sm" />}
+                            </div>
+                          </td>
+                        )}
+                        <td className="py-4 px-6">
+                          <p className="text-xs font-black text-black uppercase tracking-tight">{request.departmentName || 'General Dept'}</p>
+                          <p className="text-[10px] text-dark-text-subtle font-medium uppercase tracking-widest">{request.directorName || 'Unknown Agent'}</p>
+                        </td>
+                        <td className="py-4 px-6">
+                          <p className="text-sm font-bold text-slate-900 line-clamp-1">
+                            {activeTab === 'SERVICE' ? request.workName : activeTab === 'CAMERA' ? request.eventTitle : activeTab === 'ITEM' ? request.itemName : activeTab === 'OTHER' ? request.projectName : request.tripName}
+                          </p>
+                          <p className="text-[10px] text-dark-text-subtle line-clamp-1 italic font-serif">
+                            {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
+                          </p>
+                        </td>
+                        <td className="py-4 px-6">
+                          <span className={cn("status-pill text-[9px]", getStatusStyle(request.status))}>
+                            {request.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2 text-dark-text-subtle">
+                            <Clock className="w-3 h-3" />
+                            <span className="text-[10px] font-mono">
+                              {request.createdAt ? format(request.createdAt.toDate(), 'MM/dd HH:mm') : 'Sync...'}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5" />
-                            {request.location}
-                          </div>
-                        </>
-                      )}
-                      {activeTab === 'OTHER' && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Tag className="w-3.5 h-3.5" />
-                            Qty: {request.quantity}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5" />
-                            Needed By: {request.neededBy}
-                          </div>
-                        </>
-                      )}
-                      {activeTab === 'ITEM' && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Tag className="w-3.5 h-3.5" />
-                            S/N: {request.serialNumber || 'N/A'}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5" />
-                            Return: {request.expectedReturnDate || 'Permanent'}
-                          </div>
-                        </>
-                      )}
-                      {activeTab === 'CAMERA' && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5" />
-                            {request.date} ({request.startTime} - {request.endTime})
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5" />
-                            {request.location}
-                          </div>
-                        </>
-                      )}
-                      {activeTab === 'VEHICLE' && (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5" />
-                            {request.departureDate} @ {request.departureTime}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-3.5 h-3.5" />
-                            {request.passengersCount} Passengers
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 shrink-0">
-                    <button 
-                      onClick={() => setSelectedRequest(request)}
-                      className="p-2 border border-dark-border rounded-lg text-dark-text-subtle hover:text-white hover:bg-dark-card transition-colors"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))
-          )}
+                        </td>
+                        <td className="py-4 px-6 text-right">
+                           <div className="flex items-center justify-end gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                              {request.status === 'NEW' && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleApprove(request.id, request.collectionName);
+                                  }}
+                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest rounded transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                                  title="Approve Request"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Approve
+                                </button>
+                              )}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedRequest(request);
+                                }}
+                                className="p-2 bg-dark-card border border-dark-border rounded-lg text-dark-text-subtle hover:text-white transition-colors"
+                                title="View Details"
+                              >
+                                <Search className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                onClick={(e) => handleEdit(e, request)}
+                                className="p-2 bg-dark-accent/10 border border-dark-border/20 text-dark-accent rounded-lg hover:bg-dark-accent hover:text-white transition-colors"
+                                title="Edit Record"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                onClick={(e) => handleDeleteOne(e, request)}
+                                className={cn(
+                                  "p-2 rounded-lg transition-all border",
+                                  deleteConfirmId === request.id
+                                    ? "bg-rose-500 border-rose-600 text-white animate-pulse shadow-lg shadow-rose-900/40"
+                                    : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                                )}
+                                title={deleteConfirmId === request.id ? "Confirm Purge" : "Delete Record"}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                           </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -900,10 +1021,10 @@ export function DeptDirectorDashboard() {
             >
               <div className="p-8 border-b border-dark-border bg-dark-card/50">
                 <h2 className="text-2xl font-medium text-white tracking-tight">
-                  {activeTab === 'SERVICE' ? 'Initialize Service Request' : activeTab === 'CAMERA' ? 'Request Camera Coverage' : 'Request Vehicle Assignment'}
+                  {isEditing ? 'Sync / Update Record' : (activeTab === 'SERVICE' ? 'Initialize Service Request' : activeTab === 'CAMERA' ? 'Request Camera Coverage' : 'Request Vehicle Assignment')}
                 </h2>
                 <p className="text-dark-text-subtle text-sm mt-1">
-                  {activeTab === 'SERVICE' ? 'Specify operational details for the technical team' : activeTab === 'CAMERA' ? 'Describe the event and coverage requirements' : 'Define destination and trip specifications'}
+                  {isEditing ? 'Modify or update the parameters of this operational record' : (activeTab === 'SERVICE' ? 'Specify operational details for the technical team' : activeTab === 'CAMERA' ? 'Describe the event and coverage requirements' : 'Define destination and trip specifications')}
                 </p>
               </div>
               
@@ -1281,7 +1402,7 @@ export function DeptDirectorDashboard() {
                     type="submit"
                     className="flex-1 px-6 py-4 rounded-lg bg-dark-accent text-white font-bold hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-900/30 active:scale-95 text-[0.8rem]"
                   >
-                    Submit Payload
+                    {isEditing ? 'Sync & Update Record' : (activeTab === 'SERVICE' ? 'Submit Service Request' : activeTab === 'CAMERA' ? 'Request Coverage' : activeTab === 'VEHICLE' ? 'Request Assignment' : 'Submit Payload')}
                   </button>
                 </div>
               </form>

@@ -41,7 +41,8 @@ import {
   doc,
   serverTimestamp,
   getDocs,
-  where
+  where,
+  deleteDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -54,7 +55,7 @@ import { notificationService } from '../../services/notificationService';
 
 export function AdminDashboard() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER' | 'SYSTEM'>('SERVICE');
+  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
   const [globalAlertTitle, setGlobalAlertTitle] = useState('SYSTEM ADVISORY');
   const [globalAlertMessage, setGlobalAlertMessage] = useState('Operational vector established. All stations verify handshake.');
   const [requests, setRequests] = useState<any[]>([]);
@@ -67,6 +68,8 @@ export function AdminDashboard() {
   const [cameramen, setCameramen] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState<any>({});
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
@@ -79,6 +82,7 @@ export function AdminDashboard() {
   const [editingTech, setEditingTech] = useState<any | null>(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editRole, setEditRole] = useState<'TECHNICIAN' | 'DRIVER' | 'CAMERAMAN'>('TECHNICIAN');
   
   // Operational Protection (Sector Level)
   const [unlockedSectors, setUnlockedSectors] = useState<Set<string>>(new Set());
@@ -303,6 +307,10 @@ export function AdminDashboard() {
     };
   }, []);
 
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [deleteTechConfirmId, setDeleteTechConfirmId] = useState<string | null>(null);
+
   const collectionMap = {
     SERVICE: 'service_requests',
     CAMERA: 'camera_requests',
@@ -311,6 +319,22 @@ export function AdminDashboard() {
     OTHER: 'device_requests'
   };
 
+  const handleUpdateRecord = async () => {
+    if (!selectedRequest) return;
+    try {
+      const colName = collectionMap[activeTab];
+      await updateDoc(doc(db, colName, selectedRequest.id), {
+        ...editFormData,
+        updatedAt: serverTimestamp()
+      });
+      toast.success('Record updated successfully');
+      setSelectedRequest({ ...selectedRequest, ...editFormData });
+      setIsEditing(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Update failed');
+    }
+  };
   const handleApprove = async (requestId: string, directorId: string) => {
     if (!unlockedSectors.has(activeTab)) {
       setPendingAction({ type: 'APPROVE', data: { requestId, directorId }, sector: activeTab });
@@ -406,11 +430,13 @@ export function AdminDashboard() {
             message: smsMessage 
           }),
         }).then(async (res) => {
+          const errorData = await res.json().catch(() => ({}));
           if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.error || 'SMS Gateway failure');
+            const error = new Error(errorData.message || errorData.error || 'SMS Gateway failure');
+            (error as any).code = errorData.error;
+            throw error;
           }
-          return res.json();
+          return errorData;
         });
 
         toast.promise(
@@ -418,14 +444,27 @@ export function AdminDashboard() {
           {
             loading: `Syncing dispatch data to ${tech.phoneNumber}...`,
             success: 'Notification delivered via SMS',
-            error: (err) => (
-              <div className="flex flex-col gap-2">
-                <span>{err.message === 'SMS_NOT_CONFIGURED' ? 'Cloud SMS Channel Not Configured' : `SMS Error: ${err.message}`}</span>
+            error: (err: any) => (
+              <div className="flex flex-col gap-2 max-w-xs text-left">
+                <span className="font-bold text-red-400 text-xs">
+                  {err.code === 'SMS_NOT_CONFIGURED' ? 'Cloud SMS Channel Not Configured' : `SMS Dispatch Failed`}
+                </span>
+                <p className="text-[10px] text-slate-300 leading-relaxed">
+                  {err.message}
+                </p>
+                {err.code === 'TWILIO_21608' || err.message.toLowerCase().includes('unverified') ? (
+                  <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-500 mt-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-wider">Twilio Trial Account Limitation</p>
+                    <p className="text-[9px] leading-tight mt-1 opacity-90">
+                      Unverified number. Trial accounts can only send to verified phone numbers. Send using local device SIM instead:
+                    </p>
+                  </div>
+                ) : null}
                 <a 
                   href={`sms:${tech.phoneNumber}?body=${encodeURIComponent(smsMessage)}`}
-                  className="bg-white/10 px-2 py-1 rounded text-xs hover:bg-white/20 transition-colors inline-block text-center border border-white/10 font-black uppercase"
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors inline-block text-center shadow-lg shadow-emerald-950/25 border border-emerald-400/20 mt-1"
                 >
-                  Dispatch via SIM Card
+                  Dispatch via Local SIM
                 </a>
               </div>
             ),
@@ -479,8 +518,12 @@ export function AdminDashboard() {
       return;
     }
 
-    const confirm = window.confirm(`Archive ${selectedIds.size} selected records from the queue?`);
-    if (!confirm) return;
+    if (!bulkDeleteConfirm) {
+      setBulkDeleteConfirm(true);
+      setTimeout(() => setBulkDeleteConfirm(false), 3000);
+      toast('Click again to confirm PERMANENT purge of selected records', { icon: '⚠️' });
+      return;
+    }
 
     const currentTabRequests = activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests;
     
@@ -488,22 +531,20 @@ export function AdminDashboard() {
       const promises = Array.from(selectedIds).map(async (id) => {
         const req = currentTabRequests.find(r => r.id === id);
         if (req) {
-          const collectionName = collectionMap[activeTab as keyof typeof collectionMap];
+          const collectionName = (collectionMap as any)[activeTab] || 'service_requests';
           if (collectionName) {
-            return updateDoc(doc(db, collectionName, id), {
-              archived: true,
-              updatedAt: serverTimestamp()
-            });
+            return deleteDoc(doc(db, collectionName as string, id as string));
           }
         }
       });
 
       await Promise.all(promises);
-      toast.success(`${selectedIds.size} records archived`);
+      toast.success(`${selectedIds.size} records purged permanently`);
       setSelectedIds(new Set());
       setIsSelectMode(false);
+      setBulkDeleteConfirm(false);
     } catch (error) {
-      toast.error('Failed to clear some records');
+      toast.error('Failed to delete some records');
       console.error(error);
     }
   };
@@ -530,7 +571,7 @@ export function AdminDashboard() {
     if (!editingTech && !isOnboarding) return;
     
     // If onboarding, generate a unique ID for the placeholder user
-    const targetUid = isOnboarding ? `placeholder_${Date.now()}` : editingTech.uid;
+    const targetUid = isOnboarding ? `placeholder_${Date.now()}` : editingTech.id;
     const path = `users/${targetUid}`;
     
     if (editPhone && !editPhone.startsWith('+')) {
@@ -543,8 +584,8 @@ export function AdminDashboard() {
         uid: targetUid,
         displayName: editName,
         phoneNumber: editPhone,
-        role: 'TECHNICIAN',
-        isPlaceholder: isOnboarding,
+        role: editRole,
+        isPlaceholder: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }, { merge: true });
@@ -554,8 +595,28 @@ export function AdminDashboard() {
       setIsOnboarding(false);
       setEditName('');
       setEditPhone('');
+      setEditRole('TECHNICIAN');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  };
+
+  const handleDeleteTech = async (techId: string) => {
+    if (!techId) return;
+    
+    if (deleteTechConfirmId === techId) {
+      try {
+        await deleteDoc(doc(db, 'users', techId));
+        toast.success('Agent removed from registry');
+        setDeleteTechConfirmId(null);
+      } catch (error) {
+        console.error('Delete error:', error);
+        toast.error('De-registration failure');
+      }
+    } else {
+      setDeleteTechConfirmId(techId);
+      setTimeout(() => setDeleteTechConfirmId(null), 3000);
+      toast('Click again to confirm PERMANENT de-registration', { icon: '⚠️' });
     }
   };
 
@@ -603,21 +664,35 @@ export function AdminDashboard() {
       }),
     }).then(async (res) => {
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'SMS Gateway failure');
+      if (!res.ok) {
+        const error = new Error(data.message || data.error || 'SMS Gateway failure');
+        (error as any).code = data.error;
+        throw error;
+      }
       return data;
     });
 
     toast.promise(promise, {
       loading: 'Transmitting operational directive...',
       success: 'Notification delivered via SMS channel',
-      error: (err) => (
-        <div className="flex flex-col gap-2">
-          <span>{err.message === 'SMS_NOT_CONFIGURED' ? 'Cloud SMS Gateway Not Configured' : `Comms Error: ${err.message}`}</span>
+      error: (err: any) => (
+        <div className="flex flex-col gap-2 max-w-xs text-left">
+          <span className="font-bold text-red-400 text-xs">
+            {err.code === 'SMS_NOT_CONFIGURED' ? 'Cloud SMS Gateway Not Configured' : `Comms Error: ${err.message}`}
+          </span>
+          {err.code === 'TWILIO_21608' || err.message.toLowerCase().includes('unverified') ? (
+            <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-500 mt-1">
+              <p className="text-[10px] font-black uppercase tracking-wider">Twilio Trial Account Limitation</p>
+              <p className="text-[9px] leading-tight mt-1 opacity-90">
+                Unverified number. Trial accounts can only send to verified phone numbers. Direct fallback to Local carrier option below:
+              </p>
+            </div>
+          ) : null}
           <a 
             href={`sms:${selectedTechForSms.phoneNumber}?body=${encodeURIComponent(customSmsMessage)}`}
-            className="bg-white/10 px-2 py-1 rounded text-[10px] font-black uppercase hover:bg-white/20 transition-colors inline-block text-center border border-white/10"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors inline-block text-center shadow-lg shadow-emerald-950/25 border border-emerald-400/20 mt-1"
           >
-            Dispatch via SIM Card
+            Dispatch via Local SIM
           </a>
         </div>
       ),
@@ -638,8 +713,7 @@ export function AdminDashboard() {
     { label: 'Camera Cov', value: cameraRequests.length, icon: Camera, color: 'text-orange-400', bg: 'bg-orange-500/10' },
     { label: 'Vehicle Req', value: vehicleRequests.length, icon: Car, color: 'text-blue-400', bg: 'bg-blue-500/10' },
     { label: 'Exit Permits', value: itemRequests.length, icon: Tag, color: 'text-pink-400', bg: 'bg-pink-500/10' },
-    { label: 'Device Req', value: deviceRequests.length, icon: ClipboardList, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-    { label: 'Approved', value: [...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests].filter(r => r.status === 'APPROVED').length, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: 'Consolidated', value: [...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests].length, icon: ClipboardList, color: 'text-slate-400', bg: 'bg-slate-500/10' },
   ];
 
   return (
@@ -711,12 +785,6 @@ export function AdminDashboard() {
         <div className="lg:col-span-2 space-y-8">
           <div className="flex items-center gap-3 bg-dark-card p-1.5 rounded-xl border border-dark-border w-full overflow-x-auto scrollbar-hide shrink-0">
             <TabButton 
-              active={activeTab === 'SYSTEM'} 
-              label="System Control" 
-              icon={Settings} 
-              onClick={() => { setActiveTab('SYSTEM'); setSelectedRequest(null); }} 
-            />
-            <TabButton 
               active={activeTab === 'SERVICE'} 
               label="Service & Repair" 
               icon={Wrench} 
@@ -759,12 +827,17 @@ export function AdminDashboard() {
                       <button 
                         onClick={handleClearSelected}
                         disabled={selectedIds.size === 0}
-                        className="px-4 py-1.5 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-20"
+                        className={cn(
+                          "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-20 border",
+                          bulkDeleteConfirm 
+                            ? "bg-rose-500 border-rose-600 text-white animate-pulse shadow-lg shadow-rose-900/40" 
+                            : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                        )}
                       >
-                        Archive Selected
+                        {bulkDeleteConfirm ? 'CONFIRM PURGE' : 'Delete Selected'}
                       </button>
                       <button 
-                        onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }}
+                        onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); setBulkDeleteConfirm(false); }}
                         className="px-4 py-1.5 bg-dark-main border border-dark-border text-dark-text-subtle rounded-lg text-[10px] font-black uppercase tracking-widest hover:text-white transition-all"
                       >
                         Cancel
@@ -786,305 +859,151 @@ export function AdminDashboard() {
              </div>
 
              <div className="overflow-auto flex-1 scrollbar-hide">
-               {activeTab === 'SYSTEM' ? (
-                 <div className="p-8 space-y-8 bg-dark-main/20">
-                   {/* Communication Gateway Status */}
-                   <div className="space-y-4">
-                     <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
-                       <MessageSquare className="w-3 h-3" />
-                       Communication Gateway Status
-                     </h3>
-                     <div className="flex items-center justify-between gap-4 p-6 rounded-2xl bg-dark-card border border-dark-border shadow-md">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-dark-accent rounded-xl flex items-center justify-center border border-slate-900/10 shadow-sm">
-                            <Settings className="w-6 h-6 text-yellow-400 animate-pulse" />
-                          </div>
-                          <div>
-                            <h4 className="text-black font-black tracking-tight">Twilio Cloud Gateway</h4>
-                            <p className="text-[11px] text-dark-text-subtle font-serif italic mt-0.5">Primary vector for technician dispatch via SMS</p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={async () => {
-                            if (!profile?.phoneNumber) {
-                              toast.error('Mission Protocol Failed: Self-contact number missing from profile. Please update security registry.');
-                              return;
-                            }
-
-                            const testPromise = fetch('/api/send-sms', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ 
-                                to: profile.phoneNumber, 
-                                message: `TEST: FMC Vector System Cloud Gateway Online. Verified at ${new Date().toLocaleTimeString()}` 
-                              }),
-                            }).then(async (res) => {
-                              const data = await res.json();
-                              if (!res.ok) {
-                                const error = new Error(data.message || data.error || 'Gateway offline');
-                                (error as any).code = data.error;
-                                throw error;
-                              }
-                              return data;
-                            });
-
-                            toast.promise(testPromise, {
-                              loading: 'Pinging cloud gateway...',
-                              success: 'Twilio Gateway responds: ONLINE',
-                              error: (err: any) => (
-                                <div className="flex flex-col gap-1">
-                                  <span className="font-bold">Transmission Failure</span>
-                                  <span className="text-[10px] leading-relaxed">
-                                    {err.code?.startsWith('TWILIO_') ? `Gateway Error: ${err.message}` : err.message}
-                                  </span>
-                                  {err.code === 'TWILIO_21608' || err.message.toLowerCase().includes('unverified') ? (
-                                    <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                                      <p className="text-[10px] text-amber-500 font-bold uppercase">Trial Account Restriction</p>
-                                      <p className="text-[9px] text-amber-600 leading-tight mt-1">Recipient number must be verified in your Twilio Console (twilio.com/user/account/phone-numbers/verified)</p>
-                                    </div>
-                                  ) : err.code === 'TWILIO_21211' || err.message.includes('Invalid') ? (
-                                    <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-                                      <p className="text-[10px] text-red-500 font-bold uppercase">Invalid Format</p>
-                                      <p className="text-[9px] text-red-600 leading-tight mt-1">Ethiopian numbers must be +251 9... or +251 7... (Total 12 digits)</p>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              )
-                            });
-                          }}
-                          className="px-8 py-3 bg-dark-accent text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-900/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                        >
-                          Ping Connection
-                        </button>
-                      </div>
-                   </div>
-
-                    {/* Global Alert Dispatcher */}
-                    <div className="space-y-4">
-                       <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
-                         <Bell className="w-3 h-3" />
-                         Global Alert Dispatcher
-                       </h3>
-                       <div className="p-6 rounded-2xl bg-dark-card border border-dark-border shadow-md space-y-4">
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="space-y-2">
-                             <label className="text-[9px] font-black text-dark-text-subtle uppercase tracking-widest">Alert Header</label>
-                             <input 
-                               type="text" 
-                               value={globalAlertTitle}
-                               onChange={(e) => setGlobalAlertTitle(e.target.value)}
-                               className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-2 text-black text-xs font-bold focus:outline-none focus:border-dark-accent transition-all"
-                             />
-                           </div>
-                           <div className="space-y-2">
-                             <label className="text-[9px] font-black text-dark-text-subtle uppercase tracking-widest">Broadcast Narrative</label>
-                             <input 
-                               type="text" 
-                               value={globalAlertMessage}
-                               onChange={(e) => setGlobalAlertMessage(e.target.value)}
-                               className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-2 text-black text-xs font-bold focus:outline-none focus:border-dark-accent transition-all"
-                             />
-                           </div>
-                         </div>
-                         <div className="flex items-center justify-between pt-2 border-t border-dark-border">
-                           <div className="flex items-center gap-2">
-                             <div className={cn(
-                               "w-2 h-2 rounded-full",
-                               notificationService.getPermissionStatus() === 'granted' ? "bg-emerald-500 animate-pulse" : "bg-red-500"
-                             )} />
-                             <span className="text-[9px] font-bold text-dark-text-subtle uppercase tracking-widest">
-                               {notificationService.getPermissionStatus() === 'granted' ? 'Native Alerts Active' : 'Native Alerts Restricted'}
-                             </span>
-                           </div>
-                           <button 
-                             onClick={() => {
-                               notificationService.notify(globalAlertTitle, {
-                                 body: globalAlertMessage,
-                                 icon: '/favicon.ico'
-                               });
-                             }}
-                             className="px-6 py-2 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
-                           >
-                             <TowerControl className="w-4 h-4" />
-                             Broadcast to All Vectors
-                           </button>
-                         </div>
-                       </div>
-                    </div>
-
-                    {/* Registry Overview */}
-                   <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
-                          <Users className="w-3 h-3" />
-                          Workforce Command
-                        </h3>
-                        <button 
-                          onClick={() => setIsPersonnelModalOpen(true)}
-                          className="text-[10px] font-black text-dark-accent uppercase tracking-widest hover:underline"
-                        >
-                          Expand Registry
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {technicians.slice(0, 4).map(tech => (
-                          <div key={tech.id} className="bg-dark-card border border-dark-border p-4 rounded-xl flex items-center justify-between">
-                             <div className="flex items-center gap-3">
-                               <div className="w-8 h-8 rounded-lg bg-dark-sidebar flex items-center justify-center text-[10px] font-black text-dark-accent border border-dark-border">
-                                {tech.displayName[0]}
-                               </div>
-                               <div>
-                                 <p className="text-xs font-black text-black">{tech.displayName}</p>
-                                 <p className="text-[10px] text-dark-text-subtle font-mono tracking-tighter">{tech.phoneNumber || 'Contact Null'}</p>
-                               </div>
-                             </div>
-                             <div className={cn(
-                                "w-2 h-2 rounded-full",
-                                tech.phoneNumber ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
-                             )} />
-                          </div>
-                        ))}
-                        {technicians.length > 4 && (
-                          <button 
-                            onClick={() => setIsPersonnelModalOpen(true)}
-                            className="bg-dark-card/50 border border-dashed border-dark-border p-4 rounded-xl flex items-center justify-center text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-dark-accent transition-all"
-                          >
-                            + View {technicians.length - 4} More Records
-                          </button>
-                        )}
-                      </div>
-                   </div>
-                 </div>
-               ) : (
-                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-dark-header sticky top-0 z-10">
-                     <tr>
-                       {isSelectMode && (
-                         <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border w-10"></th>
-                       )}
-                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Request Reference</th>
-                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Details & Context</th>
-                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Status</th>
-                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Action</th>
-                     </tr>
-                   </thead>
+               <table className="w-full text-left border-collapse">
+                 <thead className="bg-dark-header sticky top-0 z-10">
+                   <tr>
+                     {isSelectMode && (
+                       <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border w-10"></th>
+                     )}
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">Order No</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">Requestor Dept</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">Type of Order</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">Status</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border text-right">Actions</th>
+                   </tr>
+                 </thead>
                    <tbody className="divide-y divide-dark-border">
                      {loading ? (
                        <tr>
-                          <td colSpan={isSelectMode ? 5 : 4} className="px-6 py-12 text-center text-dark-text-subtle">Synchronizing data...</td>
+                          <td colSpan={isSelectMode ? 6 : 5} className="px-6 py-12 text-center text-dark-text-subtle">Synchronizing data...</td>
                        </tr>
                      ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).length === 0 ? (
                        <tr>
-                          <td colSpan={isSelectMode ? 5 : 4} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
+                          <td colSpan={isSelectMode ? 6 : 5} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
                        </tr>
                      ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).map((request) => (
-                       <tr 
-                         key={request.id} 
-                         onClick={() => isSelectMode && toggleSelect(request.id)}
-                         className={cn(
-                           "transition-colors group",
-                           isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/40",
-                           isSelectMode && "cursor-pointer"
-                         )}
-                       >
-                         {isSelectMode && (
-                           <td className="px-6 py-5">
-                             <div className={cn(
-                               "w-4 h-4 rounded border-2 flex items-center justify-center transition-all",
-                               selectedIds.has(request.id) ? "bg-dark-accent border-dark-accent" : "border-dark-border bg-dark-main"
-                             )}>
-                               {selectedIds.has(request.id) && <Check className="w-3 h-3 text-white" />}
-                             </div>
-                           </td>
-                         )}
+                     <tr 
+                       key={request.id} 
+                       onClick={() => isSelectMode ? toggleSelect(request.id) : setSelectedRequest(request)}
+                       className={cn(
+                         "transition-colors group cursor-pointer",
+                         isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/40"
+                       )}
+                     >
+                       {isSelectMode && (
                          <td className="px-6 py-5">
-                             <div className="text-[12px] font-bold text-dark-accent mb-1 tracking-tight">
-                                {activeTab === 'SERVICE' ? (request.workName || 'SVC-RQ') : activeTab === 'CAMERA' ? (request.eventTitle || 'CAM-RQ') : activeTab === 'ITEM' ? (request.itemName || 'EXIT-RQ') : activeTab === 'OTHER' ? (request.projectName || 'DEV-RQ') : (request.tripName || 'TRP-RQ')}
-                             </div>
-                             <div className="text-[10px] font-mono text-dark-text-subtle opacity-50 uppercase tracking-widest">#{request.id.slice(-6).toUpperCase()}</div>
-                          </td>
-                         <td className="px-6 py-5">
-                            <div className="text-[13px] font-black text-black">
-                               {activeTab === 'SERVICE' ? (request.workName || request.description) : activeTab === 'CAMERA' ? (request.eventTitle || request.purpose) : activeTab === 'ITEM' ? (request.itemName || request.purpose) : activeTab === 'OTHER' ? (request.projectName || request.deviceModel) : (request.tripName || request.destination)}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 mt-1">
-                               <span className="text-[10px] text-black font-mono uppercase tracking-tighter bg-dark-main px-1.5 py-0.5 rounded border border-dark-border">
-                                  {request.departmentName}
-                               </span>
-                               {activeTab === 'ITEM' && (
-                                  <span className="text-[9px] font-mono text-pink-700 bg-pink-500/5 px-1.5 py-0.5 rounded border border-pink-500/10">
-                                     S/N: {request.serialNumber || 'N/A'}
-                                  </span>
-                                )}
-                               {activeTab === 'CAMERA' && (
-                                 <span className="text-[9px] font-mono text-amber-700 bg-amber-500/5 px-1.5 py-0.5 rounded border border-amber-500/10">
-                                    {request.date}
-                                 </span>
+                           <div className={cn(
+                             "w-4 h-4 rounded border-2 flex items-center justify-center transition-all",
+                             selectedIds.has(request.id) ? "bg-dark-accent border-dark-accent" : "border-dark-border bg-dark-main"
+                           )}>
+                             {selectedIds.has(request.id) && <Check className="w-3 h-3 text-white" />}
+                           </div>
+                         </td>
+                       )}
+                       <td className="px-6 py-5">
+                          <div className="text-[10px] font-mono text-dark-accent font-bold uppercase tracking-widest">#{request.id.slice(-6).toUpperCase()}</div>
+                       </td>
+                       <td className="px-6 py-5">
+                          <div className="text-[13px] font-black text-black">
+                             {request.departmentName || 'General Ops'}
+                          </div>
+                          <div className="text-[10px] text-dark-text-subtle mt-0.5 line-clamp-1 opacity-70 italic">
+                             {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
+                          </div>
+                       </td>
+                       <td className="px-6 py-5">
+                          <div className="flex items-center gap-2">
+                             {activeTab === 'SERVICE' && <Wrench className="w-3 h-3 text-indigo-400" />}
+                             {activeTab === 'CAMERA' && <Camera className="w-3 h-3 text-orange-400" />}
+                             {activeTab === 'VEHICLE' && <Car className="w-3 h-3 text-blue-400" />}
+                             {activeTab === 'ITEM' && <Tag className="w-3 h-3 text-pink-400" />}
+                             {activeTab === 'OTHER' && <ClipboardList className="w-3 h-3 text-purple-400" />}
+                             <span className="text-[10px] font-black uppercase tracking-tight text-slate-600">
+                               {activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : 'Device'}
+                             </span>
+                          </div>
+                       </td>
+                       <td className="px-6 py-5">
+                         <span className={cn(
+                           "px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap",
+                           request.status === 'NEW' ? "bg-amber-500/10 text-amber-600 border-amber-500/20" :
+                           request.status === 'APPROVED' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                           request.status === 'ASSIGNED' ? "bg-blue-500/10 text-blue-600 border-blue-500/20" :
+                           "bg-slate-500/10 text-slate-600 border-slate-500/20"
+                         )}>
+                           {request.status}
+                         </span>
+                       </td>
+                       <td className="px-6 py-5 text-right" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-2">
+                             <button 
+                               onClick={() => {
+                                 setSelectedRequest(request);
+                                 setEditFormData({
+                                   departmentName: request.departmentName || '',
+                                   workName: request.workName || '',
+                                   description: request.description || '',
+                                   purpose: request.purpose || '',
+                                   eventTitle: request.eventTitle || '',
+                                   tripName: request.tripName || '',
+                                   destination: request.destination || '',
+                                   itemName: request.itemName || '',
+                                   deviceModel: request.deviceModel || '',
+                                   serialNumber: request.serialNumber || ''
+                                 });
+                                 setIsEditing(false);
+                               }}
+                               className="p-2 rounded bg-dark-main border border-dark-border text-dark-text-subtle hover:text-dark-accent transition-all"
+                               title="Edit/View Detail"
+                             >
+                               <FileText className="w-3.5 h-3.5" />
+                             </button>
+                             <button 
+                               onClick={async (e) => {
+                                 e.stopPropagation();
+                                 if (deleteConfirmId === request.id) {
+                                   try {
+                                     const colName = collectionMap[activeTab];
+                                     await deleteDoc(doc(db, colName, request.id));
+                                     toast.success('Record purged from queue');
+                                     setDeleteConfirmId(null);
+                                   } catch (err) {
+                                     toast.error('Purge failure');
+                                   }
+                                 } else {
+                                   setDeleteConfirmId(request.id);
+                                   setTimeout(() => setDeleteConfirmId(null), 3000);
+                                   toast('Click again to confirm purge', { icon: '⚠️' });
+                                 }
+                               }}
+                               className={cn(
+                                 "p-2 rounded border transition-all",
+                                 deleteConfirmId === request.id 
+                                   ? "bg-red-500 border-red-500 text-white animate-pulse" 
+                                   : "bg-dark-main border-dark-border text-dark-text-subtle hover:text-red-500"
                                )}
-                               {activeTab === 'VEHICLE' && (
-                                 <span className="text-[9px] font-mono text-indigo-700 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10">
-                                    {request.departureDate} @ {request.departureTime}
-                                 </span>
-                               )}
-                            </div>
-                         </td>
-                         <td className="px-6 py-5">
-                           <span className={cn("status-pill", getStatusStyle(request.status))}>
-                             {request.status.replace('_', ' ')}
-                           </span>
-                         </td>
-                         <td className="px-6 py-5">
-                            {request.status === 'NEW' ? (
-                              <button onClick={() => handleApprove(request.id, request.directorId)} className="text-[10px] font-black uppercase text-dark-accent hover:text-indigo-400 transition-colors">Approve</button>
-                            ) : request.status === 'APPROVED' ? (
-                              activeTab === 'ITEM' ? (
-                                <span className="text-[9px] font-black uppercase text-emerald-400 tracking-widest bg-emerald-500/5 px-2 py-1 rounded border border-emerald-500/10 flex items-center gap-2 w-fit">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Verified
-                                </span>
-                              ) : (
-                                <button onClick={() => openAssignModal(request)} className="text-[10px] font-black uppercase text-amber-400 hover:text-amber-300 transition-colors">Assign</button>
-                              )
-                            ) : request.status === 'COMPLETED' ? (
-                              <button 
-                                onClick={() => setSelectedRequest(request)}
-                                className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 px-3 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest"
-                              >
-                                <CheckCircle2 className="w-3 h-3" />
-                                Review
-                              </button>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                 {request.status === 'CLOSED' ? (
-                                   <div className="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
-                                 ) : request.status === 'CONFIRMED' ? (
-                               <button 
-                                 onClick={() => handleClose(request.id)}
-                                 className="text-[10px] font-black uppercase text-slate-400 hover:text-white border border-slate-500/20 px-3 py-1.5 rounded-lg hover:border-slate-400 transition-all font-mono"
-                               >
-                                 Decommission
-                               </button>
-                             ) : (
-                                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                 )}
-                                 <span className="text-[10px] text-dark-text-subtle font-mono">{activeTab === 'VEHICLE' ? request.assignedDriverName?.split(' ')[0] : request.assignedTechnicianName?.split(' ')[0]}</span>
-                              </div>
-                            )}
-                         </td>
-                       </tr>
-                     ))
-                   }
-                 </tbody>
+                               title="Delete Record"
+                             >
+                               <Trash2 className="w-3.5 h-3.5" />
+                             </button>
+                          </div>
+                       </td>
+                     </tr>
+                      ))
+                    }
+                  </tbody>
                </table>
-              )}
-             </div>
-          </div>
-        </div>
+              </div>
+           </div>
+         </div>
 
-        <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg flex flex-col h-[600px]">
-          <div className="p-6 border-b border-dark-border bg-dark-card/50">
-            <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">Technician Workload</h3>
-          </div>
+        {activeTab !== 'ITEM' && (
+          <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg flex flex-col h-[600px]">
+            <div className="p-6 border-b border-dark-border bg-dark-card/50">
+              <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
+                {activeTab === 'CAMERA' ? 'Camera Workload' : activeTab === 'VEHICLE' ? 'Driver Workload' : 'Technician Workload'}
+              </h3>
+            </div>
           <div className="overflow-auto flex-1 divide-y divide-dark-border">
             {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => (
               <div key={tech.id} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
@@ -1142,7 +1061,21 @@ export function AdminDashboard() {
               </div>
             ))}
           </div>
-          <div className="p-6 bg-dark-main/20">
+          <div className="p-6 bg-dark-main/20 space-y-3">
+             <button 
+               onClick={() => {
+                 setIsOnboarding(true);
+                 setIsPersonnelModalOpen(true);
+                 setEditName('');
+                 setEditPhone('');
+                 setEditRole('TECHNICIAN');
+                 setEditingTech(null);
+               }}
+               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-lg text-[0.8rem] font-bold transition-all shadow-lg shadow-emerald-900/30 active:scale-95 group flex items-center justify-center gap-2"
+             >
+                <UserPlus className="w-4 h-4" />
+                Onboard New Agent
+             </button>
              <button 
                onClick={() => setIsPersonnelModalOpen(true)}
                className="w-full bg-dark-accent hover:bg-indigo-600 text-white py-3.5 rounded-lg text-[0.8rem] font-bold transition-all shadow-lg shadow-indigo-900/30 active:scale-95 group flex items-center justify-center gap-2"
@@ -1152,11 +1085,12 @@ export function AdminDashboard() {
              </button>
           </div>
         </div>
+      )}
       </div>
 
       {/* Technician Allocation Modal */}
       <AnimatePresence>
-        {selectedRequest && selectedRequest.status === 'COMPLETED' && !isAssignModalOpen && (
+        {selectedRequest && !isAssignModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
              <motion.div 
                initial={{ opacity: 0 }}
@@ -1171,90 +1105,212 @@ export function AdminDashboard() {
                exit={{ opacity: 0, scale: 0.95, y: 20 }}
                className="relative w-full max-w-xl bg-dark-card rounded-2xl border border-dark-border shadow-2xl overflow-hidden"
              >
-                <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
-                   <div>
-                      <h2 className="text-2xl font-black text-black tracking-tight">Post-Operational Review</h2>
-                      <p className="text-dark-text-subtle text-sm mt-1">Verify technical summary before ledger finalization</p>
-                   </div>
-                   <button onClick={() => setSelectedRequest(null)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
-                      <X className="w-6 h-6" />
-                   </button>
-                </div>
-                <div className="p-10 space-y-8">
-                    <div className="grid grid-cols-2 gap-6">
-                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
-                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
-                            {activeTab === 'VEHICLE' ? 'Assigned Driver' : 'Assigned Agent'}
-                          </p>
-                          <p className="text-sm font-black text-black">
-                            {activeTab === 'VEHICLE' ? selectedRequest.assignedDriverName : selectedRequest.assignedTechnicianName}
-                          </p>
-                          {(selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone) && (
-                            <p className="text-[10px] font-mono text-dark-accent mt-1">
-                              {selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone}
-                            </p>
-                          )}
+                        <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
+                    <div>
+                       <h2 className="text-2xl font-black text-black tracking-tight">
+                         {isEditing ? 'Editing Record' : (selectedRequest.type ? `${selectedRequest.type} Request` : 'FMC Operational Record')}
+                       </h2>
+                       <p className="text-dark-text-subtle text-sm mt-1 uppercase font-mono tracking-widest opacity-50">#{selectedRequest.id.toUpperCase()}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                       {!isEditing && (
+                         <button 
+                           onClick={() => setIsEditing(true)}
+                           className="p-2.5 bg-dark-main border border-dark-border rounded-xl text-dark-text-subtle hover:text-dark-accent transition-all flex items-center gap-2"
+                         >
+                           <Settings className="w-4 h-4" />
+                           <span className="text-[10px] font-black uppercase tracking-widest">Toggle Edit</span>
+                         </button>
+                       )}
+                       <button onClick={() => { setSelectedRequest(null); setIsEditing(false); }} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
+                          <X className="w-6 h-6" />
+                       </button>
+                    </div>
+                 </div>
+                 <div className="p-10 space-y-8 overflow-y-auto max-h-[70vh] scrollbar-hide">
+                     {/* Status Banner */}
+                     <div className={cn(
+                       "p-4 rounded-xl border flex items-center justify-between shadow-inner",
+                       selectedRequest.status === 'NEW' ? "bg-amber-500/10 border-amber-500/20 text-amber-600" :
+                       selectedRequest.status === 'APPROVED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600" :
+                       selectedRequest.status === 'ASSIGNED' ? "bg-blue-500/10 border-blue-500/20 text-blue-600" :
+                       "bg-slate-500/10 border-slate-500/20 text-slate-600"
+                     )}>
+                       <div className="flex items-center gap-3">
+                         <Clock className="w-5 h-5 opacity-50" />
+                         <span className="text-sm font-black uppercase tracking-widest">{selectedRequest.status}</span>
                        </div>
-                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
-                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
-                            {activeTab === 'VEHICLE' ? 'Service Asset' : 'Fleet Asset'}
-                          </p>
-                          <p className="text-sm font-black text-black">
-                             {activeTab === 'VEHICLE' ? (
-                               selectedRequest.vehicleType || 'Company Vehicle'
-                             ) : 'General Service'}
-                          </p>
-                       </div>
+                       <span className="text-[10px] font-mono opacity-60">Last sync: {selectedRequest.updatedAt?.seconds ? format(new Date(selectedRequest.updatedAt.seconds * 1000), 'HH:mm:ss') : 'LIVE'}</span>
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-6">
+                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
+                             Requestor Department
+                           </p>
+                           {isEditing ? (
+                             <input 
+                               value={editFormData.departmentName}
+                               onChange={e => setEditFormData({...editFormData, departmentName: e.target.value})}
+                               className="w-full bg-dark-card border border-dark-border rounded px-3 py-1.5 text-sm text-black font-bold focus:border-dark-accent outline-none"
+                             />
+                           ) : (
+                             <p className="text-sm font-black text-black">
+                               {selectedRequest.departmentName || 'General Operations'}
+                             </p>
+                           )}
+                        </div>
+                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
+                             Operational Class
+                           </p>
+                           <div className="flex items-center gap-2">
+                              <TowerControl className="w-3.5 h-3.5 text-dark-accent" />
+                              <p className="text-sm font-black text-black uppercase">{selectedRequest.type || 'Service'}</p>
+                           </div>
+                        </div>
+                     </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1">
+                    Operational Details / Narrative
+                  </label>
+                  {isEditing ? (
+                         <div className="space-y-4">
+                           <input 
+                              placeholder="Title/Work Name"
+                              value={editFormData.workName || editFormData.eventTitle || editFormData.tripName || editFormData.itemName || editFormData.deviceModel || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (activeTab === 'SERVICE') setEditFormData({...editFormData, workName: val});
+                                else if (activeTab === 'CAMERA') setEditFormData({...editFormData, eventTitle: val});
+                                else if (activeTab === 'VEHICLE') setEditFormData({...editFormData, tripName: val});
+                                else if (activeTab === 'ITEM') setEditFormData({...editFormData, itemName: val});
+                                else setEditFormData({...editFormData, deviceModel: val});
+                              }}
+                              className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-3 text-sm text-black font-bold focus:border-dark-accent outline-none"
+                           />
+                           <textarea 
+                              placeholder="Description/Purpose"
+                              value={editFormData.description || editFormData.purpose || editFormData.destination || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (activeTab === 'SERVICE') setEditFormData({...editFormData, description: val});
+                                else if (activeTab === 'CAMERA') setEditFormData({...editFormData, purpose: val});
+                                else if (activeTab === 'VEHICLE') setEditFormData({...editFormData, destination: val});
+                                else if (activeTab === 'ITEM') setEditFormData({...editFormData, purpose: val});
+                                else setEditFormData({...editFormData, description: val});
+                              }}
+                              className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-3 text-sm text-black font-bold focus:border-dark-accent outline-none min-h-[100px]"
+                           />
+                         </div>
+                       ) : (
+                         <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 text-sm text-black font-bold font-serif italic">
+                           {selectedRequest.workName || selectedRequest.eventTitle || selectedRequest.tripName || selectedRequest.itemName || selectedRequest.deviceModel || 'Vector Operational Objective'}
+                           <div className="mt-2 text-xs font-sans not-italic text-slate-700 opacity-80 border-t border-dark-border pt-2 mt-4">
+                             {selectedRequest.description || selectedRequest.purpose || selectedRequest.destination || 'No secondary intelligence provided.'}
+                           </div>
+                         </div>
+                       )}
                     </div>
 
-                   <div className="space-y-3">
-                      <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1">
-                        {activeTab === 'VEHICLE' ? 'Mission Report' : 'Work Completion Summary'}
-                      </label>
-                      <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 text-sm text-black font-bold font-serif italic border-dashed">
-                        {(activeTab === 'VEHICLE' ? selectedRequest.driverNotes : selectedRequest.technicianNotes) || "No summary provided by agent."}
-                      </div>
-                   </div>
-
-                   {selectedRequest.completionImageUrl && (
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1 flex items-center gap-2">
-                           <ImageIcon className="w-3 h-3" />
-                           Field Evidence Tag
-                        </label>
-                        <div className="relative group max-w-sm overflow-hidden rounded-2xl border border-dark-border shadow-xl">
-                          <img src={selectedRequest.completionImageUrl} alt="Maintenance outcome" className="w-full aspect-video object-cover" />
+                    {selectedRequest.status !== 'NEW' && (
+                     <div className="grid grid-cols-2 gap-6">
+                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
+                             {selectedRequest.type === 'Vehicle' ? 'Assigned Driver' : 'Assigned Agent'}
+                           </p>
+                           <p className="text-sm font-black text-black">
+                             {selectedRequest.assignedDriverName || selectedRequest.assignedTechnicianName || 'PENDING DISPATCH'}
+                           </p>
                         </div>
-                      </div>
-                   )}
-
-                   {selectedRequest.directorComments && (
-                     <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500">
-                        <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest pl-1 flex items-center gap-2">
-                           <MessageSquare className="w-3 h-3" />
-                           Department Feedback
-                        </label>
-                        <div className="w-full bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-6 text-sm text-black font-bold italic">
-                           {selectedRequest.directorComments}
+                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Asset Specifics</p>
+                           <p className="text-sm font-black text-black">
+                              {selectedRequest.vehicleType || selectedRequest.serialNumber || 'FMC STANDARD'}
+                           </p>
                         </div>
                      </div>
                    )}
 
-                   <div className="flex gap-4">
-                      <button 
-                        onClick={() => setSelectedRequest(null)}
-                        className="flex-1 px-8 py-4 text-xs font-black uppercase text-dark-text-subtle border border-dark-border rounded-xl hover:text-white hover:border-white transition-all tracking-widest"
-                      >
-                        Discard Review
-                      </button>
-                      <button 
-                        onClick={() => handleConfirm(selectedRequest.id)}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-all shadow-xl shadow-emerald-900/30 active:scale-95 flex items-center justify-center gap-3"
-                      >
-                         <CheckCircle2 className="w-5 h-5" />
-                         Confirm & Decommission
-                      </button>
-                   </div>
+                   {selectedRequest.status === 'COMPLETED' && (
+                     <div className="space-y-6 pt-6 border-t border-dark-border">
+                        <div className="space-y-3">
+                           <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1">
+                             {selectedRequest.type === 'Vehicle' ? 'Mission Report' : 'Work Completion Summary'}
+                           </label>
+                           <div className="w-full bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-6 text-sm text-black font-bold font-serif italic border-dashed">
+                             {(selectedRequest.type === 'Vehicle' ? selectedRequest.driverNotes : selectedRequest.technicianNotes) || "No summary provided by agent."}
+                           </div>
+                        </div>
+
+                        {selectedRequest.completionImageUrl && (
+                           <div className="space-y-3">
+                             <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1 flex items-center gap-2">
+                                <ImageIcon className="w-3 h-3" />
+                                Field Evidence Tag
+                             </label>
+                             <div className="relative group max-w-sm overflow-hidden rounded-2xl border border-dark-border shadow-xl">
+                               <img src={selectedRequest.completionImageUrl} alt="Evidence" className="w-full aspect-video object-cover" />
+                             </div>
+                           </div>
+                        )}
+                     </div>
+                   )}
+
+                    <div className="flex gap-4 pt-6">
+                       <button 
+                         onClick={() => { setSelectedRequest(null); setIsEditing(false); }}
+                         className="flex-1 px-8 py-4 text-xs font-black uppercase text-dark-text-subtle border border-dark-border rounded-xl hover:text-white"
+                       >
+                         {isEditing ? 'Cancel Edit' : 'Close View'}
+                       </button>
+
+                       {isEditing ? (
+                         <button 
+                           onClick={handleUpdateRecord}
+                           className="flex-[2] bg-emerald-600 text-white font-black uppercase tracking-widest py-4 rounded-xl shadow-xl shadow-emerald-900/20 active:scale-95 flex items-center justify-center gap-3"
+                         >
+                           <CheckCircle2 className="w-5 h-5" />
+                           Commit Changes
+                         </button>
+                       ) : (
+                         <>
+                           {selectedRequest.status === 'NEW' && (
+                             <button 
+                               onClick={() => {
+                                 handleApprove(selectedRequest.id, selectedRequest.directorId);
+                                 setSelectedRequest(null);
+                               }}
+                               className="flex-[2] bg-dark-accent text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-900/20 active:scale-95"
+                             >
+                               Approve Record
+                             </button>
+                           )}
+
+                           {selectedRequest.status === 'APPROVED' && selectedRequest.type !== 'Exit Permit' && (
+                             <button 
+                               onClick={() => {
+                                 openAssignModal(selectedRequest);
+                               }}
+                               className="flex-1 bg-amber-500 text-white font-bold py-4 rounded-xl shadow-xl shadow-amber-900/20 active:scale-95"
+                             >
+                               Dispatch Agent
+                             </button>
+                           )}
+
+                           {selectedRequest.status === 'COMPLETED' && (
+                             <button 
+                               onClick={() => handleConfirm(selectedRequest.id)}
+                               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-emerald-900/30 active:scale-95 flex items-center justify-center gap-3"
+                             >
+                                <CheckCircle2 className="w-5 h-5" />
+                                Final Decommission
+                             </button>
+                           )}
+                         </>
+                       )}
+                    </div>
                 </div>
              </motion.div>
           </div>
@@ -1503,7 +1559,7 @@ export function AdminDashboard() {
 
                 <div className="p-8 overflow-y-auto scrollbar-hide">
                   <div className="grid grid-cols-1 gap-4">
-                    {technicians.map((tech) => (
+                    {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => (
                       <div key={tech.id} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
                         <div className="flex items-center gap-4">
                            <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-dark-accent font-black text-xl">
@@ -1511,19 +1567,41 @@ export function AdminDashboard() {
                            </div>
                            <div>
                               <p className="font-black text-black text-base">{tech.displayName}</p>
-                              <p className="text-xs text-dark-text-subtle font-mono">{tech.phoneNumber || 'Contact Not Synchronized'}</p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-dark-accent/10 text-dark-accent border border-dark-accent/20 rounded">
+                                  {tech.role || 'TECHNICIAN'}
+                                </span>
+                                <p className="text-xs text-dark-text-subtle font-mono">{tech.phoneNumber || 'Contact Not Synchronized'}</p>
+                              </div>
                            </div>
                         </div>
-                        <button 
-                          onClick={() => {
-                            setEditingTech(tech);
-                            setEditName(tech.displayName);
-                            setEditPhone(tech.phoneNumber || '');
-                          }}
-                          className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-white transition-all uppercase tracking-widest"
-                        >
-                          Modify ID
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => {
+                              setEditingTech(tech);
+                              setEditName(tech.displayName);
+                              setEditPhone(tech.phoneNumber || '');
+                              setEditRole(tech.role || 'TECHNICIAN');
+                            }}
+                            className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-white transition-all uppercase tracking-widest"
+                          >
+                            Modify ID
+                          </button>
+                          {tech.id !== profile?.uid && (
+                            <button 
+                              onClick={() => handleDeleteTech(tech.id)}
+                              className={cn(
+                                "p-2 rounded-lg transition-all border",
+                                deleteTechConfirmId === tech.id
+                                  ? "bg-red-500 border-red-600 text-white animate-pulse"
+                                  : "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white"
+                              )}
+                              title={deleteTechConfirmId === tech.id ? "Confirm De-registration" : "De-register Agent"}
+                            >
+                              <Trash2 className={cn("transition-transform", deleteTechConfirmId === tech.id ? "w-5 h-5 scale-110" : "w-4 h-4")} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1538,7 +1616,7 @@ export function AdminDashboard() {
                      className="bg-dark-sidebar border-t border-dark-border overflow-hidden"
                    >
                      <div className="p-8 bg-dark-sidebar/50">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                            <div>
                               <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">User Name</label>
                               <input 
@@ -1548,6 +1626,18 @@ export function AdminDashboard() {
                                 placeholder="User Name"
                                 className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none"
                               />
+                           </div>
+                           <div>
+                              <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Operational Role</label>
+                              <select 
+                                value={editRole}
+                                onChange={(e) => setEditRole(e.target.value as any)}
+                                className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none appearance-none"
+                              >
+                                <option value="TECHNICIAN">Technician</option>
+                                <option value="DRIVER">Driver</option>
+                                <option value="CAMERAMAN">Camera Man</option>
+                              </select>
                            </div>
                            <div>
                               <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2">Agent Contact (SMS)</label>

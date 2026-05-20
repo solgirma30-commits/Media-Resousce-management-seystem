@@ -11,7 +11,11 @@ import {
   ChevronRight,
   LogOut,
   AlertCircle,
-  PackageCheck
+  PackageCheck,
+  Trash2,
+  ClipboardList,
+  Package,
+  User
 } from 'lucide-react';
 import { 
   collection, 
@@ -20,7 +24,8 @@ import {
   where,
   updateDoc,
   doc,
-  serverTimestamp 
+  serverTimestamp,
+  deleteDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -31,19 +36,21 @@ import { format } from 'date-fns';
 export function SecurityDashboard() {
   const { profile } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
+  const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     // Security only sees APPROVED requests for items
-    const q = query(
+    const qItems = query(
       collection(db, 'item_requests'),
       where('status', 'in', ['APPROVED', 'EXITED', 'RETURNED'])
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, collectionName: 'item_requests', ...doc.data() }));
       
       // Sort by creation time desc
       docs.sort((a: any, b: any) => {
@@ -58,8 +65,47 @@ export function SecurityDashboard() {
       handleFirestoreError(error, OperationType.LIST, 'item_requests');
     });
 
-    return () => unsubscribe();
+    // Device requests for exit monitoring
+    const qDevices = query(
+      collection(db, 'device_requests'),
+      where('status', 'in', ['APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED'])
+    );
+
+    const unsubscribeDevices = onSnapshot(qDevices, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, collectionName: 'device_requests', ...doc.data() }));
+      docs.sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setDeviceRequests(docs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'device_requests');
+    });
+
+    return () => {
+      unsubscribeItems();
+      unsubscribeDevices();
+    };
   }, []);
+
+  const handleDeleteRecord = async (e: React.MouseEvent, record: any) => {
+    e.stopPropagation();
+    if (deleteConfirmId === record.id) {
+      try {
+        await deleteDoc(doc(db, record.collectionName, record.id));
+        toast.success('Security record purged');
+        setDeleteConfirmId(null);
+      } catch (error) {
+        toast.error('Purge failed');
+        console.error(error);
+      }
+    } else {
+      if (!['COMPLETED', 'CONFIRMED', 'RETURNED', 'CLOSED'].includes(record.status)) {
+        toast.error('Only completed vectors can be purged from security logs');
+        return;
+      }
+      setDeleteConfirmId(record.id);
+      setTimeout(() => setDeleteConfirmId(null), 3000);
+      toast('Click again to confirm PERMANENT purge', { icon: '⚠️' });
+    }
+  };
 
   const handleGateOut = async (requestId: string) => {
     try {
@@ -162,6 +208,94 @@ export function SecurityDashboard() {
           </section>
 
           <section className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden">
+            <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
+              <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
+                <Package className="w-4 h-4 text-emerald-400" />
+                Operational Device Exit Registry
+              </h3>
+              <div className="flex items-center gap-2 px-3 py-1 bg-dark-main rounded-full border border-dark-border">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-[9px] font-mono text-dark-text-muted uppercase">{deviceRequests.length} Devices Tracking</span>
+              </div>
+            </div>
+            <div className="overflow-x-auto scrollbar-hide">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-dark-header">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Exit Order No</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Type of Material</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Qty</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Assigned Person</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-border/40">
+                  {deviceRequests.map((dev) => (
+                    <tr key={dev.id} className="hover:bg-dark-main/30 transition-colors group">
+                      <td className="px-6 py-4">
+                        <span className="text-[10px] font-mono text-emerald-600 font-bold tracking-widest">
+                          {dev.requestId || `#${dev.id.slice(-6).toUpperCase()}`}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-[12px] font-bold text-slate-900 leading-none">{dev.deviceModel || dev.projectName}</span>
+                          <span className="text-[9px] text-dark-text-subtle mt-1 uppercase font-bold tracking-tight">{dev.departmentName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-mono font-bold text-slate-800 bg-dark-main border border-dark-border px-2 py-0.5 rounded">
+                          {dev.quantity || 1}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded bg-dark-main border border-dark-border flex items-center justify-center text-[8px] font-bold text-dark-text-muted uppercase">
+                            {(dev.assignedTechnicianName || dev.directorName || '??').charAt(0)}
+                          </div>
+                          <span className="text-[11px] font-medium text-slate-900">{dev.assignedTechnicianName || dev.directorName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-[4px] text-[9px] font-black uppercase tracking-tight border",
+                          dev.status === 'COMPLETED' || dev.status === 'CONFIRMED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700" : "bg-amber-500/10 border-amber-500/20 text-amber-600"
+                        )}>
+                          {dev.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(dev.status) && (
+                          <button 
+                            onClick={(e) => handleDeleteRecord(e, dev)}
+                            className={cn(
+                              "p-2 rounded-lg transition-all border",
+                              deleteConfirmId === dev.id
+                                ? "bg-rose-500 border-rose-600 text-white animate-pulse"
+                                : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                            )}
+                            title="Delete Completed Record"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {deviceRequests.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-10 text-center text-dark-text-subtle italic text-xs">
+                        No active device exit vectors detected.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden">
             <div className="p-6 border-b border-dark-border bg-dark-card/50">
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
                 <Clock className="w-4 h-4" />
@@ -172,30 +306,45 @@ export function SecurityDashboard() {
                {loggedExits.length === 0 ? (
                  <div className="p-10 text-center text-dark-text-subtle text-xs italic">Operational registry clear</div>
                ) : (
-                 loggedExits.map((req) => (
-                   <div key={req.id} className="p-5 flex items-center justify-between bg-dark-main/20">
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center border",
-                          req.status === 'RETURNED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700" : "bg-pink-500/10 border-pink-500/20 text-pink-700"
-                        )}>
-                          <CheckCircle2 className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-900">{req.itemName}</p>
-                          <p className="text-[10px] text-dark-text-subtle font-mono">{req.serialNumber}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">
-                          {req.status === 'RETURNED' ? 'Returned' : 'In Field'}
-                        </p>
-                        <p className="text-[9px] font-mono text-dark-accent mt-0.5">
-                          {req.exitedAt ? format(req.exitedAt.toDate(), 'MMM dd, HH:mm') : 'N/A'}
-                        </p>
-                      </div>
-                   </div>
-                 ))
+                  loggedExits.map((req) => (
+                    <div key={req.id} className="p-5 flex items-center justify-between bg-dark-main/20 group">
+                       <div className="flex items-center gap-4">
+                         <div className={cn(
+                           "w-8 h-8 rounded-lg flex items-center justify-center border",
+                           req.status === 'RETURNED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700" : "bg-pink-500/10 border-pink-500/20 text-pink-700"
+                         )}>
+                           <CheckCircle2 className="w-4 h-4" />
+                         </div>
+                         <div>
+                           <p className="text-xs font-bold text-slate-900">{req.itemName}</p>
+                           <p className="text-[10px] text-dark-text-subtle font-mono">{req.serialNumber}</p>
+                         </div>
+                       </div>
+                       <div className="flex items-center gap-6">
+                         <div className="text-right">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">
+                             {req.status === 'RETURNED' ? 'Returned' : 'In Field'}
+                           </p>
+                           <p className="text-[9px] font-mono text-dark-accent mt-0.5">
+                             {req.exitedAt ? format(req.exitedAt.toDate(), 'MMM dd, HH:mm') : 'N/A'}
+                           </p>
+                         </div>
+                         {['RETURNED', 'CLOSED'].includes(req.status) && (
+                           <button 
+                             onClick={(e) => handleDeleteRecord(e, req)}
+                             className={cn(
+                               "p-2 rounded-lg transition-all border opacity-0 group-hover:opacity-100",
+                               deleteConfirmId === req.id
+                                 ? "bg-rose-500 border-rose-600 text-white animate-pulse opacity-100"
+                                 : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                             )}
+                           >
+                             <Trash2 className="w-3.5 h-3.5" />
+                           </button>
+                         )}
+                       </div>
+                    </div>
+                  ))
                )}
             </div>
           </section> Section
