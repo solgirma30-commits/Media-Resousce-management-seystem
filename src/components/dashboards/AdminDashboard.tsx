@@ -86,6 +86,9 @@ export function AdminDashboard() {
   const [customSmsMessage, setCustomSmsMessage] = useState('');
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [editingTech, setEditingTech] = useState<any | null>(null);
+  const [isEditingInlineAssigned, setIsEditingInlineAssigned] = useState(false);
+  const [inlineAssignedName, setInlineAssignedName] = useState('');
+  const [inlineAssignedPhone, setInlineAssignedPhone] = useState('');
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editRole, setEditRole] = useState<'TECHNICIAN' | 'DRIVER' | 'CAMERAMAN'>('TECHNICIAN');
@@ -344,6 +347,38 @@ export function AdminDashboard() {
       toast.error('Update failed');
     }
   };
+
+  const handleSaveInlineAssigned = async () => {
+    if (!selectedRequest) return;
+    try {
+      const colName = collectionMap[activeTab];
+      const isVehicle = selectedRequest.type === 'Vehicle' || activeTab === 'VEHICLE';
+      const updateData: any = {
+        updatedAt: serverTimestamp()
+      };
+      if (isVehicle) {
+        updateData.assignedDriverName = inlineAssignedName;
+        updateData.assignedDriverPhone = inlineAssignedPhone;
+      } else {
+        updateData.assignedTechnicianName = inlineAssignedName;
+        updateData.assignedTechnicianPhone = inlineAssignedPhone;
+      }
+      await updateDoc(doc(db, colName, selectedRequest.id), updateData);
+      toast.success('Assigned member details updated successfully');
+      setSelectedRequest({
+        ...selectedRequest,
+        assignedDriverName: isVehicle ? inlineAssignedName : selectedRequest.assignedDriverName,
+        assignedDriverPhone: isVehicle ? inlineAssignedPhone : selectedRequest.assignedDriverPhone,
+        assignedTechnicianName: !isVehicle ? inlineAssignedName : selectedRequest.assignedTechnicianName,
+        assignedTechnicianPhone: !isVehicle ? inlineAssignedPhone : selectedRequest.assignedTechnicianPhone,
+      });
+      setIsEditingInlineAssigned(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update details');
+    }
+  };
+
   const handleApprove = async (requestId: string, directorId: string, bypassLockCheck = false) => {
     if (!bypassLockCheck && !unlockedSectors.has(activeTab)) {
       setPendingAction({ type: 'APPROVE', data: { requestId, directorId }, sector: activeTab });
@@ -353,7 +388,7 @@ export function AdminDashboard() {
 
     const colName = collectionMap[activeTab];
     const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
-    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : (req?.tripName || 'Untitled Trip');
+    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Laborer Request') : (req?.tripName || 'Untitled Trip');
     const path = `${colName}/${requestId}`;
     try {
       await updateDoc(doc(db, colName, requestId), {
@@ -403,7 +438,7 @@ export function AdminDashboard() {
     setPersonnelSearch('');
     const colName = collectionMap[activeTab];
     const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
-    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Device Request') : (req?.tripName || 'Untitled Trip');
+    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Laborer Request') : (req?.tripName || 'Untitled Trip');
     const path = `${colName}/${requestId}`;
     try {
       const updateData: any = {
@@ -885,15 +920,15 @@ export function AdminDashboard() {
             />
             <TabButton 
               active={activeTab === 'OTHER'} 
-              label={t("Other", "Other")} 
-              icon={ClipboardList} 
+              label={t("Laborer", "Laborer")} 
+              icon={Users} 
               onClick={() => { setActiveTab('OTHER'); setSelectedRequest(null); }} 
             />
           </div>
           <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden flex flex-col h-[500px]">
              <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
                <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-                 {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'ITEM' ? 'Exit Permits Queue' : 'Other Requests Queue'}
+                 {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'ITEM' ? 'Exit Permits Queue' : 'Laborer Requests Queue'}
                </h3>
                <div className="flex items-center gap-3">
                   {isSelectMode ? (
@@ -988,7 +1023,7 @@ export function AdminDashboard() {
                              )}
                           </div>
                           <div className="text-[10px] text-dark-text-subtle mt-0.5 line-clamp-1 opacity-70 italic">
-                             {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? `Item: ${request.itemName || 'Unnamed'} — S/N: ${request.serialNumber || 'N/A'}` : activeTab === 'OTHER' ? request.deviceModel : request.destination}
+                             {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? `Item: ${request.itemName || 'Unnamed'} — S/N: ${request.serialNumber || 'N/A'}` : activeTab === 'OTHER' ? `${request.deviceModel || 'General Laborer'} (${request.quantity || 1} Person[s]) | Start: ${request.startTime || 'N/A'} - End: ${request.endTime || 'N/A'}` : request.destination}
                           </div>
                        </td>
                        <td className="px-6 py-5">
@@ -997,9 +1032,9 @@ export function AdminDashboard() {
                              {activeTab === 'CAMERA' && <Camera className="w-3 h-3 text-orange-400" />}
                              {activeTab === 'VEHICLE' && <Car className="w-3 h-3 text-blue-400" />}
                              {activeTab === 'ITEM' && <Tag className="w-3 h-3 text-pink-400" />}
-                             {activeTab === 'OTHER' && <ClipboardList className="w-3 h-3 text-purple-400" />}
+                             {activeTab === 'OTHER' && <Users className="w-3 h-3 text-purple-400" />}
                              <span className="text-[10px] font-black uppercase tracking-tight text-slate-600">
-                               {activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : 'Device'}
+                               {activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : 'Laborer'}
                              </span>
                           </div>
                        </td>
@@ -1031,7 +1066,11 @@ export function AdminDashboard() {
                                    deviceModel: request.deviceModel || '',
                                    serialNumber: request.serialNumber || '',
                                    quantity: request.quantity || 1,
-                                   responsiblePerson: request.responsiblePerson || ''
+                                   responsiblePerson: request.responsiblePerson || '',
+                                   startTime: request.startTime || '',
+                                   endTime: request.endTime || '',
+                                   date: request.date || request.neededBy || '',
+                                   projectName: request.projectName || ''
                                  });
                                  setIsEditing(false);
                                }}
@@ -1333,9 +1372,100 @@ export function AdminDashboard() {
                                </div>
                              </div>
                            )}
+                           {activeTab === 'OTHER' && (
+                             <div className="space-y-4 mt-3 animate-fadeIn">
+                               <div className="grid grid-cols-2 gap-4">
+                                 <div>
+                                   <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Laborer Type / Specialty</label>
+                                   <input 
+                                     type="text" 
+                                     placeholder="e.g. general, painter, welder"
+                                     value={editFormData.deviceModel || ''}
+                                     onChange={e => setEditFormData({...editFormData, deviceModel: e.target.value})}
+                                     className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                                   />
+                                 </div>
+                                 <div>
+                                   <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Laborer Count (Quantity)</label>
+                                   <input 
+                                     type="number" 
+                                     min="1"
+                                     value={editFormData.quantity || 1}
+                                     onChange={e => setEditFormData({...editFormData, quantity: parseInt(e.target.value) || 1})}
+                                     className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none font-mono"
+                                   />
+                                 </div>
+                               </div>
+                               <div className="grid grid-cols-3 gap-4">
+                                 <div>
+                                   <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Work Start Time</label>
+                                   <input 
+                                     type="text" 
+                                     placeholder="e.g. 08:00 AM"
+                                     value={editFormData.startTime || ''}
+                                     onChange={e => setEditFormData({...editFormData, startTime: e.target.value})}
+                                     className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none font-mono"
+                                   />
+                                 </div>
+                                 <div>
+                                   <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Ending Time</label>
+                                   <input 
+                                     type="text" 
+                                     placeholder="e.g. 05:00 PM"
+                                     value={editFormData.endTime || ''}
+                                     onChange={e => setEditFormData({...editFormData, endTime: e.target.value})}
+                                     className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none font-mono"
+                                   />
+                                 </div>
+                                 <div>
+                                   <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Work Date</label>
+                                   <input 
+                                     type="text" 
+                                     placeholder="e.g. May 24, 2026"
+                                     value={editFormData.date || ''}
+                                     onChange={e => setEditFormData({...editFormData, date: e.target.value})}
+                                     className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none font-mono"
+                                   />
+                                 </div>
+                                </div>
+                             </div>
+                           )}
                          </div>
                        ) : (
-                          activeTab === 'ITEM' ? (
+                          (activeTab === 'OTHER' || selectedRequest.type === 'Device') ? (
+                            <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 space-y-4 animate-fadeIn font-sans">
+                              <div className="flex justify-between items-center border-b border-dark-border pb-2">
+                                <span className="text-xs font-black uppercase text-dark-text-subtle font-mono">Work Activity / Job</span>
+                                <span className="text-sm font-black text-slate-900">{selectedRequest.projectName || 'General Work'}</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4 text-xs font-sans text-black font-bold">
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Special Skill / Focus</p>
+                                  <p className="font-bold text-slate-900">{selectedRequest.deviceModel || 'General Laborer'}</p>
+                                </div>
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Laborer Count (Quantity)</p>
+                                  <p className="font-bold text-slate-900 font-mono">{selectedRequest.quantity || 1} Person(s)</p>
+                                </div>
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Work Start Time</p>
+                                  <p className="font-bold text-indigo-600 font-mono">{selectedRequest.startTime || 'Not Specified'}</p>
+                                </div>
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Work Ending Time</p>
+                                  <p className="font-bold text-indigo-600 font-mono">{selectedRequest.endTime || 'Not Specified'}</p>
+                                </div>
+                                <div className="p-3 bg-dark-main border border-dark-border rounded-xl col-span-2">
+                                  <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Requested Work Date</p>
+                                  <p className="font-bold text-slate-900 font-mono">{selectedRequest.date || selectedRequest.neededBy || 'Not Specified'}</p>
+                                </div>
+                              </div>
+                              <div className="pt-2 border-t border-dark-border">
+                                <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">Scope and Purpose of Labor</p>
+                                <p className="text-sm text-slate-800 font-serif italic">{selectedRequest.description || selectedRequest.purpose || 'FMC General Assistance Protocol'}</p>
+                              </div>
+                            </div>
+                          ) : activeTab === 'ITEM' ? (
                             <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 space-y-4">
                               <div className="flex justify-between items-center border-b border-dark-border pb-2">
                                 <span className="text-xs font-black uppercase text-dark-text-subtle font-mono">Item Name</span>

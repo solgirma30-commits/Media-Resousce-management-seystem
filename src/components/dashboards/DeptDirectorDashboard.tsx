@@ -271,7 +271,16 @@ export function DeptDirectorDashboard() {
         } else if (activeTab === 'ITEM') {
           updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate, quantity: itemQuantity, responsiblePerson };
         } else if (activeTab === 'OTHER') {
-          updateData = { ...updateData, projectName: workName, deviceModel, quantity: requestQty, purpose: description, neededBy: needDate };
+          updateData = { 
+            ...updateData, 
+            projectName: workName, 
+            deviceModel, 
+            quantity: requestQty, 
+            purpose: description, 
+            startTime: startTime, 
+            endTime: endTime, 
+            date: eventDate 
+          };
         }
 
         await updateDoc(doc(db, colName, editingId), updateData);
@@ -353,16 +362,18 @@ export function DeptDirectorDashboard() {
       } else if (activeTab === 'OTHER') {
         const path = 'device_requests';
         const newRequest = {
-          requestId: `DEV-${Date.now()}`,
+          requestId: `LAB-${Date.now()}`,
           directorId: profile.uid,
           directorName: profile.displayName,
           departmentName: profile.department || 'Unknown Dept',
           projectName: workName,
-          deviceModel,
+          deviceModel: deviceModel || 'General Laborer',
           quantity: requestQty,
+          startTime: startTime,
+          endTime: endTime,
+          date: eventDate,
           purpose: description,
-          neededBy: needDate,
-          status: 'APPROVED',
+          status: 'NEW',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
@@ -400,8 +411,8 @@ export function DeptDirectorDashboard() {
         ]));
 
         const isApprovedItem = activeTab === 'ITEM';
-        const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : activeTab === 'OTHER' ? 'Device Request' : 'Service';
-        const displayName = activeTab === 'SERVICE' ? workName : activeTab === 'CAMERA' ? eventTitle : activeTab === 'ITEM' ? itemName : activeTab === 'OTHER' ? deviceModel : workName;
+        const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : activeTab === 'OTHER' ? 'Laborer Request' : 'Service';
+        const displayName = activeTab === 'SERVICE' ? workName : activeTab === 'CAMERA' ? eventTitle : activeTab === 'ITEM' ? itemName : activeTab === 'OTHER' ? workName : workName;
         
         const notificationTitle = isApprovedItem
           ? `[APPROVED] [${profile.department}] ${requestTypeLabel}: ${displayName}`
@@ -687,8 +698,8 @@ export function DeptDirectorDashboard() {
         <TabButton 
           active={activeTab === 'OTHER'} 
           onClick={() => setActiveTab('OTHER')} 
-          icon={Plus} 
-          label={t("Other", "Other Request")} 
+          icon={Users} 
+          label={t("Laborer", "Laborer Request")} 
           count={deviceRequests.length}
         />
       </div>
@@ -698,7 +709,7 @@ export function DeptDirectorDashboard() {
         <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
           <div>
             <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : activeTab === 'ITEM' ? 'Exit Permit Log' : 'Other Device Log'}
+              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : activeTab === 'ITEM' ? 'Exit Permit Log' : 'Laborer Request Log'}
             </h3>
             <p className="text-[10px] text-dark-text-subtle mt-1">Operational records categorized by department resource load</p>
           </div>
@@ -807,7 +818,7 @@ export function DeptDirectorDashboard() {
                             )}
                           </p>
                           <p className="text-[10px] text-dark-text-subtle line-clamp-1 italic font-serif">
-                            {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? request.deviceModel : request.destination}
+                            {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? `${request.deviceModel || 'General Laborer'} (${request.quantity || 1} Person[s]) | Start: ${request.startTime || 'N/A'} - End: ${request.endTime || 'N/A'}` : request.destination}
                           </p>
                           {activeTab === 'ITEM' && request.responsiblePerson && (
                             <p className="text-[9px] font-black uppercase text-dark-text-muted mt-1 font-mono tracking-wider">
@@ -912,7 +923,30 @@ export function DeptDirectorDashboard() {
                 </div>
 
                 <div className="p-10 space-y-8">
-                   {activeTab === 'ITEM' ? (
+                   {activeTab === 'OTHER' ? (
+                     <div className="grid grid-cols-2 gap-6">
+                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Laborers Needed</p>
+                         <p className="text-sm font-black text-black">{selectedRequest.quantity || 1} Laborer(s)</p>
+                       </div>
+                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Special Skill / Focus</p>
+                         <p className="text-sm font-black text-black">{selectedRequest.deviceModel || 'General Laborer'}</p>
+                       </div>
+                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Work Start Time</p>
+                         <p className="text-sm font-black text-black">{selectedRequest.startTime || 'Not Specified'}</p>
+                       </div>
+                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Work Ending Time</p>
+                         <p className="text-sm font-black text-black">{selectedRequest.endTime || 'Not Specified'}</p>
+                       </div>
+                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl col-span-2">
+                         <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Assignment Date & Year</p>
+                         <p className="text-sm font-black text-indigo-500 font-mono">{selectedRequest.date || selectedRequest.neededBy || 'Not Specified'}</p>
+                       </div>
+                     </div>
+                   ) : activeTab === 'ITEM' ? (
                      <div className="grid grid-cols-2 gap-6">
                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Responsible Person</p>
@@ -1090,10 +1124,10 @@ export function DeptDirectorDashboard() {
             >
               <div className="p-8 border-b border-dark-border bg-dark-card/50">
                 <h2 className="text-2xl font-medium text-white tracking-tight">
-                  {isEditing ? 'Sync / Update Record' : (activeTab === 'SERVICE' ? 'Initialize Service Request' : activeTab === 'CAMERA' ? 'Request Camera Coverage' : 'Request Vehicle Assignment')}
+                  {isEditing ? 'Sync / Update Record' : (activeTab === 'SERVICE' ? 'Initialize Service Request' : activeTab === 'CAMERA' ? 'Request Camera Coverage' : activeTab === 'VEHICLE' ? 'Request Vehicle Assignment' : activeTab === 'ITEM' ? 'Request Item Exit Permit' : 'Request Laborers Assignment')}
                 </h2>
                 <p className="text-dark-text-subtle text-sm mt-1">
-                  {isEditing ? 'Modify or update the parameters of this operational record' : (activeTab === 'SERVICE' ? 'Specify operational details for the technical team' : activeTab === 'CAMERA' ? 'Describe the event and coverage requirements' : 'Define destination and trip specifications')}
+                  {isEditing ? 'Modify or update the parameters of this operational record' : (activeTab === 'SERVICE' ? 'Specify operational details for the technical team' : activeTab === 'CAMERA' ? 'Describe the event and coverage requirements' : activeTab === 'VEHICLE' ? 'Define destination and trip specifications' : activeTab === 'ITEM' ? 'Specify items leaving boundaries' : 'Define work requirements and headcount of laborers')}
                 </p>
               </div>
               
@@ -1196,47 +1230,69 @@ export function DeptDirectorDashboard() {
                 {activeTab === 'OTHER' && (
                   <>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Project / Work Name</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Activity / Job Name</label>
                       <input
                         required
                         type="text"
-                        placeholder="Project name using the device"
+                        placeholder="Define work or project name"
                         value={workName}
                         onChange={(e) => setWorkName(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Device Model / Type</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Special Skills / Laborer Type</label>
                       <input
                         required
                         type="text"
-                        placeholder="Specify device needed"
+                        placeholder="e.g. Mason, Welder, Assistant, General Hand"
                         value={deviceModel}
                         onChange={(e) => setDeviceModel(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Quantity</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Number of Laborers Needed</label>
                         <input
                           required
                           type="number"
                           min="1"
                           value={requestQty}
-                          onChange={(e) => setRequestQty(parseInt(e.target.value))}
+                          onChange={(e) => setRequestQty(parseInt(e.target.value) || 1)}
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Needed By Date</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Work Date & Year</label>
                         <input
                           required
                           type="date"
-                          value={needDate}
-                          onChange={(e) => setNeedDate(e.target.value)}
+                          value={eventDate}
+                          onChange={(e) => setEventDate(e.target.value)}
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Work Start Time</label>
+                        <input
+                          required
+                          type="time"
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Ending Time</label>
+                        <input
+                          required
+                          type="time"
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
                         />
                       </div>
                     </div>
@@ -1245,7 +1301,7 @@ export function DeptDirectorDashboard() {
                       <textarea
                         required
                         rows={3}
-                        placeholder="Explain why this device is needed"
+                        placeholder="Explain scope of work and reason for laborers request"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
