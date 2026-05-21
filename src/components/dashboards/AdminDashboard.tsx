@@ -66,6 +66,7 @@ export function AdminDashboard() {
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [cameramen, setCameramen] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -74,6 +75,7 @@ export function AdminDashboard() {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
+  const [personnelSearch, setPersonnelSearch] = useState('');
   const [selectedTechForSms, setSelectedTechForSms] = useState<any | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -280,14 +282,16 @@ export function AdminDashboard() {
     const userPath = 'users';
     // Fetch all workforce users to avoid complex indexing issues in early setup
     const unsubscribeTech = onSnapshot(collection(db, userPath), (snapshot) => {
-      const allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const techList = allUsers.filter((u: any) => 
+      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllUsers(users);
+      
+      const techList = users.filter((u: any) => 
         u.role === 'TECHNICIAN' || u.id === profile?.uid
       );
-      const driverList = allUsers.filter((u: any) => 
+      const driverList = users.filter((u: any) => 
         u.role === 'DRIVER' || u.id === profile?.uid
       );
-      const cameraList = allUsers.filter((u: any) => 
+      const cameraList = users.filter((u: any) => 
         u.role === 'CAMERAMAN' || u.id === profile?.uid
       );
       setTechnicians(techList);
@@ -391,6 +395,7 @@ export function AdminDashboard() {
   };
 
   const handleAssign = async (requestId: string, tech: any, directorId: string) => {
+    setPersonnelSearch('');
     const colName = collectionMap[activeTab];
     const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
     const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Device Request') : (req?.tripName || 'Untitled Trip');
@@ -578,6 +583,7 @@ export function AdminDashboard() {
   };
 
   const openAssignModal = (request: any) => {
+    setPersonnelSearch('');
     if (!unlockedSectors.has(activeTab)) {
       setPendingAction({ type: 'ASSIGN', data: request, sector: activeTab });
       setIsUnlockModalOpen(true);
@@ -1563,55 +1569,88 @@ export function AdminDashboard() {
                  </button>
               </div>
 
+              <div className="px-8 pt-4 pb-2 border-b border-dark-border">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-text-subtle" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder={`Search ${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Technician'} by name...`}
+                    value={personnelSearch}
+                    onChange={(e) => setPersonnelSearch(e.target.value)}
+                    className="w-full bg-dark-main/50 border border-dark-border rounded-lg pl-10 pr-4 py-2 text-sm text-black placeholder:text-dark-text-subtle focus:border-dark-accent focus:ring-1 focus:ring-dark-accent transition-all"
+                  />
+                </div>
+              </div>
+
               <div className="p-8 max-h-[60vh] overflow-y-auto">
-                 {(activeTab === 'VEHICLE' ? drivers : activeTab === 'CAMERA' ? cameramen : technicians).length === 0 ? (
-                    <div className="py-12 text-center">
-                      <p className="text-dark-text-subtle text-sm font-serif italic mb-4">No FMC ENGINEERS detected in sector</p>
-                      <button 
-                        onClick={() => {
-                          setIsAssignModalOpen(false);
-                          setIsPersonnelModalOpen(true);
-                        }}
-                        className="text-[10px] font-black uppercase text-dark-accent hover:underline tracking-widest"
-                      >
-                        Initialize Fleet Registry
-                      </button>
-                    </div>
-                 ) : (
-                    <div className="space-y-4">
-                       {(activeTab === 'VEHICLE' ? drivers : activeTab === 'CAMERA' ? cameramen : technicians).map((tech) => (
-                          <div 
-                            key={tech.id} 
-                            className="flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar transition-all group"
-                          >
-                             <div className="flex items-center gap-4">
-                                <div className="w-11 h-11 rounded-lg bg-dark-card border border-dark-border flex items-center justify-center text-dark-accent font-bold">
-                                   {tech.displayName[0]}
-                                </div>
-                                <div className="flex-1">
-                                   <div className="flex items-center gap-2">
-                                     <p className="font-black text-black text-sm">{tech.displayName}</p>
-                                     {tech.id === profile?.uid && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-1 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">Self</span>}
-                                   </div>
-                                   <div className="flex items-center gap-2 mt-0.5">
-                                      <p className="text-[10px] text-dark-text-subtle uppercase tracking-widest font-black">
-                                        {tech.role === 'DRIVER' ? 'FMC DRIVER' : tech.role === 'CAMERAMAN' ? 'FMC CAMERA OPERATOR' : 'FMC ENGINEER'}
-                                      </p>
-                                      <span className="text-[10px] text-dark-accent/40">•</span>
-                                      <p className="text-[10px] text-dark-accent font-mono">{tech.phoneNumber || 'N/A'}</p>
-                                   </div>
-                                </div>
-                             </div>
-                             <button
-                                onClick={() => handleAssign(selectedRequest?.id, tech, selectedRequest?.directorId)}
-                                className="bg-dark-accent text-white font-bold text-xs px-5 py-2.5 rounded-lg hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-900/20 active:scale-95"
-                             >
-                                Dispatch
-                             </button>
-                          </div>
-                       ))}
-                    </div>
-                 )}
+                 {(() => {
+                    const primaryList = (activeTab === 'VEHICLE' ? drivers : activeTab === 'CAMERA' ? cameramen : technicians);
+                    const baseList = (personnelSearch || primaryList.length === 0) ? allUsers.filter(u => u.role !== 'ADMIN' || u.id === profile?.uid) : primaryList;
+                    const list = baseList.filter(t => 
+                      t.displayName.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+                      (t.role && t.role.toLowerCase().includes(personnelSearch.toLowerCase()))
+                    );
+                    
+                    if (list.length === 0) {
+                      return (
+                        <div className="py-12 text-center">
+                          <AlertCircle className="w-12 h-12 text-dark-text-subtle/20 mx-auto mb-4" />
+                          <p className="text-dark-text-subtle text-sm font-serif italic mb-4">
+                            {personnelSearch ? `No personnel matching "${personnelSearch}" found` : `No FMC ${activeTab === 'VEHICLE' ? 'DRIVERS' : activeTab === 'CAMERA' ? 'CAMERA OPERATORS' : 'ENGINEERS'} detected in sector`}
+                          </p>
+                          {!personnelSearch && (
+                            <button 
+                              onClick={() => {
+                                setIsAssignModalOpen(false);
+                                setIsPersonnelModalOpen(true);
+                                setIsOnboarding(true);
+                              }}
+                              className="text-[10px] font-black uppercase text-dark-accent hover:underline tracking-widest bg-dark-accent/5 px-4 py-2 rounded-lg border border-dark-accent/20"
+                            >
+                              Initialize Fleet Registry
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                         {list.map((tech) => (
+                            <div 
+                              key={tech.id} 
+                              className="flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar transition-all group"
+                            >
+                               <div className="flex items-center gap-4">
+                                  <div className="w-11 h-11 rounded-lg bg-dark-card border border-dark-border flex items-center justify-center text-dark-accent font-bold">
+                                     {tech.displayName[0]}
+                                  </div>
+                                  <div className="flex-1">
+                                     <div className="flex items-center gap-2">
+                                       <p className="font-black text-black text-sm">{tech.displayName}</p>
+                                       {tech.id === profile?.uid && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-1 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">Self</span>}
+                                     </div>
+                                     <div className="flex items-center gap-2 mt-0.5">
+                                        <p className="text-[10px] text-dark-text-subtle uppercase tracking-widest font-black">
+                                          {tech.role === 'DRIVER' ? 'FMC DRIVER' : tech.role === 'CAMERAMAN' ? 'FMC CAMERA OPERATOR' : tech.role === 'TECHNICIAN' ? 'FMC ENGINEER' : tech.role || 'Personnel'}
+                                        </p>
+                                        <span className="text-[10px] text-dark-accent/40">•</span>
+                                        <p className="text-[10px] text-dark-accent font-mono">{tech.phoneNumber || 'N/A'}</p>
+                                     </div>
+                                  </div>
+                               </div>
+                               <button
+                                  onClick={() => handleAssign(selectedRequest?.id, tech, selectedRequest?.directorId)}
+                                  className="bg-dark-accent text-white font-bold text-xs px-5 py-2.5 rounded-lg hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-900/20 active:scale-95"
+                               >
+                                  Dispatch
+                               </button>
+                            </div>
+                         ))}
+                      </div>
+                    );
+                 })()}
               </div>
             </motion.div>
           </div>
