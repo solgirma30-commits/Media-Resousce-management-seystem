@@ -16,6 +16,7 @@ import {
   X,
   Archive,
   Trash2,
+  Edit2,
   Settings,
   ClipboardList,
   Tag,
@@ -623,16 +624,25 @@ export function AdminDashboard() {
     const targetUid = isOnboarding ? `placeholder_${Date.now()}` : editingTech.id;
     const path = `users/${targetUid}`;
     
-    if (editPhone && !editPhone.startsWith('+')) {
-      toast.error('Agent contact must start with + and include country code (e.g., +251...)');
-      return;
+    let formattedPhone = editPhone.trim();
+    if (formattedPhone) {
+      if (formattedPhone.startsWith('09') && formattedPhone.length === 10) {
+        formattedPhone = '+251' + formattedPhone.substring(1);
+      } else if (formattedPhone.startsWith('07') && formattedPhone.length === 10) {
+        formattedPhone = '+251' + formattedPhone.substring(1);
+      }
+      
+      if (!formattedPhone.startsWith('+')) {
+        toast.error('Agent contact must start with + and include country code or start with 09/07 (e.g., +251...)');
+        return;
+      }
     }
 
     try {
       await setDoc(doc(db, 'users', targetUid), {
         uid: targetUid,
         displayName: editName,
-        phoneNumber: editPhone,
+        phoneNumber: formattedPhone,
         role: editRole,
         isPlaceholder: true,
         createdAt: serverTimestamp(),
@@ -1367,13 +1377,41 @@ export function AdminDashboard() {
 
                     {selectedRequest.status !== 'NEW' && (
                      <div className="grid grid-cols-2 gap-6">
-                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl group relative">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
                              {selectedRequest.type === 'Vehicle' ? 'Assigned Driver' : 'Assigned Agent'}
                            </p>
-                           <p className="text-sm font-black text-black">
-                             {selectedRequest.assignedDriverName || selectedRequest.assignedTechnicianName || 'PENDING DISPATCH'}
-                           </p>
+                           <div className="flex items-center justify-between gap-2">
+                              <div>
+                                 <p className="text-sm font-black text-black">
+                                   {selectedRequest.assignedDriverName || selectedRequest.assignedTechnicianName || 'PENDING DISPATCH'}
+                                 </p>
+                                 {(selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone) && (
+                                    <p className="text-[10px] text-dark-accent font-mono mt-0.5">{selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone}</p>
+                                 )}
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  const rolesMap: any = { Vehicle: 'DRIVER', Camera: 'CAMERAMAN', Service: 'TECHNICIAN' };
+                                  const techId = selectedRequest.assignedDriverId || selectedRequest.assignedTechnicianId;
+                                  const existingTech = [...technicians, ...drivers, ...cameramen].find(t => t.id === techId);
+                                  
+                                  if (existingTech) {
+                                    setEditingTech(existingTech);
+                                    setEditName(existingTech.displayName);
+                                    setEditPhone(existingTech.phoneNumber || '');
+                                    setEditRole(existingTech.role || rolesMap[selectedRequest.type] || 'TECHNICIAN');
+                                    setIsPersonnelModalOpen(true);
+                                  } else {
+                                    toast.error("Original agent registry link missing");
+                                  }
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-dark-accent/10 hover:text-dark-accent rounded text-dark-text-subtle transition-all"
+                                title="Correct Agent Info in Registry"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                           </div>
                         </div>
                         <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Asset Specifics</p>
@@ -1608,8 +1646,8 @@ export function AdminDashboard() {
                  </button>
               </div>
 
-              <div className="px-8 pt-4 pb-2 border-b border-dark-border">
-                <div className="relative">
+              <div className="px-8 pt-4 pb-2 border-b border-dark-border flex items-center gap-3">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-text-subtle" />
                   <input
                     type="text"
@@ -1620,6 +1658,21 @@ export function AdminDashboard() {
                     className="w-full bg-dark-main/50 border border-dark-border rounded-lg pl-10 pr-4 py-2 text-sm text-black placeholder:text-dark-text-subtle focus:border-dark-accent focus:ring-1 focus:ring-dark-accent transition-all"
                   />
                 </div>
+                <button
+                  onClick={() => {
+                    setEditingTech(null);
+                    setIsOnboarding(true);
+                    setEditName(personnelSearch);
+                    setEditPhone('');
+                    setEditRole(activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN');
+                    setIsPersonnelModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-dark-accent/10 border border-dark-accent/30 rounded-lg text-[10px] font-black uppercase text-dark-accent hover:bg-dark-accent hover:text-white transition-all tracking-widest flex items-center gap-2 whitespace-nowrap"
+                  title="Initialize New Agent"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  {t("NEW")}
+                </button>
               </div>
 
               <div className="p-8 max-h-[60vh] overflow-y-auto">
@@ -1667,41 +1720,122 @@ export function AdminDashboard() {
                       );
                     }
 
-                    return (
-                      <div className="space-y-4">
-                         {list.map((tech) => (
-                            <div 
-                              key={tech.id} 
-                              className="flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar transition-all group"
-                            >
-                               <div className="flex items-center gap-4">
-                                  <div className="w-11 h-11 rounded-lg bg-dark-card border border-dark-border flex items-center justify-center text-dark-accent font-bold">
-                                     {tech.displayName[0]}
-                                  </div>
-                                  <div className="flex-1">
-                                     <div className="flex items-center gap-2">
-                                       <p className="font-black text-black text-sm">{tech.displayName}</p>
-                                       {tech.id === profile?.uid && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-1 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">Self</span>}
-                                     </div>
-                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <p className="text-[10px] text-dark-text-subtle uppercase tracking-widest font-black">
-                                          {tech.role === 'DRIVER' ? 'FMC DRIVER' : tech.role === 'CAMERAMAN' ? 'FMC CAMERA OPERATOR' : tech.role === 'TECHNICIAN' ? 'FMC ENGINEER' : tech.role || 'Personnel'}
-                                        </p>
-                                        <span className="text-[10px] text-dark-accent/40">•</span>
-                                        <p className="text-[10px] text-dark-accent font-mono">{tech.phoneNumber || 'N/A'}</p>
-                                     </div>
-                                  </div>
-                               </div>
-                               <button
-                                  onClick={() => handleAssign(selectedRequest?.id, tech, selectedRequest?.directorId)}
-                                  className="bg-dark-accent text-white font-bold text-xs px-5 py-2.5 rounded-lg hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-900/20 active:scale-95"
+                     return (
+                       <div className="space-y-4">
+                          {list.map((tech) => {
+                             const isEditingThis = editingTech?.id === tech.id;
+                             return (
+                               <div 
+                                 key={tech.id} 
+                                 className="flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar/40 transition-all group"
                                >
-                                  Dispatch
-                               </button>
-                            </div>
-                         ))}
-                      </div>
-                    );
+                                 {isEditingThis ? (
+                                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
+                                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+                                       <div>
+                                         <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">Name</label>
+                                         <input
+                                           type="text"
+                                           value={editName}
+                                           onChange={(e) => setEditName(e.target.value)}
+                                           className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 focus:ring-1 focus:ring-dark-accent outline-none"
+                                           placeholder="Operator Name"
+                                         />
+                                       </div>
+                                       <div>
+                                         <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">Contact Phone No</label>
+                                         <input
+                                           type="tel"
+                                           value={editPhone}
+                                           onChange={(e) => setEditPhone(e.target.value)}
+                                           className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 font-mono focus:ring-1 focus:ring-dark-accent outline-none"
+                                           placeholder="+251..."
+                                         />
+                                       </div>
+                                     </div>
+                                     <div className="flex items-center gap-2 mt-2 md:mt-0 self-end">
+                                       <button
+                                         onClick={() => {
+                                           setEditingTech(null);
+                                           setEditName('');
+                                           setEditPhone('');
+                                           setIsOnboarding(false);
+                                         }}
+                                         className="px-3 py-2 border border-dark-border rounded bg-dark-sidebar hover:bg-dark-main text-dark-text-subtle hover:text-white text-[10px] uppercase font-bold transition-all"
+                                       >
+                                         {t("Cancel")}
+                                       </button>
+                                       <button
+                                         onClick={async () => {
+                                           const originalId = tech.id;
+                                           await handleUpdateTech();
+                                           // Re-fetch the updated tech data to ensure handleAssign uses the new details
+                                           // Or just use the local edit states since handleUpdateTech might be async
+                                           handleAssign(selectedRequest?.id, {
+                                             ...tech,
+                                             displayName: editName,
+                                             phoneNumber: editPhone.trim().startsWith('0') ? '+251' + editPhone.trim().substring(1) : editPhone.trim()
+                                           }, selectedRequest?.directorId);
+                                           setIsAssignModalOpen(false);
+                                         }}
+                                         className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-indigo-900/20"
+                                       >
+                                         {t("Update & Dispatch")}
+                                       </button>
+                                       <button
+                                         onClick={handleUpdateTech}
+                                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition-all"
+                                       >
+                                         {t("Save Only")}
+                                       </button>
+                                     </div>
+                                   </div>
+                                 ) : (
+                                   <>
+                                     <div className="flex items-center gap-4">
+                                        <div className="w-11 h-11 rounded-lg bg-dark-card border border-dark-border flex items-center justify-center text-dark-accent font-bold">
+                                           {tech.displayName[0]}
+                                        </div>
+                                        <div className="flex-1">
+                                           <div className="flex items-center gap-2">
+                                             <p className="font-black text-black text-sm">{tech.displayName}</p>
+                                             {tech.id === profile?.uid && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-1 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">Self</span>}
+                                           </div>
+                                           <div className="flex items-center gap-2 mt-0.5">
+                                              <p className="text-[10px] text-dark-text-subtle uppercase tracking-widest font-black">
+                                                {tech.role === 'DRIVER' ? 'FMC DRIVER' : tech.role === 'CAMERAMAN' ? 'FMC CAMERA OPERATOR' : tech.role === 'TECHNICIAN' ? 'FMC ENGINEER' : tech.role || 'Personnel'}
+                                              </p>
+                                              <span className="text-[10px] text-dark-accent/40">•</span>
+                                              <p className="text-[10px] text-dark-accent font-mono">{tech.phoneNumber || 'N/A'}</p>
+                                           </div>
+                                        </div>
+                                     </div>
+                                     <div className="flex items-center gap-2">
+                                       <button
+                                          onClick={() => {
+                                             setEditingTech(tech);
+                                             setEditName(tech.displayName);
+                                             setEditPhone(tech.phoneNumber || '');
+                                             setEditRole(tech.role || 'TECHNICIAN');
+                                          }}
+                                          className="px-3 py-2 bg-dark-card border border-dark-border rounded-lg text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-white transition-all tracking-widest"
+                                       >
+                                          Edit
+                                       </button>
+                                       <button
+                                          onClick={() => handleAssign(selectedRequest?.id, tech, selectedRequest?.directorId)}
+                                          className="bg-dark-accent text-white font-bold text-xs px-5 py-2.5 rounded-lg hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-900/20 active:scale-95"
+                                       >
+                                           Dispatch
+                                       </button>
+                                     </div>
+                                   </>
+                                 )}
+                               </div>
+                             );
+                          })}
+                       </div>
+                     );
                  })()}
               </div>
             </motion.div>
@@ -1764,51 +1898,113 @@ export function AdminDashboard() {
 
                 <div className="p-8 overflow-y-auto scrollbar-hide">
                   <div className="grid grid-cols-1 gap-4">
-                    {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => (
-                      <div key={tech.id} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
-                        <div className="flex items-center gap-4">
-                           <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-dark-accent font-black text-xl">
-                             {tech.displayName[0]}
-                           </div>
-                           <div>
-                              <p className="font-black text-black text-base">{tech.displayName}</p>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-dark-accent/10 text-dark-accent border border-dark-accent/20 rounded">
-                                  {tech.role || 'TECHNICIAN'}
-                                </span>
-                                <p className="text-xs text-dark-text-subtle font-mono">{tech.phoneNumber || 'Contact Not Synchronized'}</p>
-                              </div>
-                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => {
-                              setEditingTech(tech);
-                              setEditName(tech.displayName);
-                              setEditPhone(tech.phoneNumber || '');
-                              setEditRole(tech.role || 'TECHNICIAN');
-                            }}
-                            className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-white transition-all uppercase tracking-widest"
-                          >
-                            Modify ID
-                          </button>
-                          {tech.id !== profile?.uid && (
-                            <button 
-                              onClick={() => handleDeleteTech(tech.id)}
-                              className={cn(
-                                "p-2 rounded-lg transition-all border",
-                                deleteTechConfirmId === tech.id
-                                  ? "bg-red-500 border-red-600 text-white animate-pulse"
-                                  : "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white"
-                              )}
-                              title={deleteTechConfirmId === tech.id ? "Confirm De-registration" : "De-register Agent"}
-                            >
-                              <Trash2 className={cn("transition-transform", deleteTechConfirmId === tech.id ? "w-5 h-5 scale-110" : "w-4 h-4")} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                     {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => {
+                       const isEditingThis = editingTech?.id === tech.id;
+                       return (
+                         <div key={tech.id} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
+                           {isEditingThis ? (
+                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
+                               <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
+                                 <div>
+                                   <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">{t("Name")}</label>
+                                   <input
+                                     type="text"
+                                     value={editName}
+                                     onChange={(e) => setEditName(e.target.value)}
+                                     className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 focus:ring-1 focus:ring-dark-accent outline-none"
+                                     placeholder="Operator Name"
+                                   />
+                                 </div>
+                                 <div>
+                                   <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">{t("Contact Phone No")}</label>
+                                   <input
+                                     type="tel"
+                                     value={editPhone}
+                                     onChange={(e) => setEditPhone(e.target.value)}
+                                     className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 font-mono focus:ring-1 focus:ring-dark-accent outline-none"
+                                     placeholder="+251..."
+                                   />
+                                 </div>
+                                 <div>
+                                   <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">{t("Operational Role")}</label>
+                                   <select
+                                     value={editRole}
+                                     onChange={(e) => setEditRole(e.target.value as any)}
+                                     className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 focus:ring-1 focus:ring-dark-accent outline-none"
+                                   >
+                                     <option value="TECHNICIAN">Technician</option>
+                                     <option value="DRIVER">Driver</option>
+                                     <option value="CAMERAMAN">Cameraman</option>
+                                   </select>
+                                 </div>
+                               </div>
+                               <div className="flex items-center gap-2 mt-2 md:mt-0 self-end">
+                                 <button
+                                   onClick={() => {
+                                     setEditingTech(null);
+                                     setEditName('');
+                                     setEditPhone('');
+                                   }}
+                                   className="px-3 py-2 border border-dark-border rounded bg-dark-sidebar hover:bg-dark-main text-dark-text-subtle hover:text-white text-[10px] uppercase font-bold transition-all"
+                                 >
+                                   {t("Cancel")}
+                                 </button>
+                                 <button
+                                   onClick={handleUpdateTech}
+                                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition-all"
+                                 >
+                                   {t("Save")}
+                                 </button>
+                               </div>
+                             </div>
+                           ) : (
+                             <>
+                               <div className="flex items-center gap-4">
+                                  <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-dark-accent font-black text-xl">
+                                    {tech.displayName[0]}
+                                  </div>
+                                  <div>
+                                     <p className="font-black text-black text-base">{tech.displayName}</p>
+                                     <div className="flex items-center gap-2">
+                                       <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-dark-accent/10 text-dark-accent border border-dark-accent/20 rounded">
+                                         {tech.role || 'TECHNICIAN'}
+                                       </span>
+                                       <p className="text-xs text-dark-text-subtle font-mono">{tech.phoneNumber || 'Contact Not Synchronized'}</p>
+                                     </div>
+                                  </div>
+                               </div>
+                               <div className="flex items-center gap-2">
+                                 <button 
+                                   onClick={() => {
+                                     setEditingTech(tech);
+                                     setEditName(tech.displayName);
+                                     setEditPhone(tech.phoneNumber || '');
+                                     setEditRole(tech.role || 'TECHNICIAN');
+                                   }}
+                                   className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-white transition-all uppercase tracking-widest"
+                                 >
+                                   Modify ID
+                                 </button>
+                                 {tech.id !== profile?.uid && (
+                                   <button 
+                                     onClick={() => handleDeleteTech(tech.id)}
+                                     className={cn(
+                                       "p-2 rounded-lg transition-all border",
+                                       deleteTechConfirmId === tech.id
+                                         ? "bg-red-500 border-red-600 text-white animate-pulse"
+                                         : "bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white"
+                                     )}
+                                     title={deleteTechConfirmId === tech.id ? "Confirm De-registration" : "De-register Agent"}
+                                   >
+                                     <Trash2 className={cn("transition-transform", deleteTechConfirmId === tech.id ? "w-5 h-5 scale-110" : "w-4 h-4")} />
+                                   </button>
+                                 )}
+                               </div>
+                             </>
+                           )}
+                         </div>
+                       );
+                     })}
                   </div>
                </div>
 
