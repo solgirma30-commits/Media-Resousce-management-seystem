@@ -240,7 +240,7 @@ export function TechnicianDashboard() {
         });
       }
 
-      setAssignments(docs);
+      setAssignments(docs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
       setLoading(false);
       isFirstLoad = false;
     }, (error) => handleFirestoreError(error, OperationType.LIST, path));

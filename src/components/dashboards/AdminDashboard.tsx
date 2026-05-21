@@ -826,6 +826,9 @@ export function AdminDashboard() {
     { label: t('Consolidated', 'Consolidated'), value: [...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests].length, icon: ClipboardList, color: 'text-slate-400', bg: 'bg-slate-500/10' },
   ];
 
+  const activeRequestsList = activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests;
+  const uniqueActiveRequests = activeRequestsList.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700 text-slate-900">
       <div className="flex items-center justify-between">
@@ -987,11 +990,11 @@ export function AdminDashboard() {
                        <tr>
                           <td colSpan={isSelectMode ? 6 : 5} className="px-6 py-12 text-center text-dark-text-subtle">Synchronizing data...</td>
                        </tr>
-                     ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).length === 0 ? (
+                     ) : uniqueActiveRequests.length === 0 ? (
                        <tr>
                           <td colSpan={isSelectMode ? 6 : 5} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
                        </tr>
-                     ) : (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).map((request) => (
+                     ) : uniqueActiveRequests.map((request) => (
                      <tr 
                        key={request.id} 
                        onClick={() => isSelectMode ? toggleSelect(request.id) : setSelectedRequest(request)}

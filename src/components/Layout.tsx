@@ -77,7 +77,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           });
         }
 
-        setNotifications(docs);
+        setNotifications(docs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
         isFirstLoad = false;
       },
       (error) => {

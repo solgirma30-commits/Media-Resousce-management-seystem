@@ -723,6 +723,381 @@ export const translationDictionary: Record<string, Record<Language, string>> = {
     en: 'Work Assigned',
     om: 'Hojiin Kennameera',
     am: 'ስራ ተመድቧል'
+  },
+  // Priorities
+  'LOW': {
+    en: 'LOW',
+    om: 'GAD-AANA',
+    am: 'ዝቅተኛ'
+  },
+  'MEDIUM': {
+    en: 'MEDIUM',
+    om: 'GIDDU-GALEESSA',
+    am: 'መካከለኛ'
+  },
+  'HIGH': {
+    en: 'HIGH',
+    om: 'OL-AANA',
+    am: 'ከፍተኛ'
+  },
+  'URGENT': {
+    en: 'URGENT',
+    om: 'ARIIFACHIISAA',
+    am: 'አስቸኳይ'
+  },
+  'URGENT_LOWER': {
+    en: 'Urgent',
+    om: 'Ariifachiisaa',
+    am: 'አስቸኳይ'
+  },
+  // Categories
+  'category_hardware': {
+    en: 'Hardware',
+    om: 'Haardweerii',
+    am: 'ሀርድዌር'
+  },
+  'category_software': {
+    en: 'Software',
+    om: 'Softweerii',
+    am: 'ሶፍትዌር'
+  },
+  'category_network': {
+    en: 'Network',
+    om: 'Netwoorkii',
+    am: 'ኔትወርክ'
+  },
+  'category_electrical': {
+    en: 'Electrical',
+    om: 'Elektriika',
+    am: 'ኤሌክትሪክ'
+  },
+  'category_furniture': {
+    en: 'Furniture',
+    om: 'Meesaalee Manbaa',
+    am: 'የቤት እቃዎች (Furniture)'
+  },
+  'category_other': {
+    en: 'Other',
+    om: 'Kan biraa',
+    am: 'ሌላ'
+  },
+  'category_others': {
+    en: 'Others',
+    om: 'Kan biraa',
+    am: 'ሌሎች'
+  },
+  // Form Labels
+  'lbl_service_category': {
+    en: 'Service Category',
+    om: 'Gosa Tajaajilaa',
+    am: 'የአገልግሎት ዘርፍ'
+  },
+  'lbl_fleet_asset_optional': {
+    en: 'Fleet Asset (Optional)',
+    om: 'Konkolaataa (Yoo jiraate)',
+    am: 'ተሽከርካሪ (አማራጭ)'
+  },
+  'lbl_priority_vector': {
+    en: 'Priority Vector',
+    om: 'Sadarkaa Ariifachiisummaa',
+    am: 'የአስቸኳይነት ደረጃ'
+  },
+  'lbl_deployment_zone': {
+    en: 'Deployment Zone',
+    om: 'Iddoo Hojii',
+    am: 'የስምሪት ቀጠና'
+  },
+  'lbl_communication_link': {
+    en: 'Communication Link',
+    om: 'Quunnamtii Bilbilaa',
+    am: 'የመገናኛ ዘዴ'
+  },
+  'lbl_work_name_title': {
+    en: 'Work Name / Title',
+    om: 'Maqaa Hojii / Mataduree',
+    am: 'የስራው ርዕስ / ስም'
+  },
+  'lbl_issue_specifications': {
+    en: 'Issue Specifications',
+    om: 'Ibsa Rakkoo',
+    am: 'የችግሩ ዝርዝር መግለጫ'
+  },
+  'lbl_activity_job_name': {
+    en: 'Activity / Job Name',
+    om: 'Maqaa Hojii',
+    am: 'የስራው አይነት / ስም'
+  },
+  'lbl_special_skills_laborer_type': {
+    en: 'Special Skills / Laborer Type',
+    om: 'Gosa Ogeessa Barbaadamu',
+    am: 'የባለሙያ አይነት / ልዩ ችሎታ'
+  },
+  'lbl_number_of_laborers_needed': {
+    en: 'Number of Laborers Needed',
+    om: 'Baay’ina Hojjettoota Barbaadaman',
+    am: 'የሚያስፈልገው የእለት ሰራተኞች ብዛት'
+  },
+  'lbl_work_date_year': {
+    en: 'Work Date & Year',
+    om: 'Guyyaa Hojii',
+    am: 'የስራ ቀን እና አመት'
+  },
+  'lbl_work_start_time': {
+    en: 'Work Start Time',
+    om: 'Sa’aatii Jalqabaa',
+    am: 'ስራ የሚጀምርበት ሰዓት'
+  },
+  'lbl_ending_time': {
+    en: 'Ending Time',
+    om: 'Sa’aatii Xumuraa',
+    am: 'የማጠናቀቂያ ሰዓት'
+  },
+  'lbl_reason_for_request': {
+    en: 'Reason for Request',
+    om: 'Sababa Gaaffii',
+    am: 'የጥያቄው ምክንያት'
+  },
+  'lbl_event_title': {
+    en: 'Event Title',
+    om: 'Maqaa Sagantaa',
+    am: 'የኩነቱ ርዕስ'
+  },
+  'lbl_event_date': {
+    en: 'Event Date',
+    om: 'Guyyaa Sagantaa',
+    am: 'የኩነቱ ቀን'
+  },
+  'lbl_start_time': {
+    en: 'Start Time',
+    om: 'Sa’aatii Jalqabaa',
+    am: 'የመጀመሪያ ሰዓት'
+  },
+  'lbl_end_time': {
+    en: 'End Time',
+    om: 'Sa’aatii Xumuraa',
+    am: 'የማለቂያ ሰዓት'
+  },
+  'lbl_purpose_equipment_needed': {
+    en: 'Purpose / Equipment Needed',
+    om: 'Kaayyoo / Meeshaa Barbaadamu',
+    am: 'ዓላማ / የሚያስፈልገው መሳሪያ'
+  },
+  'lbl_trip_name_purpose_title': {
+    en: 'Trip Name / Purpose Title',
+    om: 'Kaayyoo Imalaa',
+    am: 'የጉዞው ስም / ዓላማ'
+  },
+  'lbl_destination': {
+    en: 'Destination',
+    om: 'Iddoo Imalaa',
+    am: 'መድረሻ'
+  },
+  'lbl_passengers': {
+    en: 'Passengers',
+    om: 'Imaltoota',
+    am: 'ተጓዦች'
+  },
+  'lbl_departure_date': {
+    en: 'Departure Date',
+    om: 'Guyyaa Ka’iinsaa',
+    am: 'የጉዞ መጀመሪያ ቀን'
+  },
+  'lbl_departure_time': {
+    en: 'Departure Time',
+    om: 'Sa’aatii Ka’iinsaa',
+    am: 'የጉዞ መጀመሪያ ሰዓት'
+  },
+  'lbl_estimated_return': {
+    en: 'Estimated Return',
+    om: 'Sa’aatii Deebii',
+    am: 'የመመለሻ ግምታዊ ሰዓት'
+  },
+  'lbl_purpose_of_trip': {
+    en: 'Purpose of Trip',
+    om: 'Kaayyoo Imala Hojii',
+    am: 'የጉዞው ዓላማ'
+  },
+  'lbl_item_name_model': {
+    en: 'Item Name / Model',
+    om: 'Gosa Meeshaa / Moodela',
+    am: 'የዕቃው ስም / ሞዴል'
+  },
+  'lbl_serial_number_asset_tag': {
+    en: 'Serial Number / Asset Tag',
+    om: 'Lakk. Addaa Meeshaa',
+    am: 'የሴሪያል ቁጥር / መለያ ምልክት'
+  },
+  'lbl_quantity': {
+    en: 'Quantity',
+    om: 'Baay’ina',
+    am: 'ብዛት'
+  },
+  'lbl_responsible_for_item': {
+    en: 'Responsible for Item',
+    om: 'Nama Itti-gaafatamu',
+    am: 'ዕቃውን በኃላፊነት የሚይዘው ሰው'
+  },
+  'lbl_expected_return_date_optional': {
+    en: 'Expected Return Date (Optional)',
+    om: 'Guyyaa Deebii (Yoo jiraate)',
+    am: 'የመመለሻ ቀን (አማራጭ)'
+  },
+  'lbl_reason_for_exit': {
+    en: 'Reason for Exit',
+    om: 'Sababa Ba’iinsaa',
+    am: 'ለመውጣት ምክንያት'
+  },
+  // Admin Form labels
+  'lbl_recipient_identity': {
+    en: 'Recipient Identity',
+    om: 'Eenyummaan Nama Fudhatuu',
+    am: 'የተቀባዩ ማንነት'
+  },
+  'lbl_directive_payload': {
+    en: 'Directive Payload',
+    om: 'Ergaa Hojii',
+    am: 'የመመሪያ መረጃ'
+  },
+  'lbl_name': {
+    en: 'Name',
+    om: 'Maqaa',
+    am: 'ስም'
+  },
+  'lbl_contact_phone_no': {
+    en: 'Contact Phone No',
+    om: 'Lakkoofsa Bilbilaa',
+    am: 'የስልክ ቁጥር'
+  },
+  'lbl_operational_role': {
+    en: 'Operational Role',
+    om: 'Gahee Hojii',
+    am: 'የስራ ድርሻ'
+  },
+  'lbl_user_name': {
+    en: 'User Name',
+    om: 'Maqaa Fayyadamaa',
+    am: 'የተጠቃሚ ስም'
+  },
+  'lbl_agent_contact_sms': {
+    en: 'Agent Contact (SMS)',
+    om: 'Quunnamtii Teeknikaa (SMS)',
+    am: 'የቴክኒሻን አድራሻ (SMS)'
+  },
+  'lbl_carrier_responsible': {
+    en: 'Carrier / Responsible',
+    om: 'Nama Fudhatu / Itti-gaafatamaa',
+    am: 'አጓጓዥ / ተጠያቂ'
+  },
+  'lbl_laborer_type_specialty': {
+    en: 'Laborer Type / Specialty',
+    om: 'Gosa Hojjetaa',
+    am: 'የቀን ሰራተኛ አይነት'
+  },
+  'lbl_laborer_count_quantity': {
+    en: 'Laborer Count (Quantity)',
+    om: 'Baay’ina Hojjetootaa',
+    am: 'የሰራተኞች ብዛት'
+  },
+  'lbl_work_date': {
+    en: 'Work Date',
+    om: 'Guyyaa Hojii',
+    am: 'የሥራ ቀን'
+  },
+  // Placeholders
+  'ph_comments': {
+    en: 'Add your comments or feedback on the completed work...',
+    om: 'Yaada keessan hojicharratti dabaladhaa...',
+    am: 'ስለተጠናቀቀው ስራ አስተያየትዎን እዚህ ያስፍሩ...'
+  },
+  'ph_location_id': {
+    en: 'Location ID',
+    om: 'Lakk. Iddoo',
+    am: 'የቦታ መለያ (Location ID)'
+  },
+  'ph_direct_phone': {
+    en: 'Direct phone',
+    om: 'Lakkoofsa Bilbilaa',
+    am: 'ቀጥታ ስልክ መስመር'
+  },
+  'ph_office_ac_repair': {
+    en: 'e.g., Office AC Repair',
+    om: 'Fakkeenyaaf, Suphaa Kilaayimeetii',
+    am: 'ምሳሌ፦ የቢሮ ኤሲ ጥገና'
+  },
+  'ph_technical_descriptors': {
+    en: 'Provide technical descriptors...',
+    om: 'Ibsa teeknikaa dabaladhaa...',
+    am: 'ቴክኒካዊ መግለጫዎችን ያስገቡ...'
+  },
+  'ph_define_work_project': {
+    en: 'Define work or project name',
+    om: 'Maqaa Hojii ykn Pirojekti',
+    am: 'የስራውን ወይም የፕሮጀክቱን ስም ይግለጹ'
+  },
+  'ph_laborer_specialty': {
+    en: 'e.g. Mason, Welder, Assistant, General Hand',
+    om: 'Fakkeenyaaf, Dhaga-baxxi, Welder, Gargaaraa',
+    am: 'ምሳሌ፦ ግንበኛ፣ ብየዳ፣ ረዳት፣ አጠቃላይ ሰራተኛ'
+  },
+  'ph_laborers_scope': {
+    en: 'Explain scope of work and reason for laborers request',
+    om: 'Hojichaafi sababa hojjettoonni barbaadaman ibsi',
+    am: 'የስራውን ይዘት እና የቀን ሰራተኞች ያስፈለጉበትን ምክንያት ያብራሩ'
+  },
+  'ph_event_title': {
+    en: 'Event name or project title',
+    om: 'Maqaa Sagantichaa',
+    am: 'የኩነቱ ወይም የፕሮጀክቱ ስም'
+  },
+  'ph_location': {
+    en: 'Location',
+    om: 'Iddoo',
+    am: 'ቦታ'
+  },
+  'ph_coverage_requirements': {
+    en: 'Explain coverage requirements...',
+    om: 'Ibsoota dabalataa barreessi...',
+    am: 'የካሜራ ሽፋን ፍላጎቶችን ያብራሩ...'
+  },
+  'ph_inspection_trip': {
+    en: 'e.g., Site Inspection Trip',
+    om: 'Fakkeenyaaf, Daawwannaa Dirree',
+    am: 'ምሳሌ፦ የመስክ ምልከታ ጉዞ'
+  },
+  'ph_destination': {
+    en: 'Trip destination',
+    om: 'Iddoo deeman',
+    am: 'የጉዞው መድረሻ'
+  },
+  'ph_mission_details': {
+    en: 'Explain mission details...',
+    om: 'Ibsa imalichaa dabaladhaa...',
+    am: 'የጉዞውን ዝርዝር ሁኔታ ያብራሩ...'
+  },
+  'ph_item_name': {
+    en: 'e.g., Dell Laptop XPS 15',
+    om: 'Fakkeenyaaf, Laptop Dell',
+    am: 'ምሳሌ፦ ዴል ላፕቶፕ ኤክስፒኤስ 15'
+  },
+  'ph_serial_number': {
+    en: 'e.g., S/N 12345678',
+    om: 'Fakkeenyaaf, Lakk Addaa',
+    am: 'ምሳሌ፦ S/N 12345678'
+  },
+  'ph_quantity_eg': {
+    en: 'e.g., 1',
+    om: 'Fakkeenyaaf, 1',
+    am: 'ምሳሌ፦ 1'
+  },
+  'ph_responsible_person': {
+    en: 'Name of person responsible',
+    om: 'Maqaa nama fashaleessu',
+    am: 'ዕቃውን በኃላፊነት የሚይዘው ሰው ስም'
+  },
+  'ph_exit_reason_explain': {
+    en: 'Explain why this item is leaving the premises...',
+    om: 'Meeshaan kun maaliif akka ba’u ibsi...',
+    am: 'ዕቃው ከግቢው የሚወጣበትን ምክንያት ያብራሩ...'
   }
 };
 

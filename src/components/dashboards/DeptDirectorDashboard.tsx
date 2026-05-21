@@ -216,14 +216,17 @@ export function DeptDirectorDashboard() {
   }, [profile, activeTab]);
 
   const currentList = useMemo(() => {
-    switch(activeTab) {
-      case 'SERVICE': return requests;
-      case 'CAMERA': return cameraRequests;
-      case 'VEHICLE': return vehicleRequests;
-      case 'ITEM': return itemRequests;
-      case 'OTHER': return deviceRequests;
-      default: return [];
-    }
+    const getRawList = () => {
+      switch(activeTab) {
+        case 'SERVICE': return requests;
+        case 'CAMERA': return cameraRequests;
+        case 'VEHICLE': return vehicleRequests;
+        case 'ITEM': return itemRequests;
+        case 'OTHER': return deviceRequests;
+        default: return [];
+      }
+    };
+    return getRawList().filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
   }, [activeTab, requests, cameraRequests, vehicleRequests, itemRequests, deviceRequests]);
 
   const groupedByDept = useMemo(() => {
@@ -1136,23 +1139,23 @@ export function DeptDirectorDashboard() {
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Service Category</label>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Service Category")}</label>
                         <select
                           value={category}
                           onChange={(e) => setCategory(e.target.value)}
                           className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
                         >
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          {categories.map(c => <option key={c} value={c}>{t(c)}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Fleet Asset (Optional)</label>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Fleet Asset (Optional)")}</label>
                         <select
                           value={selectedFleetId}
                           onChange={(e) => setSelectedFleetId(e.target.value)}
                           className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
                         >
-                          <option value="">No specific asset</option>
+                          <option value="">{t("No specific asset")}</option>
                           {fleet.map(f => (
                             <option key={f.id} value={f.id}>
                               {f.plateNumber} ({f.model})
@@ -1164,23 +1167,23 @@ export function DeptDirectorDashboard() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Priority Vector</label>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Priority Vector")}</label>
                         <select
                           value={priority}
                           onChange={(e) => setPriority(e.target.value)}
                           className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
                         >
-                          {priorities.map(p => <option key={p} value={p}>{p}</option>)}
+                          {priorities.map(p => <option key={p} value={p}>{t(p)}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Deployment Zone</label>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Deployment Zone")}</label>
                         <div className="relative">
                           <MapPin className="w-3.5 h-3.5 absolute left-4 top-1/2 -translate-y-1/2 text-dark-text-subtle" />
                           <input
                             required
                             type="text"
-                            placeholder="Location ID"
+                            placeholder={t("Location ID")}
                             value={location}
                             onChange={(e) => setLocation(e.target.value)}
                             className="w-full pl-11 pr-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
@@ -1190,13 +1193,13 @@ export function DeptDirectorDashboard() {
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Communication Link</label>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Communication Link")}</label>
                       <div className="relative">
                         <Phone className="w-3.5 h-3.5 absolute left-4 top-1/2 -translate-y-1/2 text-dark-text-subtle" />
                         <input
                           required
                           type="tel"
-                          placeholder="Direct phone"
+                          placeholder={t("Direct phone")}
                           value={phoneNumber}
                           onChange={(e) => setPhoneNumber(e.target.value)}
                           className="w-full pl-11 pr-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
@@ -1205,20 +1208,20 @@ export function DeptDirectorDashboard() {
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Work Name / Title</label>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Work Name / Title")}</label>
                       <input
                         required
                         type="text"
-                        placeholder="e.g., Office AC Repair"
+                        placeholder={t("e.g., Office AC Repair")}
                         value={workName}
                         onChange={(e) => setWorkName(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold placeholder:text-dark-text-muted/50 focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
                       />
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Issue Specifications</label>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Issue Specifications")}</label>
                       <textarea
                         required
                         rows={4}
-                        placeholder="Provide technical descriptors..."
+                        placeholder={t("Provide technical descriptors...")}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold placeholder:text-dark-text-muted/50 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
@@ -1230,22 +1233,22 @@ export function DeptDirectorDashboard() {
                 {activeTab === 'OTHER' && (
                   <>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Activity / Job Name</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Activity / Job Name")}</label>
                       <input
                         required
                         type="text"
-                        placeholder="Define work or project name"
+                        placeholder={t("Define work or project name")}
                         value={workName}
                         onChange={(e) => setWorkName(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Special Skills / Laborer Type</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Special Skills / Laborer Type")}</label>
                       <input
                         required
                         type="text"
-                        placeholder="e.g. Mason, Welder, Assistant, General Hand"
+                        placeholder={t("e.g. Mason, Welder, Assistant, General Hand")}
                         value={deviceModel}
                         onChange={(e) => setDeviceModel(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
@@ -1253,7 +1256,7 @@ export function DeptDirectorDashboard() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Number of Laborers Needed</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Number of Laborers Needed")}</label>
                         <input
                           required
                           type="number"
@@ -1264,7 +1267,7 @@ export function DeptDirectorDashboard() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Work Date & Year</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Work Date & Year")}</label>
                         <input
                           required
                           type="date"
@@ -1276,7 +1279,7 @@ export function DeptDirectorDashboard() {
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Work Start Time</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Work Start Time")}</label>
                         <input
                           required
                           type="time"
@@ -1286,7 +1289,7 @@ export function DeptDirectorDashboard() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Ending Time</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Ending Time")}</label>
                         <input
                           required
                           type="time"
@@ -1297,11 +1300,11 @@ export function DeptDirectorDashboard() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Reason for Request</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Reason for Request")}</label>
                       <textarea
                         required
                         rows={3}
-                        placeholder="Explain scope of work and reason for laborers request"
+                        placeholder={t("Explain scope of work and reason for laborers request")}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
@@ -1313,11 +1316,11 @@ export function DeptDirectorDashboard() {
                 {activeTab === 'CAMERA' && (
                   <>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Event Title</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Event Title")}</label>
                       <input
                         required
                         type="text"
-                        placeholder="Event name or project title"
+                        placeholder={t("Event name or project title")}
                         value={eventTitle}
                         onChange={(e) => setEventTitle(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
@@ -1325,18 +1328,18 @@ export function DeptDirectorDashboard() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">Deployment Zone</label>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Deployment Zone")}</label>
                         <input
                           required
                           type="text"
-                          placeholder="Location"
+                          placeholder={t("Location")}
                           value={location}
                           onChange={(e) => setLocation(e.target.value)}
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Event Date</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Event Date")}</label>
                         <input
                           required
                           type="date"
@@ -1348,7 +1351,7 @@ export function DeptDirectorDashboard() {
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Start Time</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Start Time")}</label>
                         <input
                           required
                           type="time"
@@ -1358,7 +1361,7 @@ export function DeptDirectorDashboard() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">End Time</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("End Time")}</label>
                         <input
                           required
                           type="time"
@@ -1369,11 +1372,11 @@ export function DeptDirectorDashboard() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Purpose / Equipment Needed</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Purpose / Equipment Needed")}</label>
                       <textarea
                         required
                         rows={3}
-                        placeholder="Explain coverage requirements..."
+                        placeholder={t("Explain coverage requirements...")}
                         value={cameraPurpose}
                         onChange={(e) => setCameraPurpose(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
@@ -1385,22 +1388,22 @@ export function DeptDirectorDashboard() {
                 {activeTab === 'VEHICLE' && (
                   <>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Trip Name / Purpose Title</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Trip Name / Purpose Title")}</label>
                       <input
                         required
                         type="text"
-                        placeholder="e.g., Site Inspection Trip"
+                        placeholder={t("e.g., Site Inspection Trip")}
                         value={workName}
                         onChange={(e) => setWorkName(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Destination</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Destination")}</label>
                       <input
                         required
                         type="text"
-                        placeholder="Trip destination"
+                        placeholder={t("Trip destination")}
                         value={destination}
                         onChange={(e) => setDestination(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
@@ -1408,7 +1411,7 @@ export function DeptDirectorDashboard() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Passengers</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Passengers")}</label>
                         <input
                           required
                           type="number"
@@ -1419,7 +1422,7 @@ export function DeptDirectorDashboard() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Departure Date</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Departure Date")}</label>
                         <input
                           required
                           type="date"
@@ -1431,7 +1434,7 @@ export function DeptDirectorDashboard() {
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Departure Time</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Departure Time")}</label>
                         <input
                           required
                           type="time"
@@ -1441,7 +1444,7 @@ export function DeptDirectorDashboard() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Estimated Return</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Estimated Return")}</label>
                         <input
                           required
                           type="time"
@@ -1452,11 +1455,11 @@ export function DeptDirectorDashboard() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Purpose of Trip</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Purpose of Trip")}</label>
                       <textarea
                         required
                         rows={3}
-                        placeholder="Explain mission details..."
+                        placeholder={t("Explain mission details...")}
                         value={vehiclePurpose}
                         onChange={(e) => setVehiclePurpose(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
@@ -1469,22 +1472,22 @@ export function DeptDirectorDashboard() {
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Item Name / Model</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Item Name / Model")}</label>
                         <input
                           required
                           type="text"
-                          placeholder="e.g., Dell Laptop XPS 15"
+                          placeholder={t("e.g., Dell Laptop XPS 15")}
                           value={itemName}
                           onChange={(e) => setItemName(e.target.value)}
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Serial Number / Asset Tag</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Serial Number / Asset Tag")}</label>
                         <input
                           required
                           type="text"
-                          placeholder="e.g., S/N 12345678"
+                          placeholder={t("e.g., S/N 12345678")}
                           value={serialNumber}
                           onChange={(e) => setSerialNumber(e.target.value)}
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
@@ -1494,23 +1497,23 @@ export function DeptDirectorDashboard() {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Quantity</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Quantity")}</label>
                         <input
                           required
                           type="number"
                           min="1"
-                          placeholder="e.g., 1"
+                          placeholder={t("e.g., 1")}
                           value={itemQuantity}
                           onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Responsible for Item</label>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Responsible for Item")}</label>
                         <input
                           required
                           type="text"
-                          placeholder="Name of person responsible"
+                          placeholder={t("Name of person responsible")}
                           value={responsiblePerson}
                           onChange={(e) => setResponsiblePerson(e.target.value)}
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
@@ -1518,21 +1521,21 @@ export function DeptDirectorDashboard() {
                       </div>
                     </div>
                     <div className="mb-6">
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Expected Return Date (Optional)</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Expected Return Date (Optional)")}</label>
                       <input
                         type="date"
                         value={expectedReturnDate}
                         onChange={(e) => setExpectedReturnDate(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
                       />
-                      <p className="text-[10px] text-dark-text-subtle mt-1 italic font-serif">Leave blank if the item is not expected to return</p>
+                      <p className="text-[10px] text-dark-text-subtle mt-1 italic font-serif">{t("Leave blank if the item is not expected to return")}</p>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Reason for Exit</label>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Reason for Exit")}</label>
                       <textarea
                         required
                         rows={3}
-                        placeholder="Explain why this item is leaving the premises..."
+                        placeholder={t("Explain why this item is leaving the premises...")}
                         value={exitReason}
                         onChange={(e) => setExitReason(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"

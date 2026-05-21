@@ -105,7 +105,7 @@ export function SecurityDashboard() {
     req.serialNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     req.departmentName?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
 
   const pendingExits = filteredRequests.filter(r => r.status === 'APPROVED');
   const loggedExits = filteredRequests.filter(r => r.status === 'EXITED' || r.status === 'RETURNED');
