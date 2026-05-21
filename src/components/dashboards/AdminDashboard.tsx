@@ -50,11 +50,14 @@ import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { WeeklyReport } from '../WeeklyReport';
+import { seedWorkforce } from '../../lib/seed';
+import { useLanguage } from '../../lib/LanguageContext';
 
 import { notificationService } from '../../services/notificationService';
 
 export function AdminDashboard() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
   const [globalAlertTitle, setGlobalAlertTitle] = useState('SYSTEM ADVISORY');
   const [globalAlertMessage, setGlobalAlertMessage] = useState('Operational vector established. All stations verify handshake.');
@@ -85,6 +88,7 @@ export function AdminDashboard() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editRole, setEditRole] = useState<'TECHNICIAN' | 'DRIVER' | 'CAMERAMAN'>('TECHNICIAN');
+  const [isSeeding, setIsSeeding] = useState(false);
   
   // Operational Protection (Sector Level)
   const [unlockedSectors, setUnlockedSectors] = useState<Set<string>>(new Set());
@@ -646,6 +650,22 @@ export function AdminDashboard() {
     }
   };
 
+  const handleSeedData = async () => {
+    if (isSeeding) return;
+    setIsSeeding(true);
+    try {
+      const count = await seedWorkforce();
+      toast.success(`System initialization complete: ${count} agents deployed to registry`, {
+        icon: '🚀',
+        duration: 5000
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error('Initialization failed');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
   const handleUnlock = () => {
     const sectorToUnlock = pendingAction?.sector || activeTab;
     const sectorConfig = SECTOR_AUTH[sectorToUnlock as keyof typeof SECTOR_AUTH];
@@ -735,11 +755,11 @@ export function AdminDashboard() {
   };
 
   const stats = [
-    { label: 'Service Rep', value: requests.length, icon: Wrench, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-    { label: 'Camera Cov', value: cameraRequests.length, icon: Camera, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-    { label: 'Vehicle Req', value: vehicleRequests.length, icon: Car, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: 'Exit Permits', value: itemRequests.length, icon: Tag, color: 'text-pink-400', bg: 'bg-pink-500/10' },
-    { label: 'Consolidated', value: [...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests].length, icon: ClipboardList, color: 'text-slate-400', bg: 'bg-slate-500/10' },
+    { label: t('Service Request', 'Service Rep'), value: requests.length, icon: Wrench, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
+    { label: t('Camera Request', 'Camera Cov'), value: cameraRequests.length, icon: Camera, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+    { label: t('Vehicle Request', 'Vehicle Req'), value: vehicleRequests.length, icon: Car, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { label: t('Exit Permit', 'Exit Permits'), value: itemRequests.length, icon: Tag, color: 'text-pink-400', bg: 'bg-pink-500/10' },
+    { label: t('Consolidated', 'Consolidated'), value: [...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests].length, icon: ClipboardList, color: 'text-slate-400', bg: 'bg-slate-500/10' },
   ];
 
   return (
@@ -747,7 +767,7 @@ export function AdminDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-medium text-slate-950 tracking-tight">Fleet Operations Command</h1>
+            <h1 className="text-3xl font-medium text-slate-950 tracking-tight">{t("Fleet Operations Command")}</h1>
             <div className="flex items-center gap-2">
                               <button 
                                 onClick={() => {
@@ -784,14 +804,14 @@ export function AdminDashboard() {
               )}
             </div>
           </div>
-          <p className="text-dark-text-subtle mt-1 font-serif italic">Operational overview and resource allocation</p>
+          <p className="text-dark-text-subtle mt-1 font-serif italic">{t("Operational overview and resource allocation")}</p>
         </div>
         <button 
           onClick={() => setIsReportOpen(true)}
           className="bg-dark-card hover:bg-dark-sidebar text-dark-accent border border-dark-border px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all hover:border-dark-accent active:scale-95 shadow-xl shadow-black/20"
         >
           <FileText className="w-4 h-4" />
-          Weekly Intelligence
+          {t("Weekly Intelligence", "Weekly Intelligence")}
         </button>
       </div>
 
@@ -802,7 +822,7 @@ export function AdminDashboard() {
               <stat.icon className="w-4 h-4" />
             </div>
             <p className="text-2xl font-mono font-bold text-slate-950 tracking-tighter">{stat.value.toString().padStart(2, '0')}</p>
-            <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">{stat.label}</p>
+            <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">{t(stat.label)}</p>
           </div>
         ))}
       </div>
@@ -812,31 +832,31 @@ export function AdminDashboard() {
           <div className="flex items-center gap-3 bg-dark-card p-1.5 rounded-xl border border-dark-border w-full overflow-x-auto scrollbar-hide shrink-0">
             <TabButton 
               active={activeTab === 'SERVICE'} 
-              label="Service & Repair" 
+              label={t("Service Request", "Service & Repair")} 
               icon={Wrench} 
               onClick={() => { setActiveTab('SERVICE'); setSelectedRequest(null); }} 
             />
             <TabButton 
               active={activeTab === 'CAMERA'} 
-              label="Camera" 
+              label={t("Camera Request", "Camera")} 
               icon={Camera} 
               onClick={() => { setActiveTab('CAMERA'); setSelectedRequest(null); }} 
             />
             <TabButton 
               active={activeTab === 'VEHICLE'} 
-              label="Transportation" 
+              label={t("Vehicle Request", "Transportation")} 
               icon={Car} 
               onClick={() => { setActiveTab('VEHICLE'); setSelectedRequest(null); }} 
             />
             <TabButton 
               active={activeTab === 'ITEM'} 
-              label="Exit Permit" 
+              label={t("Exit Permit", "Exit Permit")} 
               icon={Tag} 
               onClick={() => { setActiveTab('ITEM'); setSelectedRequest(null); }} 
             />
             <TabButton 
               active={activeTab === 'OTHER'} 
-              label="Other" 
+              label={t("Other", "Other")} 
               icon={ClipboardList} 
               onClick={() => { setActiveTab('OTHER'); setSelectedRequest(null); }} 
             />
@@ -891,11 +911,11 @@ export function AdminDashboard() {
                      {isSelectMode && (
                        <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border w-10"></th>
                      )}
-                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">Order No</th>
-                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">Requestor Dept</th>
-                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">Type of Order</th>
-                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">Status</th>
-                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border text-right">Actions</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Order No")}</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Requestor Dept")}</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Type of Order")}</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Status")}</th>
+                     <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border text-right">{t("Actions")}</th>
                    </tr>
                  </thead>
                    <tbody className="divide-y divide-dark-border">
@@ -1586,11 +1606,24 @@ export function AdminDashboard() {
               <div className="p-8 max-h-[60vh] overflow-y-auto">
                  {(() => {
                     const primaryList = (activeTab === 'VEHICLE' ? drivers : activeTab === 'CAMERA' ? cameramen : technicians);
-                    const baseList = (personnelSearch || primaryList.length === 0) ? allUsers.filter(u => u.role !== 'ADMIN' || u.id === profile?.uid) : primaryList;
-                    const list = baseList.filter(t => 
-                      t.displayName.toLowerCase().includes(personnelSearch.toLowerCase()) ||
-                      (t.role && t.role.toLowerCase().includes(personnelSearch.toLowerCase()))
-                    );
+                    // Use allUsers if primary list is empty or searching to ensure dispatching is always possible
+                    const list = allUsers.filter(t => {
+                      if (t.role === 'ADMIN' && t.id !== profile?.uid) return false;
+                      
+                      const matchesSearch = !personnelSearch || 
+                        t.displayName.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+                        (t.role && t.role.toLowerCase().includes(personnelSearch.toLowerCase()));
+                      
+                      if (!matchesSearch) return false;
+                      
+                      // If not searching, prefer showing relevant role
+                      if (!personnelSearch) {
+                        const targetRole = activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN';
+                        return t.role === targetRole || t.id === profile?.uid;
+                      }
+
+                      return true;
+                    });
                     
                     if (list.length === 0) {
                       return (
@@ -1681,10 +1714,18 @@ export function AdminDashboard() {
             >
                <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-black text-black tracking-tight">Workforce Registry</h2>
-                    <p className="text-dark-text-subtle text-sm mt-1">Manage personnel and communication protocols</p>
+                    <h2 className="text-2xl font-black text-black tracking-tight">{t("Workforce", "Workforce Registry")}</h2>
+                    <p className="text-dark-text-subtle text-sm mt-1">{t("Manage personnel and communication protocols")}</p>
                   </div>
                   <div className="flex items-center gap-3">
+                    <button 
+                      onClick={handleSeedData}
+                      disabled={isSeeding}
+                      className="px-4 py-2 bg-indigo-500/10 border border-indigo-500/30 rounded-lg text-[10px] font-black uppercase text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all tracking-widest flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <TowerControl className={cn("w-3.5 h-3.5", isSeeding && "animate-pulse")} />
+                      {isSeeding ? t('Deploying...') : t('Bulk Setup Workforce')}
+                    </button>
                     <button 
                       onClick={() => {
                         setIsOnboarding(true);
@@ -1694,7 +1735,7 @@ export function AdminDashboard() {
                       className="px-4 py-2 bg-dark-accent/10 border border-dark-accent/30 rounded-lg text-[10px] font-black uppercase text-dark-accent hover:bg-dark-accent hover:text-white transition-all tracking-widest flex items-center gap-2"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
-                      Onboard Agent
+                      {t("Onboard Agent", "Onboard Agent")}
                     </button>
                     <button onClick={() => setIsPersonnelModalOpen(false)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
                       <X className="w-6 h-6" />

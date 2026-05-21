@@ -40,9 +40,11 @@ import { useAuth } from '../../App';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
+import { useLanguage } from '../../lib/LanguageContext';
 
 export function DeptDirectorDashboard() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
   const [requests, setRequests] = useState<any[]>([]);
   const [cameraRequests, setCameraRequests] = useState<any[]>([]);
@@ -634,8 +636,8 @@ export function DeptDirectorDashboard() {
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-medium text-slate-950 tracking-tight">FMC REQUEST Portal</h1>
-          <p className="text-dark-text-subtle mt-1 font-serif italic text-sm">Unified request management system</p>
+          <h1 className="text-3xl font-medium text-slate-950 tracking-tight">{t("Dept Director Portal", "FMC REQUEST Portal")}</h1>
+          <p className="text-dark-text-subtle mt-1 font-serif italic text-sm">{t("Unified request management system")}</p>
         </div>
         <button
           id="new-request-btn"
@@ -648,7 +650,7 @@ export function DeptDirectorDashboard() {
           className="flex items-center justify-center gap-2 bg-dark-accent hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-lg transition-all shadow-lg shadow-indigo-900/40 active:scale-95 text-[0.85rem]"
         >
           <Plus className="w-4 h-4" />
-          Create New {activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : 'Vehicle'} Request
+          {t("Create New")} {activeTab === 'SERVICE' ? t("Service Request") : activeTab === 'CAMERA' ? t("Camera Request") : t("Vehicle Request")}
         </button>
       </div>
 
@@ -658,35 +660,35 @@ export function DeptDirectorDashboard() {
           active={activeTab === 'SERVICE'} 
           onClick={() => setActiveTab('SERVICE')} 
           icon={Tag} 
-          label="Service & Repairs" 
+          label={t("Service Request", "Service & Repairs")} 
           count={requests.length}
         />
         <TabButton 
           active={activeTab === 'CAMERA'} 
           onClick={() => setActiveTab('CAMERA')} 
           icon={Camera} 
-          label="Camera Coverage" 
+          label={t("Camera Request", "Camera Coverage")} 
           count={cameraRequests.length}
         />
         <TabButton 
           active={activeTab === 'VEHICLE'} 
           onClick={() => setActiveTab('VEHICLE')} 
           icon={Car} 
-          label="Vehicle Request" 
+          label={t("Vehicle Request", "Vehicle Request")} 
           count={vehicleRequests.length}
         />
         <TabButton 
           active={activeTab === 'ITEM'} 
           onClick={() => setActiveTab('ITEM')} 
           icon={Tag} 
-          label="Item Exit Permit" 
+          label={t("Exit Permit", "Item Exit Permit")} 
           count={itemRequests.length}
         />
         <TabButton 
           active={activeTab === 'OTHER'} 
           onClick={() => setActiveTab('OTHER')} 
           icon={Plus} 
-          label="Other Request" 
+          label={t("Other", "Other Request")} 
           count={deviceRequests.length}
         />
       </div>
@@ -739,11 +741,11 @@ export function DeptDirectorDashboard() {
             <thead>
               <tr className="border-b border-dark-border bg-dark-main/30">
                 {isSelectMode && <th className="py-4 px-6 w-10"></th>}
-                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Dept / Requester</th>
-                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Request Details</th>
-                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Status</th>
-                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">Schedule</th>
-                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-right">Actions</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">{t("Dept / Requester")}</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">{t("Request Details")}</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">{t("Status")}</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">{t("Schedule")}</th>
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-right">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border">

@@ -51,9 +51,11 @@ import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { notificationService } from '../../services/notificationService';
+import { useLanguage } from '../../lib/LanguageContext';
 
 export function TechnicianDashboard() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
   const [assignments, setAssignments] = useState<any[]>([]);
   const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -438,8 +440,8 @@ export function TechnicianDashboard() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 text-slate-900">
       <div className="flex items-center justify-between px-2">
           <div>
-            <h1 className="text-3xl font-medium text-slate-950 tracking-tight uppercase">{portalConfig.title}</h1>
-            <p className="text-dark-text-subtle mt-1 font-serif italic uppercase tracking-widest text-[10px] font-black">{profile?.displayName} • {portalConfig.subtitle}</p>
+            <h1 className="text-3xl font-medium text-slate-950 tracking-tight uppercase">{t(portalConfig.title)}</h1>
+            <p className="text-dark-text-subtle mt-1 font-serif italic uppercase tracking-widest text-[10px] font-black">{profile?.displayName} • {t(portalConfig.subtitle)}</p>
           </div>
         <div className="flex items-center gap-4">
           {permission === 'granted' && profile?.role !== 'DRIVER' && (
@@ -485,13 +487,13 @@ export function TechnicianDashboard() {
           <table className="w-full text-left border-collapse">
             <thead className="bg-dark-header">
               <tr>
-                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Order No</th>
-                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Work Description</th>
-                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Department</th>
-                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Assigned Agent</th>
-                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">Timeline Link</th>
-                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border text-right whitespace-nowrap whitespace-nowrap">Actions</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Order No")}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Work Description")}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Department")}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Assigned Agent")}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Status")}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Timeline Link")}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border text-right whitespace-nowrap whitespace-nowrap">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border/40">

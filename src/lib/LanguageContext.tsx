@@ -361,6 +361,368 @@ export const translationDictionary: Record<string, Record<Language, string>> = {
     en: 'Securing data pipelines...',
     om: 'Quunnamtii eegumsa qabu to’achaa jira...',
     am: 'መረጃ በመጫን ላይ...'
+  },
+  'order_no': {
+    en: 'Order No',
+    om: 'Lakkoofsa Ajajaa',
+    am: 'የትዕዛዝ ቁጥር'
+  },
+  'requestor_dept': {
+    en: 'Requestor Dept',
+    om: 'Kutaa Hojii Gaafataa',
+    am: 'ጠያቂ ክፍል'
+  },
+  'type_of_order': {
+    en: 'Type of Order',
+    om: 'Gosa Ajajaa',
+    am: 'የትዕዛዝ አይነት'
+  },
+  'status_label': {
+    en: 'Status',
+    om: 'Haala Hojii',
+    am: 'ሁኔታ'
+  },
+  'actions_label': {
+    en: 'Actions',
+    om: 'Tarkaanfiiwwan',
+    am: 'እርምጃዎች'
+  },
+  'dept_requester': {
+    en: 'Dept / Requester',
+    om: 'Kutaa / Gaafataa',
+    am: 'ክፍል / ጠያቂ'
+  },
+  'request_details': {
+    en: 'Request Details',
+    om: 'Ibsa Gaaffii',
+    am: 'የጥያቄ ዝርዝር'
+  },
+  'schedule_label': {
+    en: 'Schedule',
+    om: 'Sa’aatii',
+    am: 'መርሃግብር'
+  },
+
+  // Dynamic dashboard fields and components
+  'dispatcher_control': {
+    en: 'Dispatcher Control',
+    om: 'To’annoo Ergitootaa',
+    am: 'የመላኪያ መቆጣጠሪያ'
+  },
+  'system_control_unit': {
+    en: 'System Control Unit',
+    om: 'Kutaa To’annoo Sirnaa',
+    am: 'የስርዓት ቁጥጥር ክፍል'
+  },
+  'bulk_setup_workforce': {
+    en: 'Bulk Setup Workforce',
+    om: 'Miseensota Hedduu Galmeessi',
+    am: 'የስራ ኃይል በጅምላ ያዘጋጁ'
+  },
+  'add_workforce_member': {
+    en: 'Add Workforce Member',
+    om: 'Miseensa Hojii Dabali',
+    am: 'የስራ ኃይል አባል ይጨምሩ'
+  },
+  'search_workforce': {
+    en: 'Search workforce...',
+    om: 'Hojjetoota barbaadi...',
+    am: 'የስራ ኃይል ይፈልጉ...'
+  },
+  'dept_director_portal': {
+    en: 'Dept Director Portal',
+    om: 'Portaalii Daayirekteera Kutichaa',
+    am: 'የስራ ክፍል ዳይሬክተር ፖርታል'
+  },
+  'FMC CAMERA PORTAL': {
+    en: 'FMC CAMERA PORTAL',
+    om: 'PORTAALII KAAMEERAA FMC',
+    am: 'FMC የካሜራ ባለሙያ ፖርታል'
+  },
+  'FMC DRIVER PORTAL': {
+    en: 'FMC DRIVER PORTAL',
+    om: 'PORTAALII SHOFEERAA FMC',
+    am: 'FMC የአሽከርካሪ ፖርታል'
+  },
+  'FMC ENGINEERS PORTAL': {
+    en: 'FMC ENGINEERS PORTAL',
+    om: 'PORTAALII INJINEROOTAA FMC',
+    am: 'FMC የቴክኒሻን ፖርታል'
+  },
+  'Media & Event Coverage Node': {
+    en: 'Media & Event Coverage Node',
+    om: 'Funaansta Miidiyaa & Hojiiwwan Agarsiisaa',
+    am: 'የሚዲያ እና ኩነት ዘገባ'
+  },
+  'Logistics & Transport Node': {
+    en: 'Logistics & Transport Node',
+    om: 'Geejjiba & Loojistikii',
+    am: 'የትራንስፖርት እና ሎጂስቲክስ'
+  },
+  'Maintenance & Service Node': {
+    en: 'Maintenance & Service Node',
+    om: 'Hojiiwwan Suphaa & Tajaajilaa',
+    am: 'የጥገና እና አገልግሎት'
+  },
+  'Work Description': {
+    en: 'Work Description',
+    om: 'Ibsa Hojii',
+    am: 'የሥራ መግለጫ'
+  },
+  'Department': {
+    en: 'Department',
+    om: 'Kutaa Hojii',
+    am: 'የሥራ ክፍል'
+  },
+  'Assigned Agent': {
+    en: 'Assigned Agent',
+    om: 'Agentii Ramadame',
+    am: 'የተመደበው ወኪል'
+  },
+  'Timeline Link': {
+    en: 'Timeline Link',
+    om: 'Tarkaanfiiwwaan',
+    am: 'የጊዜ ሰሌዳ'
+  },
+  'operational_control': {
+    en: 'Operational Control',
+    om: 'To’annoo Hojii',
+    am: 'የስራ ማስኬጃ ቁጥጥር'
+  },
+  'initialize_service_request': {
+    en: 'Initialize Service Request',
+    om: 'Gaaffii Tajaajilaa Jalqabi',
+    am: 'አዲስ የአገልግሎት ጥያቄ ይጀምሩ'
+  },
+  'request_camera_coverage': {
+    en: 'Request Camera Coverage',
+    om: 'Gaaffii Kaameeraa Jalqabi',
+    am: 'የካሜራ ሽፋን ይጠይቁ'
+  },
+  'request_vehicle_assignment': {
+    en: 'Request Vehicle Assignment',
+    om: 'Gaaffii Konkolaataa Jalqabi',
+    am: 'የተሽከርካሪ ምደባ ይጠይቁ'
+  },
+  'active_deployments': {
+    en: 'Active Deployments',
+    om: 'Boba’iinsa Hojii',
+    am: 'ገቢር ስምሪቶች'
+  },
+  'new_operations': {
+    en: 'New Operations',
+    om: 'Hojii Haaraa',
+    am: 'አዲስ ስራዎች'
+  },
+  'drafting_chamber': {
+    en: 'Drafting Chamber',
+    om: 'Kutaa Gaaffii Qopheessan',
+    am: 'ጥያቄ ማዘጋጃ ክፍል'
+  },
+  'subject': {
+    en: 'Subject',
+    om: 'Dhimma',
+    am: 'ርዕሰ ጉዳይ'
+  },
+  'description': {
+    en: 'Description',
+    om: 'Ibsa',
+    am: 'መግለጫ'
+  },
+  'urgency': {
+    en: 'Urgency',
+    om: 'Ariifachiisummaa',
+    am: 'አስቸኳይነት'
+  },
+  'location': {
+    en: 'Location',
+    om: 'Iddoo',
+    am: 'ቦታ'
+  },
+  'asset_sn': {
+    en: 'Asset S/N',
+    om: 'Lakkoofsa addaa Meeshaa',
+    am: 'የእቃው ሴሪያል ቁጥር'
+  },
+  'department': {
+    en: 'Department',
+    om: 'Kutaa Hojii',
+    am: 'የስራ ክፍል'
+  },
+  'plate_number': {
+    en: 'Plate Number',
+    om: 'Lakkoofsa Gabeelaa',
+    am: 'የሰሌዳ ቁጥር'
+  },
+  'mission_date': {
+    en: 'Mission Date',
+    om: 'Guyyaa Hojii',
+    am: 'የስራ ቀን'
+  },
+  'technician_hub': {
+    en: 'Technician Hub',
+    om: 'Giddu-galeessa Teeknikaa',
+    am: 'የቴክኒሻን ማዕከል'
+  },
+  'active_queue': {
+    en: 'Active Queue',
+    om: 'Maanduu Hojii',
+    am: 'ንቁ የስራ ወረፋ'
+  },
+  'initialize_assignment': {
+    en: 'Initialize Assignment',
+    om: 'Hojii Jalqabi',
+    am: 'ስራ ይጀምሩ'
+  },
+  'complete_assignment': {
+    en: 'Complete Assignment',
+    om: 'Hojii Xumuri',
+    am: 'ስራውን ያጠናቅቁ'
+  },
+  'accept_assignment': {
+    en: 'Accept Assignment',
+    om: 'Hojii Fudhadhu',
+    am: 'የተመደበውን ስራ ይቀበሉ'
+  },
+  'mark_in_progress': {
+    en: 'Mark In-Progress',
+    om: 'Gochaa Jira jedhi',
+    am: 'በሂደት ላይ መሆኑን ያመልክቱ'
+  },
+  'finalize_resolve': {
+    en: 'Finalize Resolve',
+    om: 'Xumura Mirkaneessi',
+    am: 'መጠናቀቁን ያረጋግጡ'
+  },
+  'assigned_agent': {
+    en: 'Assigned Agent',
+    om: 'Ogeessa Ramadame',
+    am: 'የተመደበ ባለሙያ'
+  },
+  'select_task_from_assigned_list': {
+    en: 'Select Task from Assigned List',
+    om: 'Maanduu irraa Hojii Filadhu',
+    am: 'ከተመደቡት ዝርዝር ውስጥ ስራ ይምረጡ'
+  },
+  'assigned_date': {
+    en: 'Assigned Date',
+    om: 'Guyyaa Kenname',
+    am: 'የተመደበበት ቀን'
+  },
+  'service_request': {
+    en: 'Service Request',
+    om: 'Gaaffii Tajaajilaa',
+    am: 'የአገልግሎት ጥያቄ'
+  },
+  'camera_request': {
+    en: 'Camera Request',
+    om: 'Gaaffii Kaameeraa',
+    am: 'የካሜራ ጥያቄ'
+  },
+  'vehicle_request': {
+    en: 'Vehicle Request',
+    om: 'Gaaffii Konkolaataa',
+    am: 'የተሽከርካሪ ጥያቄ'
+  },
+  'active_fleet': {
+    en: 'Active Fleet',
+    om: 'Gareen Hojii',
+    am: 'ንቁ ተሽከርካሪዎች'
+  },
+  'workforce': {
+    en: 'Workforce',
+    om: 'Hojjetoota',
+    am: 'የስራ ኃይል'
+  },
+  'weekly_report': {
+    en: 'Weekly Report',
+    om: 'Gabaasa Torbanii',
+    am: 'ሳምንታዊ ሪፖርት'
+  },
+  'system_logs': {
+    en: 'System Logs',
+    om: 'Galmeewwan Sirnaa',
+    am: 'የስርዓት ምዝግብ ማስታወሻዎች'
+  },
+  'assigned_to_agent': {
+    en: 'Assigned to Agent',
+    om: 'Ogeessaaf Kennameera',
+    am: 'ለባለሙያ የተመደበ'
+  },
+  'status_assigned': {
+    en: 'ASSIGNED',
+    om: 'RAMADAMEERA',
+    am: 'የተመደበ'
+  },
+  'status_accepted': {
+    en: 'ACCEPTED',
+    om: 'FUDHATAMEERA',
+    am: 'የተቀበለ'
+  },
+  'status_in_progress': {
+    en: 'IN_PROGRESS',
+    om: 'HOJJATAMAA JIRA',
+    am: 'በሂደት ላይ'
+  },
+  'status_completed': {
+    en: 'COMPLETED',
+    om: 'XUMURAMEERA',
+    am: 'የተጠናቀቀ'
+  },
+  'status_closed': {
+    en: 'CLOSED',
+    om: 'CUFAMEERA',
+    am: 'የተዘጋ'
+  },
+  'status_canceled': {
+    en: 'CANCELED',
+    om: 'HAQAAMEERA',
+    am: 'የተሰረዘ'
+  },
+  'priority_critical': {
+    en: 'Critical',
+    om: 'Baay’ee Ariifachiisaa',
+    am: 'እጅግ በጣም አስቸኳይ'
+  },
+  'priority_high': {
+    en: 'High',
+    om: 'Ol’aana',
+    am: 'ከፍተኛ'
+  },
+  'priority_medium': {
+    en: 'Medium',
+    om: 'Giddu-galeessa',
+    am: 'መካከለኛ'
+  },
+  'priority_low': {
+    en: 'Low',
+    om: 'Gadi-aana',
+    am: 'ዝቅተኛ'
+  },
+  'fmc_engineer': {
+    en: 'FMC ENGINEER',
+    om: 'Injiinera FMC',
+    am: 'የFMC መሐንዲስ'
+  },
+  'fmc_driver': {
+    en: 'FMC DRIVER',
+    om: 'Konkolaachisaa FMC',
+    am: 'የFMC አሽከርካሪ'
+  },
+  'fmc_camera_operator': {
+    en: 'FMC CAMERA OPERATOR',
+    om: 'Meesha-Kaameeraa FMC',
+    am: 'የFMC ካሜራ ኦፕሬተር'
+  },
+  'dispatch_title': {
+    en: 'Dispatch',
+    om: 'Eergi',
+    am: 'ላክ (Dispatch)'
+  },
+  'work_assigned_title': {
+    en: 'Work Assigned',
+    om: 'Hojiin Kennameera',
+    am: 'ስራ ተመድቧል'
   }
 };
 
@@ -379,10 +741,34 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const t = (key: string, defaultVal?: string): string => {
-    const entry = translationDictionary[key];
+    const cleanKey = (key || '').trim();
+    const cleanDefault = (defaultVal || '').trim();
+    
+    // 1. Direct key match in language dictionary
+    let entry = translationDictionary[cleanKey];
     if (entry && entry[language]) {
       return entry[language];
     }
+    
+    // 2. Default value direct key match
+    if (cleanDefault) {
+      entry = translationDictionary[cleanDefault];
+      if (entry && entry[language]) {
+        return entry[language];
+      }
+    }
+
+    // 3. Reverse text matching (checks if English string exists in entries)
+    const targetText = cleanDefault || cleanKey;
+    if (targetText) {
+      const foundEntry = Object.values(translationDictionary).find(
+        (item) => item.en && item.en.toLowerCase() === targetText.toLowerCase()
+      );
+      if (foundEntry && foundEntry[language]) {
+        return foundEntry[language];
+      }
+    }
+
     return defaultVal !== undefined ? defaultVal : key;
   };
 
