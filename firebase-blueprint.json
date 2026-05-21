@@ -123,12 +123,34 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["requestId", "directorId", "destination", "status", "createdAt"]
+    },
+    "SimSmsLog": {
+      "title": "SimSmsLog",
+      "description": "Simulated or sent SIM-based SMS text message logs.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "recipientName": { "type": "string" },
+        "recipientPhone": { "type": "string" },
+        "role": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "requestId": { "type": "string" },
+        "requestType": { "type": "string" },
+        "sentAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "recipientId", "recipientPhone", "message", "sentAt"]
     }
   },
   "firestore": {
     "/fleet/{fleetId}": {
       "schema": "Fleet",
       "description": "Fleet assets registry."
+    },
+    "/sim_sms_logs/{logId}": {
+      "schema": "SimSmsLog",
+      "description": "SMS and SIM-based message logs sent to assigned users."
     },
     "/users/{userId}": {
       "schema": "User",

@@ -218,6 +218,22 @@ service cloud.firestore {
                     incoming().diff(existing()).affectedKeys().hasOnly(['read']);
     }
 
+    // Simulated SMS & SIM Messages
+    match /sim_sms_logs/{logId} {
+      allow get, list: if isSignedIn() && (
+        request.auth.token.email == 'solgirma30@gmail.com' ||
+        isAdmin() ||
+        resource.data.recipientId == request.auth.uid
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        request.auth.token.email == 'solgirma30@gmail.com' ||
+        isAdmin() ||
+        resource.data.recipientId == request.auth.uid
+      );
+      allow delete: if isAdmin() || request.auth.token.email == 'solgirma30@gmail.com';
+    }
+
     // Test connection doc
     match /test/connection {
       allow read: if true;

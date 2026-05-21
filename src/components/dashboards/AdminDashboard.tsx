@@ -451,6 +451,25 @@ export function AdminDashboard() {
       if (tech.phoneNumber) {
         const smsMessage = `Vector System: Hello ${tech.displayName}, you have been assigned to ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal.`;
         
+        // Write to Firestore 'sim_sms_logs' so the target user sees it immediately on their in-app simulated screen
+        const smsLogId = `sms_${Date.now()}_${tech.id}`;
+        try {
+          await setDoc(doc(db, 'sim_sms_logs', smsLogId), {
+            id: smsLogId,
+            recipientId: tech.id,
+            recipientName: tech.displayName,
+            recipientPhone: tech.phoneNumber,
+            role: tech.role || (activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN'),
+            message: smsMessage,
+            status: 'SENT',
+            sentAt: serverTimestamp(),
+            requestId: requestId,
+            requestType: activeTab
+          });
+        } catch (err) {
+          console.error("Failed to write to sim_sms_logs:", err);
+        }
+        
         const smsPromise = fetch('/api/send-sms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
