@@ -938,8 +938,8 @@ export function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, i) => (
-          <div key={i} className="bg-dark-card p-6 rounded-xl border border-dark-border shadow-lg">
+        {stats.map((stat) => (
+          <div key={stat.label} className="bg-dark-card p-6 rounded-xl border border-dark-border shadow-lg">
             <div className={cn("p-2 rounded-lg inline-flex mb-4 bg-dark-main/50", stat.color)}>
               <stat.icon className="w-4 h-4" />
             </div>

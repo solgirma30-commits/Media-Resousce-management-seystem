@@ -88,7 +88,7 @@ export function DeptDirectorDashboard() {
   // Vehicle Request specific
   const [destination, setDestination] = useState('');
   const [vehiclePurpose, setVehiclePurpose] = useState('');
-  const [passengersCount, setPassengersCount] = useState(1);
+  const [passengers, setPassengers] = useState<{name: string, location: string, phone: string}[]>([{ name: '', location: '', phone: '' }]);
   const [depDate, setDepDate] = useState('');
   const [depTime, setDepTime] = useState('');
   const [retTime, setRetTime] = useState('');
@@ -279,7 +279,7 @@ export function DeptDirectorDashboard() {
         } else if (activeTab === 'CAMERA') {
           updateData = { ...updateData, eventTitle, location, date: eventDate, startTime, endTime, purpose: cameraPurpose };
         } else if (activeTab === 'VEHICLE') {
-          updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengersCount, departureDate: depDate, departureTime: depTime, returnTime: retTime };
+          updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengers, departureDate: depDate, departureTime: depTime, returnTime: retTime };
         } else if (activeTab === 'ITEM') {
           updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate, quantity: itemQuantity, responsiblePerson };
         } else if (activeTab === 'OTHER') {
@@ -319,7 +319,7 @@ export function DeptDirectorDashboard() {
         } else if (activeTab === 'CAMERA') {
             const path = 'camera_requests';
             const newRequest = {
-            requestId: `CR-${Date.now()}`,
+            requestId: eventTitle || `CR-${Date.now()}`,
             directorId: profile.uid,
             directorName: profile.displayName,
             departmentName: profile.department || 'Unknown Dept',
@@ -337,14 +337,14 @@ export function DeptDirectorDashboard() {
         } else if (activeTab === 'VEHICLE') {
             const path = 'vehicle_requests';
             const newRequest = {
-            requestId: `VR-${Date.now()}`,
+            requestId: destination || `VR-${Date.now()}`,
             directorId: profile.uid,
             directorName: profile.displayName,
             departmentName: profile.department || 'Unknown Dept',
             destination,
             tripName: workName,
             purpose: vehiclePurpose,
-            passengersCount,
+            passengers,
             departureDate: depDate,
             departureTime: depTime,
             returnTime: retTime,
@@ -356,7 +356,7 @@ export function DeptDirectorDashboard() {
         } else if (activeTab === 'ITEM') {
             const path = 'item_requests';
             const newRequest = {
-            requestId: `EX-${Date.now()}`,
+            requestId: itemName || `EX-${Date.now()}`,
             directorId: profile.uid,
             directorName: profile.displayName,
             departmentName: profile.department || 'Unknown Dept',
@@ -374,7 +374,7 @@ export function DeptDirectorDashboard() {
         } else if (activeTab === 'OTHER') {
             const path = 'device_requests';
             const newRequest = {
-            requestId: `LAB-${Date.now()}`,
+            requestId: workName || `LAB-${Date.now()}`,
             directorId: profile.uid,
             directorName: profile.displayName,
             departmentName: profile.department || 'Unknown Dept',
@@ -582,7 +582,7 @@ export function DeptDirectorDashboard() {
     setCameraPurpose('');
     setDestination('');
     setVehiclePurpose('');
-    setPassengersCount(1);
+    setPassengers([{ name: '', location: '', phone: '' }]);
     setDepDate('');
     setDepTime('');
     setRetTime('');
@@ -618,7 +618,7 @@ export function DeptDirectorDashboard() {
     setCameraPurpose(request.purpose || '');
     setDestination(request.destination || '');
     setVehiclePurpose(request.purpose || '');
-    setPassengersCount(request.passengersCount || 1);
+    setPassengers(request.passengers || [{ name: '', location: '', phone: '' }]);
     setDepDate(request.departureDate || '');
     setDepTime(request.departureTime || '');
     setRetTime(request.returnTime || '');
@@ -1430,14 +1430,15 @@ export function DeptDirectorDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Passengers")}</label>
-                        <input
-                          required
-                          type="number"
-                          min={1}
-                          value={passengersCount}
-                          onChange={(e) => setPassengersCount(parseInt(e.target.value))}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                        />
+                        {passengers.map((p, index) => (
+                          <div key={index} className="grid grid-cols-3 gap-2 mb-2">
+                            <input placeholder="Name" value={p.name} onChange={(e) => { const n = [...passengers]; n[index].name = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
+                            <input placeholder="Loc" value={p.location} onChange={(e) => { const n = [...passengers]; n[index].location = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
+                            <input placeholder="Phone" value={p.phone} onChange={(e) => { const n = [...passengers]; n[index].phone = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
+                            {index > 0 && <button type="button" onClick={() => { setPassengers(passengers.filter((_, i) => i !== index)); }} className="text-rose-500 font-bold text-xs">X</button>}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setPassengers([...passengers, {name: '', location: '', phone: ''}])} className="w-full py-2 bg-dark-main border border-dashed border-dark-border rounded-lg text-[10px] text-black font-bold uppercase tracking-widest mb-4">+ {t("Add Passenger")}</button>
                       </div>
                       <div>
                         <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Departure Date")}</label>
