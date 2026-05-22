@@ -26,13 +26,16 @@ function getAdminDb() {
       console.error("Failed to read firebase-applet-config.json", e);
     }
 
+    let app;
     if (getApps().length === 0) {
-      initializeApp({
+      app = initializeApp({
         projectId: projectId
       });
+    } else {
+      app = getApps()[0];
     }
     
-    adminDbInstance = databaseId ? getFirestore(databaseId) : getFirestore();
+    adminDbInstance = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
   }
   return adminDbInstance;
 }
