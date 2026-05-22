@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -10,7 +10,7 @@ const app = initializeApp(firebaseConfig);
 
 // Use memoryLocalCache and long polling to bypass most environment-related connection issues
 export const db = initializeFirestore(app, {
-  localCache: memoryLocalCache(),
+  localCache: persistentLocalCache(),
   experimentalForceLongPolling: true 
 }, firebaseConfig.firestoreDatabaseId);
 

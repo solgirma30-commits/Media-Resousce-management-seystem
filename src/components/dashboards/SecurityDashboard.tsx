@@ -10,7 +10,8 @@ import {
   LogOut,
   AlertCircle,
   PackageCheck,
-  Trash2
+  Trash2,
+  BarChart3
 } from 'lucide-react';
 import { 
   collection, 
@@ -20,7 +21,8 @@ import {
   updateDoc,
   doc,
   serverTimestamp,
-  deleteDoc
+  deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -29,6 +31,7 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
+import { WeeklyReport } from '../WeeklyReport';
 
 export function SecurityDashboard() {
   useFcmToken();
@@ -39,6 +42,10 @@ export function SecurityDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   useEffect(() => {
     // Security only sees APPROVED requests for items
@@ -86,6 +93,23 @@ export function SecurityDashboard() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    try {
+      const batch = writeBatch(db);
+      selectedIds.forEach((id) => {
+        const docRef = doc(db, 'item_requests', id);
+        batch.delete(docRef);
+      });
+      await batch.commit();
+      toast.success('Selected records purged');
+      setSelectedIds([]);
+      setIsSelectMode(false);
+    } catch (error) {
+      toast.error('Bulk purge failed');
+      console.error(error);
+    }
+  };
+
   const handleGateOut = async (requestId: string) => {
     try {
       await updateDoc(doc(db, 'item_requests', requestId), {
@@ -125,6 +149,13 @@ export function SecurityDashboard() {
           <p className="text-dark-text-subtle mt-1 font-serif italic text-sm">Authorized Item Exit & Return Verification Portal</p>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsReportOpen(true)}
+            className="bg-dark-card border border-dark-border py-2.5 px-4 rounded-xl text-dark-accent hover:bg-dark-main flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all"
+          >
+            <BarChart3 className="w-4 h-4" />
+            Report
+          </button>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-text-subtle" />
             <input 
@@ -189,19 +220,57 @@ export function SecurityDashboard() {
           </section>
 
           <section className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden">
-            <div className="p-6 border-b border-dark-border bg-dark-card/50">
+            <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 Operational Exit Log (Recent)
               </h3>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsSelectMode(!isSelectMode)}
+                  className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded transition-all", isSelectMode ? "bg-pink-500 text-white" : "hover:bg-dark-main text-dark-text-subtle")}
+                >
+                  {isSelectMode ? 'Cancel' : 'Manage List'}
+                </button>
+                {isSelectMode && (
+                  <button 
+                    onClick={() => {
+                        if (selectedIds.length === loggedExits.length) setSelectedIds([]);
+                        else setSelectedIds(loggedExits.map(r => r.id));
+                    }}
+                    className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded hover:bg-dark-main text-dark-text-subtle"
+                  >
+                    Select All
+                  </button>
+                )}
+                {isSelectMode && selectedIds.length > 0 && (
+                  <button 
+                    onClick={handleDeleteSelected}
+                    className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded bg-rose-500 text-white hover:bg-rose-600 transition-all"
+                  >
+                    Delete ({selectedIds.length})
+                  </button>
+                )}
+              </div>
             </div>
             <div className="divide-y divide-dark-border max-h-[300px] overflow-auto scrollbar-hide">
                {loggedExits.length === 0 ? (
                  <div className="p-10 text-center text-dark-text-subtle text-xs italic">Operational registry clear</div>
                ) : (
                   loggedExits.map((req) => (
-                    <div key={req.id} className="p-5 flex items-center justify-between bg-dark-main/20 group">
+                    <div key={req.id} className={cn("p-5 flex items-center justify-between group transition-all", isSelectMode ? "bg-dark-main/40" : "bg-dark-main/20")}>
                        <div className="flex items-center gap-4">
+                         {isSelectMode && (
+                             <input 
+                                type="checkbox"
+                                checked={selectedIds.includes(req.id)}
+                                onChange={(e) => {
+                                    if (e.target.checked) setSelectedIds([...selectedIds, req.id]);
+                                    else setSelectedIds(selectedIds.filter(id => id !== req.id));
+                                }}
+                                className="w-4 h-4 rounded border-dark-border text-pink-500 accent-pink-500"
+                             />
+                         )}
                          <div className={cn(
                            "w-8 h-8 rounded-lg flex items-center justify-center border",
                            req.status === 'RETURNED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700" : "bg-pink-500/10 border-pink-500/20 text-pink-700"
@@ -222,18 +291,20 @@ export function SecurityDashboard() {
                              {req.exitedAt ? format(req.exitedAt.toDate(), 'MMM dd, HH:mm') : 'N/A'}
                            </p>
                          </div>
-                         <button 
-                           onClick={(e) => handleDeleteRecord(e, req)}
-                           className={cn(
-                             "p-2 rounded-lg transition-all border opacity-0 group-hover:opacity-100",
-                             deleteConfirmId === req.id
-                               ? "bg-rose-500 border-rose-600 text-white animate-pulse opacity-100"
-                               : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
-                           )}
-                           title="Purge Exit Log"
-                         >
-                           <Trash2 className="w-3.5 h-3.5" />
-                         </button>
+                         {!isSelectMode && (
+                           <button 
+                             onClick={(e) => handleDeleteRecord(e, req)}
+                             className={cn(
+                               "p-2 rounded-lg transition-all border opacity-0 group-hover:opacity-100",
+                               deleteConfirmId === req.id
+                                 ? "bg-rose-500 border-rose-600 text-white animate-pulse opacity-100"
+                                 : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                             )}
+                             title="Purge Exit Log"
+                           >
+                             <Trash2 className="w-3.5 h-3.5" />
+                           </button>
+                         )}
                        </div>
                     </div>
                   ))
@@ -264,6 +335,13 @@ export function SecurityDashboard() {
       </div>
 
       <AnimatePresence>
+        {isReportOpen && (
+           <WeeklyReport 
+             requests={requests} 
+             workforce={[]} 
+             onClose={() => setIsReportOpen(false)} 
+           />
+        )}
         {selectedRequest && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 

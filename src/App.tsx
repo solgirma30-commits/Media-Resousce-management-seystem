@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback, useRef } from 'react';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -65,51 +65,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isSelectingRole, setIsSelectingRole] = useState(false);
 
-  useEffect(() => {
-    // Test connection as per guidelines (non-blocking)
-    const testConnection = async () => {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error: any) {
-        // Silently log instead of showing toast if it's the expected iframe connectivity issue
-        console.log("Firestore reachability check completed.");
-      }
-    };
-    testConnection();
-
-    let unsubscribeProfile: (() => void) | null = null;
-
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      
-      if (unsubscribeProfile) {
-        unsubscribeProfile();
-        unsubscribeProfile = null;
-      }
-
-      if (user) {
-        const docRef = doc(db, 'users', user.uid);
-        unsubscribeProfile = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setProfile({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
-          } else {
-            setProfile(null);
-          }
-          setLoading(false);
-        }, (error) => {
-          console.error("Profile sync error:", error);
-          setLoading(false);
-        });
-      } else {
-        setProfile(null);
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      unsubscribeAuth();
-      if (unsubscribeProfile) unsubscribeProfile();
-    };
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+      toast.success('Signed out');
+    } catch (error) {
+      toast.error('Failed to sign out');
+    }
   }, []);
 
   const signIn = async () => {
@@ -147,14 +109,73 @@ export default function App() {
     }
   };
 
-  const logout = async () => {
-    try {
-      await signOut(auth);
-      toast.success('Signed out');
-    } catch (error) {
-      toast.error('Failed to sign out');
-    }
-  };
+  const logoutRef = useRef(logout);
+  useEffect(() => {
+    logoutRef.current = logout;
+  }, [logout]);
+
+  useEffect(() => {
+    // Test connection as per guidelines (non-blocking)
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error: any) {
+        // Silently log instead of showing toast if it's the expected iframe connectivity issue
+        console.log("Firestore reachability check completed.");
+      }
+    };
+    testConnection();
+
+    let unsubscribeProfile: (() => void) | null = null;
+    let activityTimer: NodeJS.Timeout;
+    
+    const resetActivityTimer = () => {
+      clearTimeout(activityTimer);
+      activityTimer = setTimeout(logoutRef.current, 15 * 60 * 1000); // 15 minutes
+    };
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
+      if (user) {
+        const docRef = doc(db, 'users', user.uid);
+        unsubscribeProfile = onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setProfile({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
+          } else {
+            setProfile(null);
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error("Profile sync error:", error);
+          setLoading(false);
+        });
+
+        window.addEventListener('mousemove', resetActivityTimer);
+        window.addEventListener('keydown', resetActivityTimer);
+        resetActivityTimer();
+      } else {
+        setProfile(null);
+        setLoading(false);
+        clearTimeout(activityTimer);
+        window.removeEventListener('mousemove', resetActivityTimer);
+        window.removeEventListener('keydown', resetActivityTimer);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+      clearTimeout(activityTimer);
+      window.removeEventListener('mousemove', resetActivityTimer);
+      window.removeEventListener('keydown', resetActivityTimer);
+    };
+  }, []);
 
   const switchRole = () => {
     setIsSelectingRole(true);

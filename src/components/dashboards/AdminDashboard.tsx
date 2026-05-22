@@ -45,7 +45,7 @@ import {
   where,
   deleteDoc
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType, auth } from '../../lib/firebase';
 import { useAuth } from '../../App';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
@@ -57,7 +57,7 @@ import { useLanguage } from '../../lib/LanguageContext';
 import { notificationService } from '../../services/notificationService';
 
 export function AdminDashboard() {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
   const [globalAlertTitle, setGlobalAlertTitle] = useState('SYSTEM ADVISORY');
@@ -76,6 +76,7 @@ export function AdminDashboard() {
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<any>({});
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedAssignIds, setSelectedAssignIds] = useState<string[]>([]);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
@@ -429,147 +430,162 @@ export function AdminDashboard() {
       }
 
       toast.success('Request approved');
+      setTimeout(() => logout(), 2000);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
   };
 
-  const handleAssign = async (requestId: string, tech: any, directorId: string) => {
+  const handleAssign = async (requestId: string, techOrTechs: any, directorId: string) => {
     setPersonnelSearch('');
     const colName = collectionMap[activeTab];
     const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
     const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Laborer Request') : (req?.tripName || 'Untitled Trip');
     const path = `${colName}/${requestId}`;
+
+    const selectedTechs = Array.isArray(techOrTechs) ? techOrTechs : (techOrTechs ? [techOrTechs] : []);
+    if (selectedTechs.length === 0) {
+      toast.error('No personnel selected for assignment');
+      return;
+    }
+
+    const tech = selectedTechs[0];
+
     try {
       const updateData: any = {
         status: 'ASSIGNED',
         updatedAt: serverTimestamp(),
       };
 
+      const names = selectedTechs.map(t => t.displayName).join(', ');
+      const phones = selectedTechs.map(t => t.phoneNumber || '').filter(Boolean).join(', ');
+      const ids = selectedTechs.map(t => t.id);
+
       if (activeTab === 'VEHICLE') {
         updateData.assignedDriverId = tech.id;
-        updateData.assignedDriverName = tech.displayName;
-        updateData.assignedDriverPhone = tech.phoneNumber || '';
+        updateData.assignedDriverName = names;
+        updateData.assignedDriverPhone = phones;
+        updateData.assignedDriverIds = ids;
+        updateData.assignedDrivers = selectedTechs.map(t => ({ id: t.id, name: t.displayName, phone: t.phoneNumber || '' }));
       } else {
         updateData.assignedTechnicianId = tech.id;
-        updateData.assignedTechnicianName = tech.displayName;
-        updateData.assignedTechnicianPhone = tech.phoneNumber || '';
+        updateData.assignedTechnicianName = names;
+        updateData.assignedTechnicianPhone = phones;
+        updateData.assignedTechnicianIds = ids;
+        updateData.assignedTechnicians = selectedTechs.map(t => ({ id: t.id, name: t.displayName, phone: t.phoneNumber || '' }));
       }
 
       await updateDoc(doc(db, colName, requestId), updateData);
 
-      // Create in-app notification for technician
-      const techNotificationId = `notif_tech_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${tech.id}`;
-      await setDoc(doc(db, 'notifications', techNotificationId), {
-        userId: tech.id,
-        title: `New Assignment: ${displayName}`,
-        message: `Hello ${tech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}". Please check your portal for details.`,
-        read: false,
-        type: 'ASSIGNMENT',
-        requestId: requestId,
-        createdAt: serverTimestamp(),
-      });
-
-      // Send FCM notification
-      await fetch('/api/send-fcm-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetUserId: tech.id,
-          title: 'New Task Assigned',
-          body: `Hello ${tech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}".`,
+      for (const currentTech of selectedTechs) {
+        // Create in-app notification for technician
+        const techNotificationId = `notif_tech_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${currentTech.id}`;
+        await setDoc(doc(db, 'notifications', techNotificationId), {
+          userId: currentTech.id,
+          title: `New Assignment: ${displayName}`,
+          message: `Hello ${currentTech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}". Please check your portal for details.`,
+          read: false,
+          type: 'ASSIGNMENT',
           requestId: requestId,
-        }),
-      });
+          createdAt: serverTimestamp(),
+        });
+
+        // Send FCM notification
+        try {
+          await fetch('/api/send-fcm-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              targetUserId: currentTech.id,
+              title: 'New Task Assigned',
+              body: `Hello ${currentTech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}".`,
+              requestId: requestId,
+            }),
+          });
+        } catch (e) {
+          console.error("FCM failed but non-blocking:", e);
+        }
+
+        if (currentTech.phoneNumber) {
+          const smsMessage = `Vector System: Hello ${currentTech.displayName}, you have been assigned to ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal.`;
+          
+          // Write to Firestore 'sim_sms_logs' so the target user sees it immediately on their in-app simulated screen
+          const smsLogId = `sms_${Date.now()}_${currentTech.id}`;
+          try {
+            await setDoc(doc(db, 'sim_sms_logs', smsLogId), {
+              id: smsLogId,
+              recipientId: currentTech.id,
+              recipientName: currentTech.displayName,
+              recipientPhone: currentTech.phoneNumber,
+              role: currentTech.role || (activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN'),
+              message: smsMessage,
+              status: 'SENT',
+              sentAt: serverTimestamp(),
+              requestId: requestId,
+              requestType: activeTab
+            });
+          } catch (err) {
+            console.error("Failed to write to sim_sms_logs:", err);
+          }
+          
+          const smsPromise = fetch('/api/dispatch-personnel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              taskId: requestId,
+              personnelId: currentTech.id,
+              role: currentTech.role || (activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN'),
+              phoneNumber: currentTech.phoneNumber,
+              message: smsMessage 
+            }),
+          }).then(async (res) => {
+            const errorData = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              const error = new Error(errorData.message || errorData.error || 'SMS Gateway failure');
+              (error as any).code = errorData.error;
+              throw error;
+            }
+            return errorData;
+          });
+
+          toast.promise(
+            smsPromise,
+            {
+              loading: `Syncing dispatch data to ${currentTech.phoneNumber}...`,
+              success: `Notification delivered to ${currentTech.displayName} via SMS`,
+              error: (err: any) => (
+                <div className="flex flex-col gap-2 max-w-xs text-left">
+                  <span className="font-bold text-red-400 text-xs">
+                    {err.code === 'SMS_NOT_CONFIGURED' ? 'Cloud SMS Channel Not Configured' : `SMS Dispatch Failed`}
+                  </span>
+                  <p className="text-[10px] text-slate-300 leading-relaxed">
+                    {err.message}
+                  </p>
+                  <a 
+                    href={`sms:${currentTech.phoneNumber}?body=${encodeURIComponent(smsMessage)}`}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors inline-block text-center shadow-lg shadow-emerald-950/25 border border-emerald-400/20 mt-1"
+                  >
+                    Dispatch via Local SIM
+                  </a>
+                </div>
+              ),
+            }
+          );
+        }
+      }
 
       // Create notification for director
       const dirNotificationId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
+      const roleLabel = activeTab === 'VEHICLE' ? 'Driver(s)' : activeTab === 'CAMERA' ? 'Cameraman/Cameramen' : 'Technician(s)';
       await setDoc(doc(db, 'notifications', dirNotificationId), {
         userId: directorId,
         title: 'Agent Assigned',
-        message: `${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Technician'} ${tech.displayName} has been assigned to your request: "${displayName}"`,
+        message: `${roleLabel} [${names}] assigned to your request: "${displayName}"`,
         read: false,
         type: 'ASSIGNMENT',
         requestId: requestId,
         createdAt: serverTimestamp(),
       });
-
-      toast.success(`${tech.displayName} assigned`);
-      
-      if (tech.phoneNumber) {
-        const smsMessage = `Vector System: Hello ${tech.displayName}, you have been assigned to ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal.`;
-        
-        // Write to Firestore 'sim_sms_logs' so the target user sees it immediately on their in-app simulated screen
-        const smsLogId = `sms_${Date.now()}_${tech.id}`;
-        try {
-          await setDoc(doc(db, 'sim_sms_logs', smsLogId), {
-            id: smsLogId,
-            recipientId: tech.id,
-            recipientName: tech.displayName,
-            recipientPhone: tech.phoneNumber,
-            role: tech.role || (activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN'),
-            message: smsMessage,
-            status: 'SENT',
-            sentAt: serverTimestamp(),
-            requestId: requestId,
-            requestType: activeTab
-          });
-        } catch (err) {
-          console.error("Failed to write to sim_sms_logs:", err);
-        }
-        
-        const smsPromise = fetch('/api/dispatch-personnel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            taskId: requestId,
-            personnelId: tech.id,
-            role: tech.role || (activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN'),
-            phoneNumber: tech.phoneNumber,
-            message: smsMessage 
-          }),
-        }).then(async (res) => {
-          const errorData = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            const error = new Error(errorData.message || errorData.error || 'SMS Gateway failure');
-            (error as any).code = errorData.error;
-            throw error;
-          }
-          return errorData;
-        });
-
-        toast.promise(
-          smsPromise,
-          {
-            loading: `Syncing dispatch data to ${tech.phoneNumber}...`,
-            success: 'Notification delivered via SMS',
-            error: (err: any) => (
-              <div className="flex flex-col gap-2 max-w-xs text-left">
-                <span className="font-bold text-red-400 text-xs">
-                  {err.code === 'SMS_NOT_CONFIGURED' ? 'Cloud SMS Channel Not Configured' : `SMS Dispatch Failed`}
-                </span>
-                <p className="text-[10px] text-slate-300 leading-relaxed">
-                  {err.message}
-                </p>
-                {err.code === 'TWILIO_21608' || err.message.toLowerCase().includes('unverified') ? (
-                  <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-500 mt-0.5">
-                    <p className="text-[10px] font-black uppercase tracking-wider">Twilio Trial Account Limitation</p>
-                    <p className="text-[9px] leading-tight mt-1 opacity-90">
-                      Unverified number. Trial accounts can only send to verified phone numbers. Send using local device SIM instead:
-                    </p>
-                  </div>
-                ) : null}
-                <a 
-                  href={`sms:${tech.phoneNumber}?body=${encodeURIComponent(smsMessage)}`}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors inline-block text-center shadow-lg shadow-emerald-950/25 border border-emerald-400/20 mt-1"
-                >
-                  Dispatch via Local SIM
-                </a>
-              </div>
-            ),
-          }
-        );
-      }
 
       setIsAssignModalOpen(false);
       setSelectedRequest(null);
@@ -639,6 +655,7 @@ export function AdminDashboard() {
 
       await Promise.all(promises);
       toast.success(`${selectedIds.size} records purged permanently`);
+      setTimeout(() => logout(), 2000);
       setSelectedIds(new Set());
       setIsSelectMode(false);
       setBulkDeleteConfirm(false);
@@ -658,6 +675,7 @@ export function AdminDashboard() {
 
   const openAssignModal = (request: any) => {
     setPersonnelSearch('');
+    setSelectedAssignIds([]);
     if (!unlockedSectors.has(activeTab)) {
       setPendingAction({ type: 'ASSIGN', data: request, sector: activeTab });
       setIsUnlockModalOpen(true);
@@ -665,6 +683,21 @@ export function AdminDashboard() {
     }
     setSelectedRequest(request);
     setIsAssignModalOpen(true);
+  };
+
+  const handleCloseReport = async () => {
+    setIsReportOpen(false);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const collections = ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests'];
+    
+    for (const colName of collections) {
+      const q = query(collection(db, colName), where('createdAt', '<', weekAgo));
+      const snapshot = await getDocs(q);
+      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+    }
+    toast.success('Old records cleaned up');
   };
 
   const handleUpdateTech = async () => {
@@ -715,12 +748,18 @@ export function AdminDashboard() {
     
     if (deleteTechConfirmId === techId) {
       try {
+        if (!auth.currentUser) {
+          toast.error('Login permission required for this approval');
+          return;
+        }
+        await auth.currentUser.reload();
         await deleteDoc(doc(db, 'users', techId));
         toast.success('Agent removed from registry');
+        setTimeout(() => logout(), 2000);
         setDeleteTechConfirmId(null);
       } catch (error) {
         console.error('Delete error:', error);
-        toast.error('De-registration failure');
+        toast.error('De-registration failure: ' + (error instanceof Error ? error.message : 'Unknown'));
       }
     } else {
       setDeleteTechConfirmId(techId);
@@ -764,6 +803,7 @@ export function AdminDashboard() {
         } else if (pendingAction.type === 'ASSIGN' && pendingAction.data) {
           const req = pendingAction.data;
           setSelectedRequest(req);
+          setSelectedAssignIds([]);
           setIsAssignModalOpen(true);
         }
         setPendingAction(null);
@@ -1115,9 +1155,12 @@ export function AdminDashboard() {
                                  e.stopPropagation();
                                  if (deleteConfirmId === request.id) {
                                    try {
+                                     if (!auth.currentUser) { toast.error('Login permission required'); return; }
+                                     await auth.currentUser.reload();
                                      const colName = collectionMap[activeTab];
                                      await deleteDoc(doc(db, colName, request.id));
                                      toast.success('Record purged from queue');
+                                     setTimeout(() => logout(), 2000);
                                      setDeleteConfirmId(null);
                                    } catch (err) {
                                      toast.error('Purge failure');
@@ -1823,169 +1866,194 @@ export function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="p-8 max-h-[60vh] overflow-y-auto">
-                 {(() => {
-                    const primaryList = (activeTab === 'VEHICLE' ? drivers : activeTab === 'CAMERA' ? cameramen : technicians);
-                    // Use allUsers if primary list is empty or searching to ensure dispatching is always possible
-                    const list = allUsers.filter(t => {
-                      if (t.role === 'ADMIN' && t.id !== profile?.uid) return false;
-                      
-                      const matchesSearch = !personnelSearch || 
-                        t.displayName.toLowerCase().includes(personnelSearch.toLowerCase()) ||
-                        (t.role && t.role.toLowerCase().includes(personnelSearch.toLowerCase()));
-                      
-                      if (!matchesSearch) return false;
-                      
-                      // If not searching, prefer showing relevant role
-                      if (!personnelSearch) {
-                        const targetRole = activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN';
-                        return t.role === targetRole || t.id === profile?.uid;
-                      }
+              {(() => {
+                 const primaryList = (activeTab === 'VEHICLE' ? drivers : activeTab === 'CAMERA' ? cameramen : technicians);
+                 const list = allUsers.filter(t => {
+                   if (t.role === 'ADMIN' && t.id !== profile?.uid) return false;
+                   const matchesSearch = !personnelSearch || 
+                     t.displayName.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+                     (t.role && t.role.toLowerCase().includes(personnelSearch.toLowerCase()));
+                   if (!matchesSearch) return false;
+                   if (!personnelSearch) {
+                     const targetRole = activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN';
+                     return t.role === targetRole || t.id === profile?.uid;
+                   }
+                   return true;
+                 });
+                 
+                 if (list.length === 0) {
+                   return (
+                     <div className="p-8 py-12 text-center">
+                       <AlertCircle className="w-12 h-12 text-dark-text-subtle/20 mx-auto mb-4" />
+                       <p className="text-dark-text-subtle text-sm font-serif italic mb-4">
+                         {personnelSearch ? `No personnel matching "${personnelSearch}" found` : `No FMC ${activeTab === 'VEHICLE' ? 'DRIVERS' : activeTab === 'CAMERA' ? 'CAMERA OPERATORS' : 'ENGINEERS'} detected in sector`}
+                       </p>
+                     </div>
+                   );
+                 }
 
-                      return true;
-                    });
-                    
-                    if (list.length === 0) {
-                      return (
-                        <div className="py-12 text-center">
-                          <AlertCircle className="w-12 h-12 text-dark-text-subtle/20 mx-auto mb-4" />
-                          <p className="text-dark-text-subtle text-sm font-serif italic mb-4">
-                            {personnelSearch ? `No personnel matching "${personnelSearch}" found` : `No FMC ${activeTab === 'VEHICLE' ? 'DRIVERS' : activeTab === 'CAMERA' ? 'CAMERA OPERATORS' : 'ENGINEERS'} detected in sector`}
-                          </p>
-                          {!personnelSearch && (
-                            <button 
-                              onClick={() => {
-                                setIsAssignModalOpen(false);
-                                setIsPersonnelModalOpen(true);
-                                setIsOnboarding(true);
-                              }}
-                              className="text-[10px] font-black uppercase text-dark-accent hover:underline tracking-widest bg-dark-accent/5 px-4 py-2 rounded-lg border border-dark-accent/20"
-                            >
-                              Initialize Fleet Registry
-                            </button>
-                          )}
-                        </div>
-                      );
-                    }
-
-                     return (
-                       <div className="space-y-4">
-                          {list.map((tech) => {
-                             const isEditingThis = editingTech?.id === tech.id;
-                             return (
-                               <div 
-                                 key={tech.id} 
-                                 className="flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar/40 transition-all group"
-                               >
-                                 {isEditingThis ? (
-                                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
-                                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
-                                       <div>
-                                         <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">Name</label>
-                                         <input
-                                           type="text"
-                                           value={editName}
-                                           onChange={(e) => setEditName(e.target.value)}
-                                           className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 focus:ring-1 focus:ring-dark-accent outline-none"
-                                           placeholder="Operator Name"
-                                         />
-                                       </div>
-                                       <div>
-                                         <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">Contact Phone No</label>
-                                         <input
-                                           type="tel"
-                                           value={editPhone}
-                                           onChange={(e) => setEditPhone(e.target.value)}
-                                           className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 font-mono focus:ring-1 focus:ring-dark-accent outline-none"
-                                           placeholder="+251..."
-                                         />
-                                       </div>
+                 return (
+                   <>
+                     <div className="p-8 max-h-[45vh] overflow-y-auto space-y-4 border-b border-dark-border">
+                        {list.map((tech) => {
+                           const isEditingThis = editingTech?.id === tech.id;
+                           const isSelected = selectedAssignIds.includes(tech.id);
+                           return (
+                             <div 
+                               key={tech.id} 
+                               className={cn(
+                                 "flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar/40 transition-all group",
+                                 isSelected && "border-indigo-500/50 bg-indigo-500/[0.02]"
+                               )}
+                             >
+                               {isEditingThis ? (
+                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
+                                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+                                     <div>
+                                       <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">Name</label>
+                                       <input
+                                         type="text"
+                                         value={editName}
+                                         onChange={(e) => setEditName(e.target.value)}
+                                         className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 focus:ring-1 focus:ring-dark-accent outline-none"
+                                         placeholder="Operator Name"
+                                       />
                                      </div>
-                                     <div className="flex items-center gap-2 mt-2 md:mt-0 self-end">
-                                       <button
-                                         onClick={() => {
-                                           setEditingTech(null);
-                                           setEditName('');
-                                           setEditPhone('');
-                                           setIsOnboarding(false);
-                                         }}
-                                         className="px-3 py-2 border border-dark-border rounded bg-dark-sidebar hover:bg-dark-main text-dark-text-subtle hover:text-white text-[10px] uppercase font-bold transition-all"
-                                       >
-                                         {t("Cancel")}
-                                       </button>
-                                       <button
-                                         onClick={async () => {
-                                           const originalId = tech.id;
-                                           await handleUpdateTech();
-                                           // Re-fetch the updated tech data to ensure handleAssign uses the new details
-                                           // Or just use the local edit states since handleUpdateTech might be async
-                                           handleAssign(selectedRequest?.id, {
-                                             ...tech,
-                                             displayName: editName,
-                                             phoneNumber: editPhone.trim().startsWith('0') ? '+251' + editPhone.trim().substring(1) : editPhone.trim()
-                                           }, selectedRequest?.directorId);
-                                           setIsAssignModalOpen(false);
-                                         }}
-                                         className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-indigo-900/20"
-                                       >
-                                         {t("Update & Dispatch")}
-                                       </button>
-                                       <button
-                                         onClick={handleUpdateTech}
-                                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition-all"
-                                       >
-                                         {t("Save Only")}
-                                       </button>
+                                     <div>
+                                       <label className="block text-[9px] font-black text-dark-text-subtle uppercase tracking-wider mb-1">Contact Phone No</label>
+                                       <input
+                                         type="tel"
+                                         value={editPhone}
+                                         onChange={(e) => setEditPhone(e.target.value)}
+                                         className="w-full bg-white border border-dark-border text-black font-semibold text-xs rounded px-3 py-2 font-mono focus:ring-1 focus:ring-dark-accent outline-none"
+                                         placeholder="+251..."
+                                       />
                                      </div>
                                    </div>
-                                 ) : (
-                                   <>
-                                     <div className="flex items-center gap-4">
-                                        <div className="w-11 h-11 rounded-lg bg-dark-card border border-dark-border flex items-center justify-center text-dark-accent font-bold">
-                                           {tech.displayName[0]}
-                                        </div>
-                                        <div className="flex-1">
-                                           <div className="flex items-center gap-2">
-                                             <p className="font-black text-black text-sm">{tech.displayName}</p>
-                                             {tech.id === profile?.uid && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-1 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">Self</span>}
-                                           </div>
-                                           <div className="flex items-center gap-2 mt-0.5">
-                                              <p className="text-[10px] text-dark-text-subtle uppercase tracking-widest font-black">
-                                                {tech.role === 'DRIVER' ? 'FMC DRIVER' : tech.role === 'CAMERAMAN' ? 'FMC CAMERA OPERATOR' : tech.role === 'TECHNICIAN' ? 'FMC ENGINEER' : tech.role || 'Personnel'}
-                                              </p>
-                                              <span className="text-[10px] text-dark-accent/40">•</span>
-                                              <p className="text-[10px] text-dark-accent font-mono">{tech.phoneNumber || 'N/A'}</p>
-                                           </div>
-                                        </div>
-                                     </div>
-                                     <div className="flex items-center gap-2">
-                                       <button
-                                          onClick={() => {
-                                             setEditingTech(tech);
-                                             setEditName(tech.displayName);
-                                             setEditPhone(tech.phoneNumber || '');
-                                             setEditRole(tech.role || 'TECHNICIAN');
-                                          }}
-                                          className="px-3 py-2 bg-dark-card border border-dark-border rounded-lg text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-white transition-all tracking-widest"
-                                       >
-                                          Edit
-                                       </button>
-                                       <button
-                                          onClick={() => handleAssign(selectedRequest?.id, tech, selectedRequest?.directorId)}
-                                          className="bg-dark-accent text-white font-bold text-xs px-5 py-2.5 rounded-lg hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-900/20 active:scale-95"
-                                       >
-                                           Dispatch
-                                       </button>
-                                     </div>
-                                   </>
-                                 )}
-                               </div>
-                             );
-                          })}
-                       </div>
-                     );
-                 })()}
-              </div>
+                                   <div className="flex items-center gap-2 mt-2 md:mt-0 self-end">
+                                     <button
+                                       onClick={() => {
+                                         setEditingTech(null);
+                                         setEditName('');
+                                         setEditPhone('');
+                                         setIsOnboarding(false);
+                                       }}
+                                       className="px-3 py-2 border border-dark-border rounded bg-dark-sidebar hover:bg-dark-main text-dark-text-subtle hover:text-white text-[10px] uppercase font-bold transition-all"
+                                     >
+                                       {t("Cancel")}
+                                     </button>
+                                     <button
+                                       onClick={async () => {
+                                         const originalId = tech.id;
+                                         await handleUpdateTech();
+                                         handleAssign(selectedRequest?.id, {
+                                           ...tech,
+                                           displayName: editName,
+                                           phoneNumber: editPhone.trim().startsWith('0') ? '+251' + editPhone.trim().substring(1) : editPhone.trim()
+                                         }, selectedRequest?.directorId);
+                                         setIsAssignModalOpen(false);
+                                       }}
+                                       className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-indigo-900/20"
+                                     >
+                                       {t("Update & Dispatch")}
+                                     </button>
+                                     <button
+                                       onClick={handleUpdateTech}
+                                       className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded text-[10px] uppercase tracking-wider transition-all"
+                                     >
+                                       {t("Save Only")}
+                                     </button>
+                                   </div>
+                                 </div>
+                               ) : (
+                                 <>
+                                   <div className="flex items-center gap-4">
+                                      <input 
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {
+                                          setSelectedAssignIds(prev =>
+                                            prev.includes(tech.id)
+                                              ? prev.filter(id => id !== tech.id)
+                                              : [...prev, tech.id]
+                                          );
+                                        }}
+                                        className="w-5 h-5 rounded border-dark-border text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 cursor-pointer"
+                                      />
+                                      <div className="w-11 h-11 rounded-lg bg-dark-card border border-dark-border flex items-center justify-center text-dark-accent font-bold">
+                                         {tech.displayName[0]}
+                                      </div>
+                                      <div className="flex-1">
+                                         <div className="flex items-center gap-2">
+                                           <p className="font-black text-black text-sm">{tech.displayName}</p>
+                                           {tech.id === profile?.uid && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-1 py-0.5 rounded border border-emerald-500/20 uppercase tracking-widest">Self</span>}
+                                         </div>
+                                         <div className="flex items-center gap-2 mt-0.5">
+                                            <p className="text-[10px] text-dark-text-subtle uppercase tracking-widest font-black">
+                                              {tech.role === 'DRIVER' ? 'FMC DRIVER' : tech.role === 'CAMERAMAN' ? 'FMC CAMERA OPERATOR' : tech.role === 'TECHNICIAN' ? 'FMC ENGINEER' : tech.role || 'Personnel'}
+                                            </p>
+                                            <span className="text-[10px] text-dark-accent/40">•</span>
+                                            <p className="text-[10px] text-dark-accent font-mono">{tech.phoneNumber || 'N/A'}</p>
+                                         </div>
+                                      </div>
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                     <button
+                                        onClick={() => {
+                                           setEditingTech(tech);
+                                           setEditName(tech.displayName);
+                                           setEditPhone(tech.phoneNumber || '');
+                                           setEditRole(tech.role || 'TECHNICIAN');
+                                        }}
+                                        className="px-3 py-2 bg-dark-card border border-dark-border rounded-lg text-[10px] font-black uppercase text-dark-text-subtle hover:text-white hover:border-white transition-all tracking-widest"
+                                     >
+                                        Edit
+                                     </button>
+                                     <button
+                                        onClick={() => handleAssign(selectedRequest?.id, tech, selectedRequest?.directorId)}
+                                        className="bg-dark-accent text-white font-bold text-xs px-5 py-2.5 rounded-lg hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-900/20 active:scale-95"
+                                     >
+                                         Dispatch
+                                     </button>
+                                   </div>
+                                 </>
+                               )}
+                             </div>
+                           );
+                        })}
+                     </div>
+                     <div className="px-8 py-5 bg-dark-card/30 flex items-center justify-between border-t border-dark-border">
+                        <div>
+                          <span className="text-xs text-black font-semibold">
+                            {selectedAssignIds.length} personnel selected
+                          </span>
+                          <p className="text-[10px] text-dark-text-subtle">
+                            {selectedAssignIds.length > 0 ? "Ready for group dispatch" : "Check personnel to group dispatch"}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSelectedAssignIds([])}
+                            disabled={selectedAssignIds.length === 0}
+                            className="px-4 py-2 border border-dark-border rounded-lg text-[10px] font-black uppercase text-dark-text-subtle hover:text-white disabled:opacity-30 transition-all"
+                          >
+                            Clear All
+                          </button>
+                          <button
+                            onClick={() => {
+                              const selectedTechsObj = list.filter(t => selectedAssignIds.includes(t.id));
+                              handleAssign(selectedRequest?.id, selectedTechsObj, selectedRequest?.directorId);
+                            }}
+                            disabled={selectedAssignIds.length === 0}
+                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[11px] uppercase rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-900/20 active:scale-95 flex items-center gap-2"
+                          >
+                            Group Dispatch ({selectedAssignIds.length})
+                          </button>
+                        </div>
+                     </div>
+                   </>
+                 );
+              })()}
             </motion.div>
           </div>
         )}
@@ -1994,7 +2062,7 @@ export function AdminDashboard() {
           <WeeklyReport 
             requests={[...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests]}
             workforce={[...technicians, ...drivers, ...cameramen]}
-            onClose={() => setIsReportOpen(false)}
+            onClose={handleCloseReport}
           />
         )}
 

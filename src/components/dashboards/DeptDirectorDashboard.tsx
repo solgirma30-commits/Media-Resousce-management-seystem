@@ -42,6 +42,7 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
+import { RequestPasswordModal } from '../RequestPasswordModal';
 
 export function DeptDirectorDashboard() {
   useFcmToken();
@@ -54,6 +55,7 @@ export function DeptDirectorDashboard() {
   const [itemRequests, setItemRequests] = useState<any[]>([]);
   const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
@@ -243,6 +245,11 @@ export function DeptDirectorDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    handleActualSubmit();
+  };
+
+  const handleActualSubmit = async () => {
+
     if (!profile) return;
 
     const cleanPhone = phoneNumber.trim();
@@ -292,105 +299,105 @@ export function DeptDirectorDashboard() {
         toast.success('Request updated successfully');
       } else {
         if (activeTab === 'SERVICE') {
-        const path = 'service_requests';
-        const newRequest = {
-          departmentName: profile.department || 'Unknown Dept',
-          directorName: profile.displayName,
-          directorId: profile.uid,
-          phoneNumber,
-          location,
-          serviceCategory: category,
-          workName,
-          description,
-          priority,
-          fleetId: selectedFleetId || null,
-          status: 'NEW',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-        docRef = await addDoc(collection(db, path), newRequest);
-      } else if (activeTab === 'CAMERA') {
-        const path = 'camera_requests';
-        const newRequest = {
-          requestId: `CR-${Date.now()}`,
-          directorId: profile.uid,
-          directorName: profile.displayName,
-          departmentName: profile.department || 'Unknown Dept',
-          eventTitle,
-          location,
-          date: eventDate,
-          startTime,
-          endTime,
-          purpose: cameraPurpose,
-          status: 'NEW',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-        docRef = await addDoc(collection(db, path), newRequest);
-      } else if (activeTab === 'VEHICLE') {
-        const path = 'vehicle_requests';
-        const newRequest = {
-          requestId: `VR-${Date.now()}`,
-          directorId: profile.uid,
-          directorName: profile.displayName,
-          departmentName: profile.department || 'Unknown Dept',
-          destination,
-          tripName: workName,
-          purpose: vehiclePurpose,
-          passengersCount,
-          departureDate: depDate,
-          departureTime: depTime,
-          returnTime: retTime,
-          status: 'NEW',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-        docRef = await addDoc(collection(db, path), newRequest);
-      } else if (activeTab === 'ITEM') {
-        const path = 'item_requests';
-        const newRequest = {
-          requestId: `EX-${Date.now()}`,
-          directorId: profile.uid,
-          directorName: profile.displayName,
-          departmentName: profile.department || 'Unknown Dept',
-          itemName,
-          serialNumber,
-          purpose: exitReason,
-          expectedReturnDate,
-          quantity: itemQuantity,
-          responsiblePerson,
-          status: 'NEW',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-        docRef = await addDoc(collection(db, path), newRequest);
-      } else if (activeTab === 'OTHER') {
-        const path = 'device_requests';
-        const newRequest = {
-          requestId: `LAB-${Date.now()}`,
-          directorId: profile.uid,
-          directorName: profile.displayName,
-          departmentName: profile.department || 'Unknown Dept',
-          projectName: workName,
-          deviceModel: deviceModel || 'General Laborer',
-          quantity: requestQty,
-          startTime: startTime,
-          endTime: endTime,
-          date: eventDate,
-          purpose: description,
-          status: 'NEW',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-        docRef = await addDoc(collection(db, path), newRequest);
-      }
-    } // End of creation block
+            const path = 'service_requests';
+            const newRequest = {
+            departmentName: profile.department || 'Unknown Dept',
+            directorName: profile.displayName,
+            directorId: profile.uid,
+            phoneNumber,
+            location,
+            serviceCategory: category,
+            workName,
+            description,
+            priority,
+            fleetId: selectedFleetId || null,
+            status: 'NEW',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            };
+            docRef = await addDoc(collection(db, path), newRequest);
+        } else if (activeTab === 'CAMERA') {
+            const path = 'camera_requests';
+            const newRequest = {
+            requestId: `CR-${Date.now()}`,
+            directorId: profile.uid,
+            directorName: profile.displayName,
+            departmentName: profile.department || 'Unknown Dept',
+            eventTitle,
+            location,
+            date: eventDate,
+            startTime,
+            endTime,
+            purpose: cameraPurpose,
+            status: 'NEW',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            };
+            docRef = await addDoc(collection(db, path), newRequest);
+        } else if (activeTab === 'VEHICLE') {
+            const path = 'vehicle_requests';
+            const newRequest = {
+            requestId: `VR-${Date.now()}`,
+            directorId: profile.uid,
+            directorName: profile.displayName,
+            departmentName: profile.department || 'Unknown Dept',
+            destination,
+            tripName: workName,
+            purpose: vehiclePurpose,
+            passengersCount,
+            departureDate: depDate,
+            departureTime: depTime,
+            returnTime: retTime,
+            status: 'NEW',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            };
+            docRef = await addDoc(collection(db, path), newRequest);
+        } else if (activeTab === 'ITEM') {
+            const path = 'item_requests';
+            const newRequest = {
+            requestId: `EX-${Date.now()}`,
+            directorId: profile.uid,
+            directorName: profile.displayName,
+            departmentName: profile.department || 'Unknown Dept',
+            itemName,
+            serialNumber,
+            purpose: exitReason,
+            expectedReturnDate,
+            quantity: itemQuantity,
+            responsiblePerson,
+            status: 'NEW',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            };
+            docRef = await addDoc(collection(db, path), newRequest);
+        } else if (activeTab === 'OTHER') {
+            const path = 'device_requests';
+            const newRequest = {
+            requestId: `LAB-${Date.now()}`,
+            directorId: profile.uid,
+            directorName: profile.displayName,
+            departmentName: profile.department || 'Unknown Dept',
+            projectName: workName,
+            deviceModel: deviceModel || 'General Laborer',
+            quantity: requestQty,
+            startTime: startTime,
+            endTime: endTime,
+            date: eventDate,
+            purpose: description,
+            status: 'NEW',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            };
+            docRef = await addDoc(collection(db, path), newRequest);
+        }
+      } // End of creation block
 
-    toast.success(isEditing ? 'Record synchronized' : 'Request submitted for processing');
-    setIsModalOpen(false);
-    setIsEditing(false);
-    setEditingId(null);
-      
+      toast.success(isEditing ? 'Record synchronized' : 'Request submitted for processing');
+      setIsModalOpen(false);
+      setIsEditing(false);
+      setEditingId(null);
+        
       if (!isEditing) {
         const realRequestId = docRef?.id || `REQ-${Date.now()}`;
         
@@ -449,6 +456,7 @@ export function DeptDirectorDashboard() {
       handleFirestoreError(error, OperationType.CREATE, path);
     }
   };
+
 
   const handleApprove = async (requestId: string, collectionName: string) => {
     try {
@@ -661,7 +669,7 @@ export function DeptDirectorDashboard() {
             setIsEditing(false);
             setEditingId(null);
             resetForm();
-            setIsModalOpen(true);
+            setIsPasswordModalOpen(true);
           }}
           className="flex items-center justify-center gap-2 bg-dark-accent hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-lg transition-all shadow-lg shadow-indigo-900/40 active:scale-95 text-[0.85rem]"
         >
@@ -901,6 +909,14 @@ export function DeptDirectorDashboard() {
       </div>
 
       {/* New Request Modal */}
+      <RequestPasswordModal 
+         isOpen={isPasswordModalOpen} 
+         onClose={() => setIsPasswordModalOpen(false)} 
+         onAuthenticated={() => {
+            setIsPasswordModalOpen(false);
+            setIsModalOpen(true);
+         }} 
+      />
       <AnimatePresence>
         {selectedRequest && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
