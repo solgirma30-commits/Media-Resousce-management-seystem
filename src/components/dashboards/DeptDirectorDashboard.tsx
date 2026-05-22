@@ -41,8 +41,10 @@ import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
+import { useFcmToken } from '../../hooks/useFcmToken';
 
 export function DeptDirectorDashboard() {
+  useFcmToken();
   const { profile } = useAuth();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');

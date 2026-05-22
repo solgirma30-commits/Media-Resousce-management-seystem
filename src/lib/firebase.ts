@@ -2,7 +2,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getMessaging } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
+
 
 const app = initializeApp(firebaseConfig);
 
@@ -16,6 +18,7 @@ export const auth = getAuth(app);
 setPersistence(auth, browserLocalPersistence).catch(console.error);
 
 export const storage = getStorage(app);
+export const messaging = getMessaging(app);
 
 export enum OperationType {
   CREATE = 'create',

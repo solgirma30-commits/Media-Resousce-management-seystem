@@ -2,8 +2,40 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import twilio from "twilio";
+import fs from "fs";
+import { getApps, initializeApp } from "firebase-admin/app";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
 
 dotenv.config();
+
+let adminDbInstance: Firestore | null = null;
+
+function getAdminDb() {
+  if (!adminDbInstance) {
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    let projectId = process.env.GOOGLE_CLOUD_PROJECT || "gen-lang-client-0274556355";
+    let databaseId: string | undefined = undefined; // Use undefined for default database
+
+    try {
+      if (fs.existsSync(configPath)) {
+        const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        if (firebaseConfig.projectId) projectId = firebaseConfig.projectId;
+        if (firebaseConfig.firestoreDatabaseId) databaseId = firebaseConfig.firestoreDatabaseId;
+      }
+    } catch (e) {
+      console.error("Failed to read firebase-applet-config.json", e);
+    }
+
+    if (getApps().length === 0) {
+      initializeApp({
+        projectId: projectId
+      });
+    }
+    
+    adminDbInstance = databaseId ? getFirestore(databaseId) : getFirestore();
+  }
+  return adminDbInstance;
+}
 
 async function startServer() {
   const app = express();
@@ -17,6 +49,83 @@ async function startServer() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", environment: process.env.NODE_ENV || "development" });
+  });
+
+  app.post("/api/dispatch-personnel", async (req, res) => {
+    const { taskId, personnelId, role, phoneNumber, message } = req.body;
+
+    if (!personnelId || !phoneNumber || !message) {
+      return res.status(400).json({ error: "Missing personnelId, phoneNumber, or message" });
+    }
+
+    try {
+      // 1. Update user phone number
+      const adminDb = getAdminDb();
+      await adminDb.collection("users").doc(personnelId).set({
+        phoneNumber: phoneNumber
+      }, { merge: true });
+
+      // 2. Send SMS
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const from = process.env.TWILIO_PHONE_NUMBER;
+
+      if (!accountSid || !authToken || !from) {
+        return res.status(412).json({ 
+          error: "SMS_NOT_CONFIGURED", 
+          message: "Twilio credentials missing." 
+        });
+      }
+
+      // Format phone number
+      let clean = String(phoneNumber).replace(/\D/g, '');
+      if (clean.startsWith('0')) clean = '251' + clean.substring(1);
+      const formattedTo = '+' + clean;
+
+      const twilioClient = twilio(accountSid, authToken);
+      await twilioClient.messages.create({
+        body: message,
+        to: formattedTo,
+        from,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Dispatch Error:", error);
+      res.status(500).json({ error: "DISPATCH_FAILED", message: error.message });
+    }
+  });
+
+  app.post("/api/register-fcm-token", async (req, res) => {
+    const { userId, fcmToken } = req.body;
+    if (!userId || !fcmToken) return res.status(400).json({ error: "Missing userId or fcmToken" });
+    try {
+      await getAdminDb().collection("users").doc(userId).set({ fcmToken }, { merge: true });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to save token" });
+    }
+  });
+
+  app.post("/api/send-fcm-notification", async (req, res) => {
+    const { targetUserId, title, body, requestId } = req.body;
+    if (!targetUserId || !title || !body) return res.status(400).json({ error: "Missing targetUserId, title, or body" });
+    try {
+      const userDoc = await getAdminDb().collection("users").doc(targetUserId).get();
+      const fcmToken = userDoc.data()?.fcmToken;
+      if (!fcmToken) return res.status(404).json({ error: "No FCM token found for user" });
+
+      const admin = await import("firebase-admin"); // Dynamic import for messaging
+      await admin.messaging().send({
+        token: fcmToken,
+        notification: { title, body },
+        data: { requestId: requestId || "" },
+      });
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error("FCM Error:", e);
+      res.status(500).json({ error: "Notification dispatch failed", details: e.message });
+    }
   });
 
   app.post("/api/send-sms", async (req, res) => {

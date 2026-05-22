@@ -28,8 +28,10 @@ import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
+import { useFcmToken } from '../../hooks/useFcmToken';
 
 export function SecurityDashboard() {
+  useFcmToken();
   const { profile } = useAuth();
   const { t } = useLanguage();
   const [requests, setRequests] = useState<any[]>([]);
@@ -55,7 +57,7 @@ export function SecurityDashboard() {
         return timeB - timeA;
       });
 
-      setRequests(docs);
+      setRequests(docs.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'item_requests');

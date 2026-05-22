@@ -397,7 +397,7 @@ export function AdminDashboard() {
       });
 
       // Create notification for director
-      const notificationId = `notif_${Date.now()}`;
+      const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
       await setDoc(doc(db, 'notifications', notificationId), {
         userId: directorId,
         title: 'Request Approved',
@@ -459,7 +459,7 @@ export function AdminDashboard() {
       await updateDoc(doc(db, colName, requestId), updateData);
 
       // Create in-app notification for technician
-      const techNotificationId = `notif_tech_${Date.now()}_${tech.id}`;
+      const techNotificationId = `notif_tech_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${tech.id}`;
       await setDoc(doc(db, 'notifications', techNotificationId), {
         userId: tech.id,
         title: `New Assignment: ${displayName}`,
@@ -470,8 +470,20 @@ export function AdminDashboard() {
         createdAt: serverTimestamp(),
       });
 
+      // Send FCM notification
+      await fetch('/api/send-fcm-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUserId: tech.id,
+          title: 'New Task Assigned',
+          body: `Hello ${tech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}".`,
+          requestId: requestId,
+        }),
+      });
+
       // Create notification for director
-      const dirNotificationId = `notif_dir_${Date.now()}_${directorId}`;
+      const dirNotificationId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
       await setDoc(doc(db, 'notifications', dirNotificationId), {
         userId: directorId,
         title: 'Agent Assigned',
@@ -506,11 +518,14 @@ export function AdminDashboard() {
           console.error("Failed to write to sim_sms_logs:", err);
         }
         
-        const smsPromise = fetch('/api/send-sms', {
+        const smsPromise = fetch('/api/dispatch-personnel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            to: tech.phoneNumber, 
+            taskId: requestId,
+            personnelId: tech.id,
+            role: tech.role || (activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN'),
+            phoneNumber: tech.phoneNumber,
             message: smsMessage 
           }),
         }).then(async (res) => {

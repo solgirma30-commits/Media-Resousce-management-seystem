@@ -52,8 +52,10 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { notificationService } from '../../services/notificationService';
 import { useLanguage } from '../../lib/LanguageContext';
+import { useFcmToken } from '../../hooks/useFcmToken';
 
 export function TechnicianDashboard() {
+  useFcmToken();
   const { profile } = useAuth();
   const { t } = useLanguage();
   const [assignments, setAssignments] = useState<any[]>([]);
