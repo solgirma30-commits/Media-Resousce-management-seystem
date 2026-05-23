@@ -430,7 +430,6 @@ export function AdminDashboard() {
       }
 
       toast.success('Request approved');
-      setTimeout(() => logout(), 2000);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -655,7 +654,6 @@ export function AdminDashboard() {
 
       await Promise.all(promises);
       toast.success(`${selectedIds.size} records purged permanently`);
-      setTimeout(() => logout(), 2000);
       setSelectedIds(new Set());
       setIsSelectMode(false);
       setBulkDeleteConfirm(false);
@@ -755,7 +753,6 @@ export function AdminDashboard() {
         await auth.currentUser.reload();
         await deleteDoc(doc(db, 'users', techId));
         toast.success('Agent removed from registry');
-        setTimeout(() => logout(), 2000);
         setDeleteTechConfirmId(null);
       } catch (error) {
         console.error('Delete error:', error);

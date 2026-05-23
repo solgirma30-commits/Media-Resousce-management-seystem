@@ -127,13 +127,7 @@ export default function App() {
     testConnection();
 
     let unsubscribeProfile: (() => void) | null = null;
-    let activityTimer: NodeJS.Timeout;
     
-    const resetActivityTimer = () => {
-      clearTimeout(activityTimer);
-      activityTimer = setTimeout(logoutRef.current, 15 * 60 * 1000); // 15 minutes
-    };
-
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setUser(user);
       
@@ -155,25 +149,15 @@ export default function App() {
           console.error("Profile sync error:", error);
           setLoading(false);
         });
-
-        window.addEventListener('mousemove', resetActivityTimer);
-        window.addEventListener('keydown', resetActivityTimer);
-        resetActivityTimer();
       } else {
         setProfile(null);
         setLoading(false);
-        clearTimeout(activityTimer);
-        window.removeEventListener('mousemove', resetActivityTimer);
-        window.removeEventListener('keydown', resetActivityTimer);
       }
     });
 
     return () => {
       unsubscribeAuth();
       if (unsubscribeProfile) unsubscribeProfile();
-      clearTimeout(activityTimer);
-      window.removeEventListener('mousemove', resetActivityTimer);
-      window.removeEventListener('keydown', resetActivityTimer);
     };
   }, []);
 
