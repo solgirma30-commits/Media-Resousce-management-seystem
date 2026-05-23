@@ -219,6 +219,8 @@ export function TechnicianDashboard() {
         }))
         .filter((doc: any) => !doc.technicianArchived);
       
+      console.log(`[TechnicianDashboard] Subscription update for ${path}: fetched ${docs.length} docs for tech ${profile?.uid}`);
+      
       docs.sort((a: any, b: any) => {
         const timeA = a.updatedAt?.seconds || 0;
         const timeB = b.updatedAt?.seconds || 0;
@@ -233,6 +235,7 @@ export function TechnicianDashboard() {
                               path === 'vehicle_requests' ? (data.tripName || data.destination) : 
                               (data.workName || data.description);
             if (data.status === 'ASSIGNED') {
+              console.log(`[TechnicianDashboard] New assigned task detected: ${data.status}`);
               notificationService.notify(`NEW ASSIGNMENT: ${displayName}`, {
                 body: "Check your portal for details",
                 icon: '/pwa-512x512.png'
@@ -245,7 +248,10 @@ export function TechnicianDashboard() {
       setAssignments(docs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
       setLoading(false);
       isFirstLoad = false;
-    }, (error) => handleFirestoreError(error, OperationType.LIST, path));
+    }, (error) => {
+        console.error(`[TechnicianDashboard] Error in ${path}:`, error);
+        handleFirestoreError(error, OperationType.LIST, path);
+    });
 
     // Listen for NEW unassigned requests to notify technicians in real-time
     let isFirstLoadNew = true;
