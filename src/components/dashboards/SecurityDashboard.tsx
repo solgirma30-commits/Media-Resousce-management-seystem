@@ -12,7 +12,8 @@ import {
   PackageCheck,
   Trash2,
   BarChart3,
-  Users
+  Users,
+  Activity
 } from 'lucide-react';
 import { 
   collection, 
@@ -21,6 +22,7 @@ import {
   where,
   updateDoc,
   doc,
+  orderBy,
   serverTimestamp,
   deleteDoc,
   writeBatch
@@ -44,10 +46,59 @@ export function SecurityDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [teamUpdates, setTeamUpdates] = useState<any[]>([]);
   
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isReportOpen, setIsReportOpen] = useState(false);
+
+  // Real-time notepad updates subscription
+  useEffect(() => {
+    const qUpdates = query(
+      collection(db, 'department_updates'),
+      where('department', '==', 'PROP_CASUALTY')
+    );
+    
+    const unsubscribe = onSnapshot(qUpdates, (snapshot) => {
+      const msgs: any[] = [];
+      snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
+      
+      // Sort client-side to avoid Firestore composite index requirements
+      msgs.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return timeB - timeA;
+      });
+
+      setTeamUpdates(msgs.slice(0, 5)); // Keep only latest 5 for banner
+
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data() as any;
+          
+          // Check if this is a relatively new message (within last 30 seconds)
+          // or if it has pending writes (local).
+          const isPending = snapshot.metadata.hasPendingWrites;
+          const ts = data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now();
+          const isRecent = (Date.now() - ts) < 30000;
+          
+          if (isPending || isRecent) {
+            toast(`📢 Director Update: ${data.message}`, { 
+              duration: 6000,
+              style: {
+                background: '#1e293b',
+                color: '#fff',
+                border: '1px solid #334155'
+              }
+            });
+          }
+        }
+      });
+    }, (error) => {
+      console.error("Notepad updates subscription failed:", error);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     // Security only sees APPROVED requests for items
@@ -198,6 +249,37 @@ export function SecurityDashboard() {
           </div>
         </div>
       </div>
+
+      {teamUpdates.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-dark-card border-l-4 border-l-dark-accent border border-t-dark-border border-r-dark-border border-b-dark-border rounded-lg shadow-xl overflow-hidden p-4"
+        >
+          <h3 className="text-[10px] font-black text-dark-accent uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Activity className="w-3 h-3" /> Director Notepad Broadcasts
+          </h3>
+          <div className="space-y-2">
+            {teamUpdates.map(msg => (
+              <div key={msg.id} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
+                <div>
+                  <p className="text-xs font-semibold">{msg.message}</p>
+                  <p className="text-[9px] text-slate-500 font-mono mt-1">
+                    {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString() : 'Just now'}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => deleteDoc(doc(db, 'department_updates', msg.id))}
+                  className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete message for everyone"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">

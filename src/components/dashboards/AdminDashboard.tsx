@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { TeamNotepad } from '../TeamNotepad';
 import { 
   Users, 
   Search, 
@@ -1305,10 +1306,11 @@ export function AdminDashboard() {
                       ))
                     }
                   </tbody>
-               </table>
+                 </table>
               </div>
-           </div>
-         </div>
+            </div>
+          </div>
+        </div>
 
         {activeTab !== 'ITEM' && (
           <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg flex flex-col h-[600px]">
@@ -1375,8 +1377,8 @@ export function AdminDashboard() {
             ))}
           </div>
         </div>
-      )}
-      </div>
+        )}
+        <TeamNotepad defaultDepartment={activeTab} />
 
       {/* Technician Allocation Modal */}
       <AnimatePresence>
