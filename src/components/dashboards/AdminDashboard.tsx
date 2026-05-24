@@ -1314,11 +1314,11 @@ export function AdminDashboard() {
           <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg flex flex-col h-[600px]">
             <div className="p-6 border-b border-dark-border bg-dark-card/50">
               <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-                {activeTab === 'CAMERA' ? 'Camera Workload' : activeTab === 'VEHICLE' ? 'Driver Workload' : 'Technician Workload'}
+                {activeTab === 'CAMERA' ? 'Camera Workload' : activeTab === 'VEHICLE' ? 'Driver Workload' : activeTab === 'PROP_CASUALTY' ? '' : 'Technician Workload'}
               </h3>
             </div>
           <div className="overflow-auto flex-1 divide-y divide-dark-border">
-            {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => (
+            {activeTab !== 'PROP_CASUALTY' && [...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => (
               <div key={tech.id} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
                 <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-slate-950 border border-dark-border uppercase">
                   {tech.displayName.split(' ').map((n: string) => n[0]).join('')}
@@ -1373,29 +1373,6 @@ export function AdminDashboard() {
                 </div>
               </div>
             ))}
-          </div>
-          <div className="p-6 bg-dark-main/20 space-y-3">
-             <button 
-               onClick={() => {
-                 setIsOnboarding(true);
-                 setIsPersonnelModalOpen(true);
-                 setEditName('');
-                 setEditPhone('');
-                 setEditRole('TECHNICIAN');
-                 setEditingTech(null);
-               }}
-               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-lg text-[0.8rem] font-bold transition-all shadow-lg shadow-emerald-900/30 active:scale-95 group flex items-center justify-center gap-2"
-             >
-                <UserPlus className="w-4 h-4" />
-                Onboard New Agent
-             </button>
-             <button 
-               onClick={() => setIsPersonnelModalOpen(true)}
-               className="w-full bg-dark-accent hover:bg-indigo-600 text-white py-3.5 rounded-lg text-[0.8rem] font-bold transition-all shadow-lg shadow-indigo-900/30 active:scale-95 group flex items-center justify-center gap-2"
-             >
-                <Settings className="w-4 h-4" />
-                Fleet Configuration
-             </button>
           </div>
         </div>
       )}
