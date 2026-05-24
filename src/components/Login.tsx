@@ -9,7 +9,7 @@ export function Login() {
   const { language, setLanguage, t } = useLanguage();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden font-mono text-white">
+    <div className="min-h-screen flex items-center justify-center bg-emerald-950 relative overflow-hidden font-mono text-white">
       {/* Dynamic Floating Language Switcher */}
       <div className="absolute top-6 right-6 z-50 flex items-center gap-2 bg-slate-900/80 border border-dark-border rounded-full px-3 py-1.5 text-xs text-dark-text-subtle">
         <Globe className="w-3.5 h-3.5 text-dark-accent" />
