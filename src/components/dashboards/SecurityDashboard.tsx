@@ -11,7 +11,8 @@ import {
   AlertCircle,
   PackageCheck,
   Trash2,
-  BarChart3
+  BarChart3,
+  Users
 } from 'lucide-react';
 import { 
   collection, 
@@ -38,6 +39,7 @@ export function SecurityDashboard() {
   const { profile } = useAuth();
   const { t } = useLanguage();
   const [requests, setRequests] = useState<any[]>([]);
+  const [guestRequests, setGuestRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
@@ -70,8 +72,21 @@ export function SecurityDashboard() {
       handleFirestoreError(error, OperationType.LIST, 'item_requests');
     });
 
+    const qGuests = query(
+      collection(db, 'guest_requests'),
+      where('status', 'in', ['APPROVED', 'COMPLETED'])
+    );
+
+    const unsubscribeGuests = onSnapshot(qGuests, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, collectionName: 'guest_requests', ...doc.data() }));
+      setGuestRequests(docs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'guest_requests');
+    });
+
     return () => {
       unsubscribeItems();
+      unsubscribeGuests();
     };
   }, []);
 
@@ -133,8 +148,23 @@ export function SecurityDashboard() {
     req.departmentName?.toLowerCase().includes(searchQuery.toLowerCase())
   ).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
 
+  const handleVerifyGuest = async (requestId: string) => {
+    try {
+      await updateDoc(doc(db, 'guest_requests', requestId), {                
+        status: 'COMPLETED',
+        updatedAt: serverTimestamp()
+      });
+      toast.success('Guest entrance verified');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'guest_requests');
+    }
+  };
+
   const pendingExits = filteredRequests.filter(r => r.status === 'APPROVED');
   const loggedExits = filteredRequests.filter(r => r.status === 'EXITED' || r.status === 'RETURNED');
+  
+  const pendingGuests = guestRequests.filter(r => r.status === 'APPROVED');
+  const loggedGuests = guestRequests.filter(r => r.status === 'COMPLETED');
 
 
 
@@ -175,7 +205,7 @@ export function SecurityDashboard() {
             <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
                 <LogOut className="w-4 h-4 text-pink-400" />
-                Pending Exit Authorizations
+                Property and Casualty Service: Exits
               </h3>
               <span className="bg-pink-500/10 text-pink-700 text-[10px] font-black px-2 py-0.5 rounded border border-pink-500/20 uppercase tracking-widest">
                 {pendingExits.length} Active
@@ -185,7 +215,7 @@ export function SecurityDashboard() {
               {loading ? (
                 <div className="p-12 text-center text-dark-text-subtle italic">Synchronizing registry...</div>
               ) : pendingExits.length === 0 ? (
-                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No pending exit authorizations in queue</div>
+                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No Property and Casualty Service exits in queue</div>
               ) : (
                 pendingExits.map((req) => (
                   <div key={req.id} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
@@ -216,6 +246,100 @@ export function SecurityDashboard() {
                   </div>
                 ))
               )}
+            </div>
+          </section>
+
+            <section className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden">
+            <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
+              <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
+                <Users className="w-4 h-4 text-pink-400" />
+                Property and Casualty Service: Guests
+              </h3>
+              <span className="bg-pink-500/10 text-pink-700 text-[10px] font-black px-2 py-0.5 rounded border border-pink-500/20 uppercase tracking-widest">
+                {pendingGuests.length} Active
+              </span>
+            </div>
+            <div className="divide-y divide-dark-border max-h-[400px] overflow-auto scrollbar-hide">
+              {pendingGuests.length === 0 ? (
+                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No Property and Casualty Service guest entries</div>
+              ) : (
+                pendingGuests.map((req) => (
+                  <div key={req.id} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
+                    <div className="flex items-center gap-5">
+                      <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-pink-600 group-hover:scale-110 transition-transform">
+                        <Users className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <h4 className="text-sm font-bold text-slate-900">{req.visitorNames}</h4>
+                          <span className="text-[10px] font-mono text-dark-accent bg-dark-main px-1.5 py-0.5 rounded border border-dark-border">
+                            #{req.id.slice(-6).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-[11px] text-dark-text-subtle">
+                          <span className="text-pink-700">Purpose: {req.purpose}</span>
+                          <span className="text-dark-accent/40">•</span>
+                          <span className="uppercase tracking-tight">{req.departmentName}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleVerifyGuest(req.id)}
+                      className="px-6 py-2.5 bg-dark-main hover:bg-emerald-600 text-dark-text-subtle hover:text-white border border-dark-border hover:border-emerald-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                    >
+                      Verify
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden">
+            <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
+              <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Guest Entrance Log (Recent)
+              </h3>
+            </div>
+            <div className="divide-y divide-dark-border max-h-[300px] overflow-auto scrollbar-hide">
+               {loggedGuests.length === 0 ? (
+                 <div className="p-10 text-center text-dark-text-subtle text-xs italic">Operational guest registry clear</div>
+               ) : (
+                  loggedGuests.map((req) => (
+                    <div key={req.id} className="p-5 flex items-center justify-between bg-dark-main/20">
+                       <div className="flex items-center gap-4">
+                         <div className="w-8 h-8 rounded-lg flex items-center justify-center border bg-emerald-500/10 border-emerald-500/20 text-emerald-700">
+                           <CheckCircle2 className="w-4 h-4" />
+                         </div>
+                         <div>
+                           <p className="text-xs font-bold text-slate-900">{req.visitorNames}</p>
+                           <p className="text-[10px] text-dark-text-subtle font-mono">Purpose: {req.purpose}</p>
+                         </div>
+                       </div>
+                       <div className="text-right flex items-center gap-4">
+                         <div className="text-right">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Completed</p>
+                           <p className="text-[9px] font-mono text-dark-accent mt-0.5">
+                             {req.updatedAt ? format(req.updatedAt.toDate(), 'MMM dd, HH:mm') : 'N/A'}
+                           </p>
+                         </div>
+                         <button 
+                             onClick={(e) => handleDeleteRecord(e, req)}
+                             className={cn(
+                               "p-2 rounded-lg transition-all border",
+                               deleteConfirmId === req.id
+                                 ? "bg-rose-500 border-rose-600 text-white animate-pulse opacity-100"
+                                 : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                             )}
+                             title="Purge Guest Log"
+                           >
+                             <Trash2 className="w-3.5 h-3.5" />
+                           </button>
+                       </div>
+                    </div>
+                  ))
+               )}
             </div>
           </section>
 
@@ -283,7 +407,7 @@ export function SecurityDashboard() {
                          </div>
                        </div>
                        <div className="flex items-center gap-6">
-                         <div className="text-right">
+                         <div className="text-right flex items-center gap-4">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">
                              {req.status === 'RETURNED' ? 'Returned' : 'In Field'}
                            </p>
@@ -295,7 +419,7 @@ export function SecurityDashboard() {
                            <button 
                              onClick={(e) => handleDeleteRecord(e, req)}
                              className={cn(
-                               "p-2 rounded-lg transition-all border opacity-0 group-hover:opacity-100",
+                               "p-2 rounded-lg transition-all border",
                                deleteConfirmId === req.id
                                  ? "bg-rose-500 border-rose-600 text-white animate-pulse opacity-100"
                                  : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"

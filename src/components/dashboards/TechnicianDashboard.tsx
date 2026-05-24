@@ -59,6 +59,7 @@ export function TechnicianDashboard() {
   const { profile } = useAuth();
   const { t } = useLanguage();
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [allRegistryTasks, setAllRegistryTasks] = useState<any[]>([]);
   const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission>(notificationService.getPermissionStatus());
@@ -207,7 +208,7 @@ export function TechnicianDashboard() {
     if (!profile) return;
 
     const path = portalConfig.collection;
-    const q = query(collection(db, path), where(portalConfig.idField, '==', profile.uid));
+    const q = query(collection(db, path)); // Query ALL tasks in the collection for proper "Global Work Registry" representation
 
     let isFirstLoad = true;
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -219,7 +220,7 @@ export function TechnicianDashboard() {
         }))
         .filter((doc: any) => !doc.technicianArchived);
       
-      console.log(`[TechnicianDashboard] Subscription update for ${path}: fetched ${docs.length} docs for tech ${profile?.uid}`);
+      console.log(`[TechnicianDashboard] Subscription update for ${path}: fetched ${docs.length} global docs`);
       
       docs.sort((a: any, b: any) => {
         const timeA = a.updatedAt?.seconds || 0;
@@ -231,13 +232,19 @@ export function TechnicianDashboard() {
         snapshot.docChanges().forEach(change => {
           if (change.type === 'added') {
             const data = change.doc.data() as any;
-            const displayName = path === 'camera_requests' ? (data.eventTitle || data.purpose) : 
-                              path === 'vehicle_requests' ? (data.tripName || data.destination) : 
-                              (data.workName || data.description);
-            if (data.status === 'ASSIGNED') {
-              console.log(`[TechnicianDashboard] New assigned task detected: ${data.status}`);
+            const isAssignedToMe = data[portalConfig.idField] === profile.uid ||
+                                   data.assignedTechnicianIds?.includes(profile.uid) ||
+                                   data.assignedDriverIds?.includes(profile.uid) ||
+                                   data.assignedTechnicians?.some((t: any) => t.id === profile.uid) ||
+                                   data.assignedDrivers?.some((d: any) => d.id === profile.uid);
+                                   
+            if (data.status === 'ASSIGNED' && isAssignedToMe) {
+              const displayName = path === 'camera_requests' ? (data.eventTitle || data.purpose) : 
+                                  path === 'vehicle_requests' ? (data.tripName || data.destination) : 
+                                  (data.workName || data.description);
+              console.log(`[TechnicianDashboard] New assigned task detected for me: ${data.status}`);
               notificationService.notify(`NEW ASSIGNMENT: ${displayName}`, {
-                body: "Check your portal for details",
+                body: "A new assignment is ready in your queue.",
                 icon: '/pwa-512x512.png'
               });
             }
@@ -245,7 +252,23 @@ export function TechnicianDashboard() {
         });
       }
 
-      setAssignments(docs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
+      // 1. Core personal assignments list (tasks explicitly assigned to the logged-in user)
+      const personalAssignments = docs.filter((doc: any) => {
+        const isMain = doc[portalConfig.idField] === profile.uid;
+        const isSecondaryArray = (doc.assignedTechnicianIds && Array.isArray(doc.assignedTechnicianIds) && doc.assignedTechnicianIds.includes(profile.uid)) ||
+                                 (doc.assignedDriverIds && Array.isArray(doc.assignedDriverIds) && doc.assignedDriverIds.includes(profile.uid));
+        const isObjectList = (doc.assignedTechnicians && Array.isArray(doc.assignedTechnicians) && doc.assignedTechnicians.some((t: any) => t.id === profile.uid)) ||
+                             (doc.assignedDrivers && Array.isArray(doc.assignedDrivers) && doc.assignedDrivers.some((d: any) => d.id === profile.uid));
+        return isMain || isSecondaryArray || isObjectList;
+      });
+
+      // 2. Global Registry (any tasks that have been APPROVED, DISPATCHED, or are currently in-progress/complete)
+      const globalRegistry = docs.filter((doc: any) => 
+        ['APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED', 'REOPENED'].includes(doc.status)
+      );
+
+      setAssignments(personalAssignments.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
+      setAllRegistryTasks(globalRegistry.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
       setLoading(false);
       isFirstLoad = false;
     }, (error) => {
@@ -330,7 +353,8 @@ export function TechnicianDashboard() {
       
       if (status === 'COMPLETED') {
         update.completedAt = serverTimestamp();
-        update.technicianArchived = true; // Auto-archive from technician log
+        // Do not auto-archive completed tasks from active log, so users can view and delete them manually
+        // update.technicianArchived = true; 
         // Use appropriate field based on request type
         if (colName === 'vehicle_requests') {
           update.driverNotes = notes;
@@ -500,25 +524,22 @@ export function TechnicianDashboard() {
   const handleDeleteWork = async (e: React.MouseEvent, work: any) => {
     e.stopPropagation();
     
+    const colName = work.collectionName || (
+      profile?.role === 'CAMERAMAN' ? 'camera_requests' :
+      profile?.role === 'DRIVER' ? 'vehicle_requests' : 'service_requests'
+    );
+
     if (deleteConfirmId === work.id) {
       try {
-        const colName = work.collectionName || (
-          profile?.role === 'CAMERAMAN' ? 'camera_requests' :
-          profile?.role === 'DRIVER' ? 'vehicle_requests' : 'service_requests'
-        );
         await deleteDoc(doc(db, colName, work.id));
         toast.success('Record purged permanently');
         setDeleteConfirmId(null);
         if (selectedWork?.id === work.id) setSelectedWork(null);
       } catch (error) {
         toast.error('Purge failure');
-        console.error(error);
+        handleFirestoreError(error, OperationType.DELETE, `${colName}/${work.id}`);
       }
     } else {
-      if (!['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status)) {
-        toast.error('Only completed vectors can be purged');
-        return;
-      }
       setDeleteConfirmId(work.id);
       setTimeout(() => setDeleteConfirmId(null), 3000);
       toast('Click again to confirm PERMANENT purge', { icon: '⚠️' });
@@ -568,7 +589,7 @@ export function TechnicianDashboard() {
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-dark-main rounded-full border border-dark-border">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[9px] font-mono text-dark-text-muted uppercase">{assignments.length} Total Records</span>
+              <span className="text-[9px] font-mono text-dark-text-muted uppercase">{allRegistryTasks.length} Total Records</span>
             </div>
           </div>
         </div>
@@ -586,7 +607,7 @@ export function TechnicianDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border/40">
-              {assignments.map((work) => (
+              {allRegistryTasks.map((work) => (
                 <tr 
                   key={work.id} 
                   onClick={() => setSelectedWork(work)}
@@ -647,27 +668,25 @@ export function TechnicianDashboard() {
                   </td>
                   <td className="px-6 py-5 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                      {['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status) && (
-                        <button 
-                          onClick={(e) => handleDeleteWork(e, work)}
-                          className={cn(
-                            "p-2 rounded-lg transition-all border",
-                            deleteConfirmId === work.id
-                              ? "bg-rose-500 border-rose-600 text-white animate-pulse shadow-lg shadow-rose-900/40"
-                              : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
-                          )}
-                          title={deleteConfirmId === work.id ? "Confirm Purge" : "Delete Record"}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button 
+                        onClick={(e) => handleDeleteWork(e, work)}
+                        className={cn(
+                          "p-2 rounded-lg transition-all border",
+                          deleteConfirmId === work.id
+                            ? "bg-rose-500 border-rose-600 text-white animate-pulse shadow-lg shadow-rose-900/40"
+                            : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                        )}
+                        title={deleteConfirmId === work.id ? "Confirm Purge" : "Delete Record"}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {assignments.length === 0 && (
+              {allRegistryTasks.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-dark-text-subtle font-serif italic text-sm">
+                  <td colSpan={7} className="px-6 py-12 text-center text-dark-text-subtle font-serif italic text-sm">
                     No active work vectors detected in current sector.
                   </td>
                 </tr>
@@ -677,131 +696,9 @@ export function TechnicianDashboard() {
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-        {/* Assignment Queue Sidebar / List */}
-        <div className="md:col-span-4 lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-between px-2 mb-4">
-              <h3 className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest flex items-center gap-2">
-                <ClipboardList className="w-3 h-3" />
-                {portalConfig.collection === 'service_requests' ? 'Service Log' : 'Operational Assignments'}
-              </h3>
-            <div className="flex items-center gap-2">
-              {assignments.some(a => ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(a.status)) && (
-                <div className="flex items-center gap-1">
-                   {isSelectMode ? (
-                     <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
-                        <button 
-                          onClick={handleClearSelected}
-                          disabled={selectedIds.size === 0}
-                          className="text-[9px] font-black text-red-400 hover:text-red-300 uppercase tracking-widest px-2 py-1 flex items-center gap-1 transition-colors disabled:opacity-30"
-                        >
-                          Clear ({selectedIds.size})
-                        </button>
-                        <button 
-                          onClick={() => { setIsSelectMode(false); setSelectedIds(new Set()); }}
-                          className="text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest px-2 py-1"
-                        >
-                          Cancel
-                        </button>
-                     </div>
-                   ) : (
-                     <button 
-                        onClick={() => setIsSelectMode(true)}
-                        className="text-[9px] font-black text-dark-accent hover:text-indigo-300 uppercase tracking-widest px-2 py-1 flex items-center gap-1 transition-colors"
-                      >
-                        Select
-                      </button>
-                   )}
-                   {!isSelectMode && (
-                     <button 
-                        onClick={handleClearFinished}
-                        className="text-[9px] font-black text-red-500/80 hover:text-red-400 uppercase tracking-widest px-1 py-1 flex items-center gap-1 transition-colors"
-                        title="Clear all finished"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                   )}
-                </div>
-              )}
-              <span className="bg-dark-accent/20 text-dark-accent text-[9px] font-black px-2 py-0.5 rounded-full border border-dark-accent/20">
-                {assignments.length} ACTIVE
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-300px)] scrollbar-hide pr-1">
-            {loading ? (
-              <div className="py-8 text-center text-[10px] uppercase font-black tracking-widest text-dark-text-subtle animate-pulse">Scanning Frequency...</div>
-            ) : assignments.length === 0 ? (
-              <div className="py-12 px-6 text-center bg-dark-card/50 rounded-xl border border-dark-border border-dashed">
-                <p className="text-dark-text-subtle text-[10px] font-black uppercase tracking-widest">No Active Vectors Found</p>
-              </div>
-            ) : (
-              assignments.map((work) => (
-                <motion.div
-                  layout
-                  key={work.id}
-                  onClick={() => isSelectMode ? null : setSelectedWork(work)}
-                  className={cn(
-                    "p-4 rounded-xl border transition-all cursor-pointer group relative",
-                    selectedWork?.id === work.id 
-                      ? "bg-dark-sidebar border-dark-accent ring-1 ring-dark-accent/10" 
-                      : "bg-dark-card border-dark-border hover:border-dark-text-muted/30",
-                    isSelectMode && selectedIds.has(work.id) && "border-dark-accent ring-1 ring-dark-accent/10 bg-dark-sidebar/40"
-                  )}
-                >
-                  {isSelectMode && ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status) && (
-                    <div 
-                      onClick={(e) => toggleSelect(work.id, e)}
-                      className={cn(
-                        "absolute top-4 left-4 w-4 h-4 rounded border flex items-center justify-center transition-all z-20",
-                        selectedIds.has(work.id) ? "bg-dark-accent border-dark-accent" : "bg-dark-main border-dark-border"
-                      )}
-                    >
-                      {selectedIds.has(work.id) && <Check className="w-2.5 h-2.5 text-white" />}
-                    </div>
-                  )}
-                  <div className={cn("transition-all", isSelectMode && ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status) ? "pl-8" : "")}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5 overflow-hidden">
-                        {work.collectionName === 'camera_requests' ? <Camera className="w-2.5 h-2.5 text-purple-400" /> : 
-                         work.collectionName === 'vehicle_requests' ? <Truck className="w-2.5 h-2.5 text-blue-400" /> : 
-                         <Wrench className="w-2.5 h-2.5 text-emerald-400" />}
-                        <span className={cn("text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded", getStatusStyle(work.status))}>
-                          {work.status === 'COMPLETED' ? 'FINISHED' : work.status}
-                        </span>
-                        {!isSelectMode && ['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(work.status) && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleClearWork(work);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded text-red-400"
-                          >
-                            <Archive className="w-2.5 h-2.5" />
-                          </button>
-                        )}
-                      </div>
-                      <span className="text-[9px] font-mono text-dark-text-subtle">#{work.id.slice(-4).toUpperCase()}</span>
-                    </div>
-                    <h4 className={cn("text-xs font-medium truncate mb-2", selectedWork?.id === work.id ? "text-slate-950" : "text-slate-800")}>
-                      {work.collectionName === 'camera_requests' ? (work.eventTitle || work.purpose) : 
-                       work.collectionName === 'vehicle_requests' ? (work.tripName || work.destination) : 
-                       (work.workName || work.description)}
-                    </h4>
-                    <div className="flex items-center gap-2 text-[9px] text-dark-text-subtle font-mono">
-                      <MapPin className="w-2.5 h-2.5 text-dark-accent" />
-                      {work.location || work.destination}
-                    </div>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </div>
-        </div>
-
+      <div className="w-full">
         {/* Task Detail View */}
-        <div className="md:col-span-8 lg:col-span-9">
+        <div className="w-full">
           <AnimatePresence mode="wait">
             {!selectedWork ? (
               <motion.div 
@@ -814,8 +711,8 @@ export function TechnicianDashboard() {
                 <div className="w-20 h-20 rounded-full bg-dark-main/50 border border-dark-border flex items-center justify-center mb-6">
                   <Truck className="w-8 h-8 text-dark-text-subtle/40" />
                 </div>
-                <h3 className="text-xl font-medium text-slate-400">Select Task from Assigned List</h3>
-                <p className="text-dark-text-subtle text-[10px] uppercase font-black tracking-widest mt-2">Initialize communication with the administrative portal</p>
+                <h3 className="text-xl font-medium text-slate-400">Select Task from Global Work Registry</h3>
+                <p className="text-dark-text-subtle text-[10px] uppercase font-black tracking-widest mt-2">Initialize communication with the Property and Casualty Service portal</p>
               </motion.div>
             ) : (
               <motion.div
@@ -1124,6 +1021,24 @@ export function TechnicianDashboard() {
                               </div>
                            </div>
                         )}
+
+                        <div className="mt-10 pt-8 border-t border-dark-border flex flex-col items-center gap-2">
+                           <button
+                             onClick={(e) => handleDeleteWork(e, selectedWork)}
+                             className={cn(
+                               "w-full max-w-xs flex items-center justify-center gap-3 font-bold py-3.5 px-6 rounded-xl transition-all shadow-xl border text-xs uppercase tracking-widest cursor-pointer",
+                               deleteConfirmId === selectedWork.id
+                                 ? "bg-rose-600 border-rose-700 text-white animate-pulse shadow-lg shadow-rose-900/40"
+                                 : "bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                             )}
+                           >
+                             <Trash2 className="w-4 h-4" />
+                             {deleteConfirmId === selectedWork.id ? "Click Again to Confirm Deletion" : "Delete Completed Task"}
+                           </button>
+                           <p className="text-[9px] text-[#f43f5e] font-sans font-bold uppercase tracking-widest mt-1">
+                             Remove this completed record permanently
+                           </p>
+                        </div>
                       </div>
                     )}
                   </div>

@@ -19,6 +19,17 @@ export function useFcmToken() {
           
           if (fcmToken && auth.currentUser) {
             setToken(fcmToken);
+            
+            // 1. Directly save to Firestore from client-side SDK where the user context has security rule clearance
+            try {
+              const { doc, updateDoc } = await import('firebase/firestore');
+              const { db } = await import('../lib/firebase');
+              await updateDoc(doc(db, "users", auth.currentUser.uid), { fcmToken });
+            } catch (dbErr) {
+              console.warn("Could not save FCM token directly via client Firestore (expected if first launch):", dbErr);
+            }
+
+            // 2. Register on server side (handled gracefully without throwing unhandled exceptions if ADMIN DB is restricted)
             await fetch('/api/register-fcm-token', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

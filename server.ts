@@ -62,11 +62,15 @@ async function startServer() {
     }
 
     try {
-      // 1. Update user phone number
-      const adminDb = getAdminDb();
-      await adminDb.collection("users").doc(personnelId).set({
-        phoneNumber: phoneNumber
-      }, { merge: true });
+      // 1. Update user phone number (with failure tolerance for backend Firestore Admin SDK)
+      try {
+        const adminDb = getAdminDb();
+        await adminDb.collection("users").doc(personnelId).set({
+          phoneNumber: phoneNumber
+        }, { merge: true });
+      } catch (dbErr: any) {
+        console.warn("[Backend SDK Warning] Dispatch update user phone number failed (expected if database is restricted):", dbErr.message);
+      }
 
       // 2. Send SMS
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -105,18 +109,29 @@ async function startServer() {
     try {
       await getAdminDb().collection("users").doc(userId).set({ fcmToken }, { merge: true });
       res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ error: "Failed to save token" });
+    } catch (e: any) {
+      console.warn("[Backend SDK Warning] Saving FCM token via adminDb failed:", e.message);
+      res.json({ success: true, warning: "Admin DB restricted, falling back to client-side database write" });
     }
   });
 
   app.post("/api/send-fcm-notification", async (req, res) => {
-    const { targetUserId, title, body, requestId } = req.body;
+    const { targetUserId, title, body, requestId, fcmToken: clientFcmToken } = req.body;
     if (!targetUserId || !title || !body) return res.status(400).json({ error: "Missing targetUserId, title, or body" });
     try {
-      const userDoc = await getAdminDb().collection("users").doc(targetUserId).get();
-      const fcmToken = userDoc.data()?.fcmToken;
-      if (!fcmToken) return res.status(404).json({ error: "No FCM token found for user" });
+      let fcmToken = clientFcmToken;
+      if (!fcmToken) {
+        try {
+          const userDoc = await getAdminDb().collection("users").doc(targetUserId).get();
+          fcmToken = userDoc.data()?.fcmToken;
+        } catch (dbErr: any) {
+          console.warn("[Backend SDK Warning] Could not fetch FCM token from adminDb (expected if database is restricted):", dbErr.message);
+        }
+      }
+
+      if (!fcmToken) {
+        return res.status(404).json({ error: "No FCM token found for user" });
+      }
 
       const admin = await import("firebase-admin"); // Dynamic import for messaging
       await admin.messaging().send({

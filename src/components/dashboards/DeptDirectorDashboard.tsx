@@ -19,7 +19,8 @@ import {
   Camera,
   Car,
   Users,
-  Pencil
+  Pencil,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   collection, 
@@ -48,12 +49,23 @@ export function DeptDirectorDashboard() {
   useFcmToken();
   const { profile } = useAuth();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
+  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'OTHER'>('SERVICE');
   const [requests, setRequests] = useState<any[]>([]);
   const [cameraRequests, setCameraRequests] = useState<any[]>([]);
   const [vehicleRequests, setVehicleRequests] = useState<any[]>([]);
   const [itemRequests, setItemRequests] = useState<any[]>([]);
   const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
+  const [guestRequests, setGuestRequests] = useState<any[]>([]);
+  const [clearanceType, setClearanceType] = useState<'ITEM' | 'LABOR' | 'GUEST'>('ITEM');
+
+  // Guest entrance specific
+  const [visitorNames, setVisitorNames] = useState('');
+  const [visitorCompany, setVisitorCompany] = useState('');
+  const [guestCount, setGuestCount] = useState(1);
+  const [visitDate, setVisitDate] = useState('');
+  const [visitTime, setVisitTime] = useState('');
+  const [hostName, setHostName] = useState('');
+  const [guestPurpose, setGuestPurpose] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -178,7 +190,6 @@ export function DeptDirectorDashboard() {
           .map(doc => ({ id: doc.id, collectionName: irPath, ...doc.data() }))
           .filter((req: any) => !req.archived)
       );
-      if (activeTab === 'ITEM') setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, irPath);
     });
@@ -196,9 +207,26 @@ export function DeptDirectorDashboard() {
           .map(doc => ({ id: doc.id, collectionName: drPath, ...doc.data() }))
           .filter((req: any) => !req.archived)
       );
-      if (activeTab === 'OTHER') setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, drPath);
+    });
+
+    // Guest Requests
+    const grPath = 'guest_requests';
+    const grQ = query(
+      collection(db, grPath),
+      where('departmentName', '==', profile.department || 'Unknown'),
+      orderBy('createdAt', 'desc')
+    );
+    const unsubscribeGR = onSnapshot(grQ, (snapshot) => {
+      setGuestRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, collectionName: grPath, ...doc.data() }))
+          .filter((req: any) => !req.archived)
+      );
+      if (activeTab === 'OTHER') setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, grPath);
     });
 
     const fleetPath = 'fleet';
@@ -215,6 +243,7 @@ export function DeptDirectorDashboard() {
       unsubscribeVR();
       unsubscribeIR();
       unsubscribeDR();
+      unsubscribeGR();
       unsubscribeFleet();
     };
   }, [profile, activeTab]);
@@ -225,13 +254,16 @@ export function DeptDirectorDashboard() {
         case 'SERVICE': return requests;
         case 'CAMERA': return cameraRequests;
         case 'VEHICLE': return vehicleRequests;
-        case 'ITEM': return itemRequests;
-        case 'OTHER': return deviceRequests;
+        case 'OTHER': return [...itemRequests, ...deviceRequests, ...guestRequests].sort((a: any, b: any) => {
+          const tA = a.createdAt?.seconds || 0;
+          const tB = b.createdAt?.seconds || 0;
+          return tB - tA;
+        });
         default: return [];
       }
     };
     return getRawList().filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
-  }, [activeTab, requests, cameraRequests, vehicleRequests, itemRequests, deviceRequests]);
+  }, [activeTab, requests, cameraRequests, vehicleRequests, itemRequests, deviceRequests, guestRequests]);
 
   const groupedByDept = useMemo(() => {
     const groups: Record<string, any[]> = {};
@@ -268,7 +300,7 @@ export function DeptDirectorDashboard() {
         const colName = activeTab === 'SERVICE' ? 'service_requests' : 
                         activeTab === 'CAMERA' ? 'camera_requests' : 
                         activeTab === 'VEHICLE' ? 'vehicle_requests' : 
-                        activeTab === 'ITEM' ? 'item_requests' : 'device_requests';
+                        (clearanceType === 'ITEM' ? 'item_requests' : clearanceType === 'LABOR' ? 'device_requests' : 'guest_requests');
         
         let updateData: any = {
           updatedAt: serverTimestamp(),
@@ -280,19 +312,32 @@ export function DeptDirectorDashboard() {
           updateData = { ...updateData, eventTitle, location, date: eventDate, startTime, endTime, purpose: cameraPurpose };
         } else if (activeTab === 'VEHICLE') {
           updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengers, departureDate: depDate, departureTime: depTime, returnTime: retTime };
-        } else if (activeTab === 'ITEM') {
-          updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate, quantity: itemQuantity, responsiblePerson };
         } else if (activeTab === 'OTHER') {
-          updateData = { 
-            ...updateData, 
-            projectName: workName, 
-            deviceModel, 
-            quantity: requestQty, 
-            purpose: description, 
-            startTime: startTime, 
-            endTime: endTime, 
-            date: eventDate 
-          };
+          if (clearanceType === 'ITEM') {
+            updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate, quantity: itemQuantity, responsiblePerson };
+          } else if (clearanceType === 'LABOR') {
+            updateData = { 
+              ...updateData, 
+              projectName: workName, 
+              deviceModel, 
+              quantity: requestQty, 
+              purpose: description, 
+              startTime: startTime, 
+              endTime: endTime, 
+              date: eventDate 
+            };
+          } else if (clearanceType === 'GUEST') {
+            updateData = {
+              ...updateData,
+              visitorNames,
+              visitorCompany,
+              guestCount,
+              visitDate,
+              visitTime,
+              hostName,
+              purpose: guestPurpose,
+            };
+          }
         }
 
         await updateDoc(doc(db, colName, editingId), updateData);
@@ -353,43 +398,64 @@ export function DeptDirectorDashboard() {
             updatedAt: serverTimestamp(),
             };
             docRef = await addDoc(collection(db, path), newRequest);
-        } else if (activeTab === 'ITEM') {
-            const path = 'item_requests';
-            const newRequest = {
-            requestId: itemName || `EX-${Date.now()}`,
-            directorId: profile.uid,
-            directorName: profile.displayName,
-            departmentName: profile.department || 'Unknown Dept',
-            itemName,
-            serialNumber,
-            purpose: exitReason,
-            expectedReturnDate,
-            quantity: itemQuantity,
-            responsiblePerson,
-            status: 'NEW',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            };
-            docRef = await addDoc(collection(db, path), newRequest);
         } else if (activeTab === 'OTHER') {
-            const path = 'device_requests';
-            const newRequest = {
-            requestId: workName || `LAB-${Date.now()}`,
-            directorId: profile.uid,
-            directorName: profile.displayName,
-            departmentName: profile.department || 'Unknown Dept',
-            projectName: workName,
-            deviceModel: deviceModel || 'General Laborer',
-            quantity: requestQty,
-            startTime: startTime,
-            endTime: endTime,
-            date: eventDate,
-            purpose: description,
-            status: 'NEW',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            };
-            docRef = await addDoc(collection(db, path), newRequest);
+            if (clearanceType === 'ITEM') {
+              const path = 'item_requests';
+              const newRequest = {
+                requestId: itemName || `EX-${Date.now()}`,
+                directorId: profile.uid,
+                directorName: profile.displayName,
+                departmentName: profile.department || 'Unknown Dept',
+                itemName,
+                serialNumber,
+                purpose: exitReason,
+                expectedReturnDate,
+                quantity: itemQuantity,
+                responsiblePerson,
+                status: 'NEW',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              };
+              docRef = await addDoc(collection(db, path), newRequest);
+            } else if (clearanceType === 'LABOR') {
+              const path = 'device_requests';
+              const newRequest = {
+                requestId: workName || `LAB-${Date.now()}`,
+                directorId: profile.uid,
+                directorName: profile.displayName,
+                departmentName: profile.department || 'Unknown Dept',
+                projectName: workName,
+                deviceModel: deviceModel || 'General Laborer',
+                quantity: requestQty,
+                startTime: startTime,
+                endTime: endTime,
+                date: eventDate,
+                purpose: description,
+                status: 'NEW',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              };
+              docRef = await addDoc(collection(db, path), newRequest);
+            } else if (clearanceType === 'GUEST') {
+              const path = 'guest_requests';
+              const newRequest = {
+                requestId: visitorNames || `GST-${Date.now()}`,
+                directorId: profile.uid,
+                directorName: profile.displayName,
+                departmentName: profile.department || 'Unknown Dept',
+                visitorNames,
+                visitorCompany,
+                guestCount,
+                visitDate,
+                visitTime,
+                hostName: hostName || profile.displayName,
+                purpose: guestPurpose,
+                status: 'NEW',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              };
+              docRef = await addDoc(collection(db, path), newRequest);
+            }
         }
       } // End of creation block
 
@@ -410,8 +476,11 @@ export function DeptDirectorDashboard() {
         if (activeTab === 'CAMERA') targetRole = 'CAMERAMAN';
         else if (activeTab === 'VEHICLE') targetRole = 'DRIVER';
         else if (activeTab === 'SERVICE') targetRole = 'TECHNICIAN';
-        else if (activeTab === 'ITEM') targetRole = 'SECURITY';
-        else if (activeTab === 'OTHER') targetRole = 'TECHNICIAN'; // Generic device requests go to Tech Team
+        else if (activeTab === 'OTHER') {
+          if (clearanceType === 'ITEM') targetRole = 'SECURITY';
+          else if (clearanceType === 'GUEST') targetRole = 'SECURITY';
+          else targetRole = 'TECHNICIAN';
+        }
 
         const staffSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
         const staffDocs = staffSnapshot.docs;
@@ -422,16 +491,41 @@ export function DeptDirectorDashboard() {
           ...staffDocs.map(d => d.id)
         ]));
 
-        const isApprovedItem = activeTab === 'ITEM';
-        const requestTypeLabel = activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : activeTab === 'ITEM' ? 'Exit Permit' : activeTab === 'OTHER' ? 'Laborer Request' : 'Service';
-        const displayName = activeTab === 'SERVICE' ? workName : activeTab === 'CAMERA' ? eventTitle : activeTab === 'ITEM' ? itemName : activeTab === 'OTHER' ? workName : workName;
+        const isApprovedItem = activeTab === 'OTHER' && (clearanceType === 'ITEM' || clearanceType === 'GUEST');
+        
+        let requestTypeLabel = '';
+        let displayName = '';
+        
+        if (activeTab === 'CAMERA') {
+          requestTypeLabel = 'Camera';
+          displayName = eventTitle;
+        } else if (activeTab === 'VEHICLE') {
+          requestTypeLabel = 'Vehicle';
+          displayName = workName;
+        } else if (activeTab === 'SERVICE') {
+          requestTypeLabel = 'Service';
+          displayName = workName;
+        } else if (activeTab === 'OTHER') {
+          if (clearanceType === 'ITEM') {
+            requestTypeLabel = 'Exit Permit';
+            displayName = itemName;
+          } else if (clearanceType === 'LABOR') {
+            requestTypeLabel = 'Service Request';
+            displayName = workName;
+          } else if (clearanceType === 'GUEST') {
+            requestTypeLabel = 'Guest Entrance';
+            displayName = visitorNames;
+          }
+        }
         
         const notificationTitle = isApprovedItem
           ? `[APPROVED] [${profile.department}] ${requestTypeLabel}: ${displayName}`
           : `[${profile.department}] ${requestTypeLabel}: ${displayName}`;
           
         const notificationMessage = isApprovedItem
-          ? `APPROVED EXIT: ${profile.displayName} approved Exit Permit for item "${displayName}". Security clearance authorized.`
+          ? (clearanceType === 'GUEST' 
+              ? `APPROVED GUEST: ${profile.displayName} approved Guest Entrance for "${displayName}". Security gate clearance authorized.`
+              : `APPROVED EXIT: ${profile.displayName} approved Exit Permit for item "${displayName}". Security clearance authorized.`)
           : `ALERT: ${profile.displayName} submitted a new ${requestTypeLabel.toLowerCase()} request: "${displayName}" for ${location || destination || 'unspecified site'}.`;
         
         const notificationPromises = audienceIds.map(userId => {
@@ -459,6 +553,7 @@ export function DeptDirectorDashboard() {
 
 
   const handleApprove = async (requestId: string, collectionName: string) => {
+    if (collectionName === 'guest_requests') return;
     try {
       await updateDoc(doc(db, collectionName, requestId), {
         status: 'APPROVED',
@@ -527,7 +622,10 @@ export function DeptDirectorDashboard() {
       return;
     }
 
-    const currentTabRequests = activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests;
+    const currentTabRequests = activeTab === 'SERVICE' ? requests : 
+                               activeTab === 'CAMERA' ? cameraRequests : 
+                               activeTab === 'VEHICLE' ? vehicleRequests : 
+                               [...itemRequests, ...deviceRequests, ...guestRequests];
     
     try {
       const promises = Array.from(selectedIds).map(async (id) => {
@@ -589,6 +687,14 @@ export function DeptDirectorDashboard() {
     setDeviceModel('');
     setRequestQty(1);
     setNeedDate('');
+    // Guest states
+    setVisitorNames('');
+    setVisitorCompany('');
+    setGuestCount(1);
+    setVisitDate('');
+    setVisitTime('');
+    setHostName('');
+    setGuestPurpose('');
   };
 
   const handleEdit = (e: React.MouseEvent, request: any) => {
@@ -597,6 +703,15 @@ export function DeptDirectorDashboard() {
     setEditingId(request.id);
     setIsModalOpen(true);
     
+    // Set appropriate clearanceType for editing under Gate/Admin
+    if (request.collectionName === 'item_requests') {
+      setClearanceType('ITEM');
+    } else if (request.collectionName === 'device_requests') {
+      setClearanceType('LABOR');
+    } else if (request.collectionName === 'guest_requests') {
+      setClearanceType('GUEST');
+    }
+
     // Populate form
     setWorkName(request.workName || request.tripName || request.projectName || '');
     setDescription(request.description || request.purpose || '');
@@ -674,7 +789,7 @@ export function DeptDirectorDashboard() {
           className="flex items-center justify-center gap-2 bg-dark-accent hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-lg transition-all shadow-lg shadow-indigo-900/40 active:scale-95 text-[0.85rem]"
         >
           <Plus className="w-4 h-4" />
-          {t("Create New")} {activeTab === 'SERVICE' ? t("Service Request") : activeTab === 'CAMERA' ? t("Camera Request") : t("Vehicle Request")}
+          {t("Create New")} {activeTab === 'SERVICE' ? t("Service Request") : activeTab === 'CAMERA' ? t("Camera Request") : activeTab === 'VEHICLE' ? t("Vehicle Request") : t("Admin Clearance")}
         </button>
       </div>
 
@@ -702,18 +817,11 @@ export function DeptDirectorDashboard() {
           count={vehicleRequests.length}
         />
         <TabButton 
-          active={activeTab === 'ITEM'} 
-          onClick={() => setActiveTab('ITEM')} 
-          icon={Tag} 
-          label={t("Exit Permit", "Item Exit Permit")} 
-          count={itemRequests.length}
-        />
-        <TabButton 
           active={activeTab === 'OTHER'} 
           onClick={() => setActiveTab('OTHER')} 
-          icon={Users} 
-          label={t("Laborer", "Laborer Request")} 
-          count={deviceRequests.length}
+          icon={ShieldCheck} 
+          label={t("Admin Clearances", "Property and Casualty Service")} 
+          count={itemRequests.length + deviceRequests.length + guestRequests.length}
         />
       </div>
 
@@ -722,7 +830,7 @@ export function DeptDirectorDashboard() {
         <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
           <div>
             <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : activeTab === 'ITEM' ? 'Exit Permit Log' : 'Laborer Request Log'}
+              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : 'Property and Casualty Service Clearances Log'}
             </h3>
             <p className="text-[10px] text-dark-text-subtle mt-1">Operational records categorized by department resource load</p>
           </div>
@@ -779,7 +887,7 @@ export function DeptDirectorDashboard() {
                 <tr>
                   <td colSpan={6} className="p-16 text-center">
                     <div className="w-16 h-16 bg-dark-main rounded-xl flex items-center justify-center mx-auto mb-4 border border-dark-border">
-                      {activeTab === 'SERVICE' ? <Clock className="w-8 h-8 text-dark-border" /> : activeTab === 'CAMERA' ? <Camera className="w-8 h-8 text-dark-border" /> : activeTab === 'VEHICLE' ? <Car className="w-8 h-8 text-dark-border" /> : activeTab === 'ITEM' ? <Tag className="w-8 h-8 text-dark-border" /> : <Plus className="w-8 h-8 text-dark-border" />}
+                      {activeTab === 'SERVICE' ? <Clock className="w-8 h-8 text-dark-border" /> : activeTab === 'CAMERA' ? <Camera className="w-8 h-8 text-dark-border" /> : activeTab === 'VEHICLE' ? <Car className="w-8 h-8 text-dark-border" /> : <ShieldCheck className="w-8 h-8 text-dark-border" />}
                     </div>
                     <p className="text-slate-400 font-medium">No records found</p>
                   </td>
@@ -800,8 +908,8 @@ export function DeptDirectorDashboard() {
                       <tr 
                         key={request.id} 
                         className={cn(
-                          "group transition-colors",
-                          isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
+                           "group transition-colors",
+                           isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
                         )}
                       >
                         {isSelectMode && (
@@ -823,19 +931,44 @@ export function DeptDirectorDashboard() {
                         </td>
                         <td className="py-4 px-6">
                           <p className="text-sm font-bold text-slate-900 line-clamp-1 flex items-center gap-2">
-                            <span>{activeTab === 'SERVICE' ? request.workName : activeTab === 'CAMERA' ? request.eventTitle : activeTab === 'ITEM' ? request.itemName : activeTab === 'OTHER' ? request.projectName : request.tripName}</span>
-                            {activeTab === 'ITEM' && (
-                              <span className="text-[10px] font-mono font-bold text-pink-500 bg-pink-500/10 px-1.5 py-0.5 rounded border border-pink-500/20">
-                                Qty: {request.quantity || 1}
+                            <span>
+                              {activeTab === 'SERVICE' ? request.workName :
+                               activeTab === 'CAMERA' ? request.eventTitle :
+                               activeTab === 'VEHICLE' ? request.tripName :
+                               (request.collectionName === 'item_requests' ? request.itemName :
+                                request.collectionName === 'guest_requests' ? `Guest Entrance: ${request.visitorNames}` :
+                                request.projectName)}
+                            </span>
+                            
+                            {activeTab === 'OTHER' && (
+                              <span className={cn(
+                                "text-[9px] font-mono font-black uppercase tracking-widest px-1.5 py-0.5 rounded border",
+                                request.collectionName === 'item_requests' 
+                                  ? "text-pink-500 bg-pink-500/10 border-pink-500/20" 
+                                  : request.collectionName === 'guest_requests'
+                                  ? "text-sky-500 bg-sky-500/10 border-sky-500/20"
+                                  : "text-violet-500 bg-violet-500/10 border-violet-500/20"
+                              )}>
+                                {request.collectionName === 'item_requests' ? 'Item Exit' : request.collectionName === 'guest_requests' ? 'Guest Entry' : 'Service Request'}
                               </span>
                             )}
                           </p>
                           <p className="text-[10px] text-dark-text-subtle line-clamp-1 italic font-serif">
-                            {activeTab === 'SERVICE' ? request.description : activeTab === 'CAMERA' ? request.purpose : activeTab === 'ITEM' ? request.purpose : activeTab === 'OTHER' ? `${request.deviceModel || 'General Laborer'} (${request.quantity || 1} Person[s]) | Start: ${request.startTime || 'N/A'} - End: ${request.endTime || 'N/A'}` : request.destination}
+                            {activeTab === 'SERVICE' ? request.description :
+                             activeTab === 'CAMERA' ? request.purpose :
+                             activeTab === 'VEHICLE' ? request.destination :
+                             (request.collectionName === 'item_requests' ? `S/N: ${request.serialNumber || 'N/A'} | Qty: ${request.quantity || 1} | Reason: ${request.purpose}` :
+                              request.collectionName === 'guest_requests' ? `Guests: ${request.guestCount || 1} | Company: ${request.visitorCompany || 'N/A'} | Purpose: ${request.purpose}` :
+                              `${request.deviceModel || 'General Service Request'} (${request.quantity || 1} Person[s])`)}
                           </p>
-                          {activeTab === 'ITEM' && request.responsiblePerson && (
+                          {activeTab === 'OTHER' && request.collectionName === 'item_requests' && request.responsiblePerson && (
                             <p className="text-[9px] font-black uppercase text-dark-text-muted mt-1 font-mono tracking-wider">
                               Responsible: <span className="text-dark-accent">{request.responsiblePerson}</span>
+                            </p>
+                          )}
+                          {activeTab === 'OTHER' && request.collectionName === 'guest_requests' && request.hostName && (
+                            <p className="text-[9px] font-black uppercase text-dark-text-muted mt-1 font-mono tracking-wider">
+                              Host: <span className="text-dark-accent">{request.hostName}</span>
                             </p>
                           )}
                         </td>
@@ -854,7 +987,7 @@ export function DeptDirectorDashboard() {
                         </td>
                         <td className="py-4 px-6 text-right">
                            <div className="flex items-center justify-end gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                              {request.status === 'NEW' && (
+                              {request.status === 'NEW' && request.collectionName !== 'guest_requests' && (
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1145,7 +1278,7 @@ export function DeptDirectorDashboard() {
             >
               <div className="p-8 border-b border-dark-border bg-dark-card/50">
                 <h2 className="text-2xl font-medium text-white tracking-tight">
-                  {isEditing ? 'Sync / Update Record' : (activeTab === 'SERVICE' ? 'Initialize Service Request' : activeTab === 'CAMERA' ? 'Request Camera Coverage' : activeTab === 'VEHICLE' ? 'Request Vehicle Assignment' : activeTab === 'ITEM' ? 'Request Item Exit Permit' : 'Request Laborers Assignment')}
+                  {isEditing ? 'Sync / Update Record' : (activeTab === 'SERVICE' ? 'Initialize Service Request' : activeTab === 'CAMERA' ? 'Request Camera Coverage' : activeTab === 'VEHICLE' ? 'Request Vehicle Assignment' : activeTab === 'ITEM' ? 'Request Item Exit Permit' : 'Request Service')}
                 </h2>
                 <p className="text-dark-text-subtle text-sm mt-1">
                   {isEditing ? 'Modify or update the parameters of this operational record' : (activeTab === 'SERVICE' ? 'Specify operational details for the technical team' : activeTab === 'CAMERA' ? 'Describe the event and coverage requirements' : activeTab === 'VEHICLE' ? 'Define destination and trip specifications' : activeTab === 'ITEM' ? 'Specify items leaving boundaries' : 'Define work requirements and headcount of laborers')}
@@ -1250,84 +1383,299 @@ export function DeptDirectorDashboard() {
 
                 {activeTab === 'OTHER' && (
                   <>
-                    <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Activity / Job Name")}</label>
-                      <input
-                        required
-                        type="text"
-                        placeholder={t("Define work or project name")}
-                        value={workName}
-                        onChange={(e) => setWorkName(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Special Skills / Laborer Type")}</label>
-                      <input
-                        required
-                        type="text"
-                        placeholder={t("e.g. Mason, Welder, Assistant, General Hand")}
-                        value={deviceModel}
-                        onChange={(e) => setDeviceModel(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Number of Laborers Needed")}</label>
-                        <input
-                          required
-                          type="number"
-                          min="1"
-                          value={requestQty}
-                          onChange={(e) => setRequestQty(parseInt(e.target.value) || 1)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Work Date & Year")}</label>
-                        <input
-                          required
-                          type="date"
-                          value={eventDate}
-                          onChange={(e) => setEventDate(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                        />
+                    <div className="mb-6">
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">Clearance Permit Type</label>
+                      <div className="grid grid-cols-3 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setClearanceType('ITEM')}
+                          className={cn(
+                            "py-3 px-4 rounded-lg font-bold text-xs border transition-all text-center",
+                            clearanceType === 'ITEM' 
+                              ? "bg-dark-accent text-white border-dark-accent shadow-lg shadow-indigo-950/40" 
+                              : "bg-dark-main text-dark-text-muted border-dark-border hover:text-white hover:bg-dark-card"
+                          )}
+                        >
+                          Item Exit Permit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setClearanceType('LABOR')}
+                          className={cn(
+                            "py-3 px-4 rounded-lg font-bold text-xs border transition-all text-center",
+                            clearanceType === 'LABOR' 
+                              ? "bg-dark-accent text-white border-dark-accent shadow-lg shadow-indigo-950/40" 
+                              : "bg-dark-main text-dark-text-muted border-dark-border hover:text-white hover:bg-dark-card"
+                          )}
+                        >
+                          Service Request
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setClearanceType('GUEST')}
+                          className={cn(
+                            "py-3 px-4 rounded-lg font-bold text-xs border transition-all text-center",
+                            clearanceType === 'GUEST' 
+                              ? "bg-dark-accent text-white border-dark-accent shadow-lg shadow-indigo-950/40" 
+                              : "bg-dark-main text-dark-text-muted border-dark-border hover:text-white hover:bg-dark-card"
+                          )}
+                        >
+                          Guest Entrance
+                        </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Work Start Time")}</label>
-                        <input
-                          required
-                          type="time"
-                          value={startTime}
-                          onChange={(e) => setStartTime(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Ending Time")}</label>
-                        <input
-                          required
-                          type="time"
-                          value={endTime}
-                          onChange={(e) => setEndTime(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Reason for Request")}</label>
-                      <textarea
-                        required
-                        rows={3}
-                        placeholder={t("Explain scope of work and reason for laborers request")}
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
-                      />
-                    </div>
+
+                    {clearanceType === 'ITEM' && (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Item Name / Model")}</label>
+                            <input
+                              required
+                              type="text"
+                              placeholder={t("e.g., Dell Laptop XPS 15")}
+                              value={itemName}
+                              onChange={(e) => setItemName(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Serial Number / Asset Tag")}</label>
+                            <input
+                              required
+                              type="text"
+                              placeholder={t("e.g., S/N 12345678")}
+                              value={serialNumber}
+                              onChange={(e) => setSerialNumber(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Quantity")}</label>
+                            <input
+                              required
+                              type="number"
+                              min="1"
+                              placeholder={t("e.g., 1")}
+                              value={itemQuantity}
+                              onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Responsible for Item")}</label>
+                            <input
+                              required
+                              type="text"
+                              placeholder={t("Name of person responsible")}
+                              value={responsiblePerson}
+                              onChange={(e) => setResponsiblePerson(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+                        <div className="mb-6 mt-6">
+                          <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Expected Return Date (Optional)")}</label>
+                          <input
+                            type="date"
+                            value={expectedReturnDate}
+                            onChange={(e) => setExpectedReturnDate(e.target.value)}
+                            className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                          />
+                          <p className="text-[10px] text-dark-text-subtle mt-1 italic font-serif">{t("Leave blank if the item is not expected to return")}</p>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Reason for Exit")}</label>
+                          <textarea
+                            required
+                            rows={3}
+                            placeholder={t("Explain why this item is leaving the premises...")}
+                            value={exitReason}
+                            onChange={(e) => setExitReason(e.target.value)}
+                            className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {clearanceType === 'LABOR' && (
+                      <>
+                        <div>
+                          <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Labor Project Name")}</label>
+                          <input
+                            required
+                            type="text"
+                            placeholder={t("e.g., Server Room Network Cabling")}
+                            value={workName}
+                            onChange={(e) => setWorkName(e.target.value)}
+                            className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Laborer Skills / Category")}</label>
+                            <input
+                              required
+                              type="text"
+                              placeholder={t("e.g., General Laborer, Electrician")}
+                              value={deviceModel}
+                              onChange={(e) => setDeviceModel(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Headcount Required")}</label>
+                            <input
+                              required
+                              type="number"
+                              min="1"
+                              placeholder={t("e.g., 2")}
+                              value={requestQty}
+                              onChange={(e) => setRequestQty(parseInt(e.target.value) || 1)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Event Date")}</label>
+                            <input
+                              required
+                              type="date"
+                              value={eventDate}
+                              onChange={(e) => setEventDate(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Start Time")}</label>
+                              <input
+                                required
+                                type="time"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("End Time")}</label>
+                              <input
+                                required
+                                type="time"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-6">
+                          <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Task Description")}</label>
+                          <textarea
+                            required
+                            rows={3}
+                            placeholder={t("Detailed description of work to be performed...")}
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {clearanceType === 'GUEST' && (
+                      <>
+                        <div>
+                          <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Visitor Names (comma separated)")}</label>
+                          <input
+                            required
+                            type="text"
+                            placeholder={t("e.g. John Doe, Jane Smith")}
+                            value={visitorNames}
+                            onChange={(e) => setVisitorNames(e.target.value)}
+                            className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Visitor Affiliation / Company")}</label>
+                            <input
+                              required
+                              type="text"
+                              placeholder={t("e.g. Acme Corp")}
+                              value={visitorCompany}
+                              onChange={(e) => setVisitorCompany(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Guest Count")}</label>
+                            <input
+                              required
+                              type="number"
+                              min="1"
+                              placeholder={t("e.g. 1")}
+                              value={guestCount}
+                              onChange={(e) => setGuestCount(parseInt(e.target.value) || 1)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Visit Date")}</label>
+                            <input
+                              required
+                              type="date"
+                              value={visitDate}
+                              onChange={(e) => setVisitDate(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Arrival Time")}</label>
+                            <input
+                              required
+                              type="time"
+                              value={visitTime}
+                              onChange={(e) => setVisitTime(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Host Name")}</label>
+                            <input
+                              required
+                              type="text"
+                              placeholder={t("e.g. Dr. Arthur")}
+                              value={hostName}
+                              onChange={(e) => setHostName(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Purpose of Visit")}</label>
+                            <input
+                              required
+                              type="text"
+                              placeholder={t("e.g. Audit / Research / Maintenance")}
+                              value={guestPurpose}
+                              onChange={(e) => setGuestPurpose(e.target.value)}
+                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -1487,81 +1835,7 @@ export function DeptDirectorDashboard() {
                   </>
                 )}
 
-                {activeTab === 'ITEM' && (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Item Name / Model")}</label>
-                        <input
-                          required
-                          type="text"
-                          placeholder={t("e.g., Dell Laptop XPS 15")}
-                          value={itemName}
-                          onChange={(e) => setItemName(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Serial Number / Asset Tag")}</label>
-                        <input
-                          required
-                          type="text"
-                          placeholder={t("e.g., S/N 12345678")}
-                          value={serialNumber}
-                          onChange={(e) => setSerialNumber(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                      <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Quantity")}</label>
-                        <input
-                          required
-                          type="number"
-                          min="1"
-                          placeholder={t("e.g., 1")}
-                          value={itemQuantity}
-                          onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Responsible for Item")}</label>
-                        <input
-                          required
-                          type="text"
-                          placeholder={t("Name of person responsible")}
-                          value={responsiblePerson}
-                          onChange={(e) => setResponsiblePerson(e.target.value)}
-                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                        />
-                      </div>
-                    </div>
-                    <div className="mb-6">
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Expected Return Date (Optional)")}</label>
-                      <input
-                        type="date"
-                        value={expectedReturnDate}
-                        onChange={(e) => setExpectedReturnDate(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                      />
-                      <p className="text-[10px] text-dark-text-subtle mt-1 italic font-serif">{t("Leave blank if the item is not expected to return")}</p>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Reason for Exit")}</label>
-                      <textarea
-                        required
-                        rows={3}
-                        placeholder={t("Explain why this item is leaving the premises...")}
-                        value={exitReason}
-                        onChange={(e) => setExitReason(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
-                      />
-                    </div>
-                  </>
-                )}
+
 
                 <div className="flex gap-4 pt-6">
                   <button

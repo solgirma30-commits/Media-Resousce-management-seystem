@@ -59,7 +59,8 @@ import { notificationService } from '../../services/notificationService';
 export function AdminDashboard() {
   const { profile, logout } = useAuth();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'ITEM' | 'OTHER'>('SERVICE');
+  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'PROP_CASUALTY'>('SERVICE');
+  const [clearanceType, setClearanceType] = useState<'ITEM' | 'LABOR' | 'GUEST'>('ITEM');
   const [globalAlertTitle, setGlobalAlertTitle] = useState('SYSTEM ADVISORY');
   const [globalAlertMessage, setGlobalAlertMessage] = useState('Operational vector established. All stations verify handshake.');
   const [requests, setRequests] = useState<any[]>([]);
@@ -67,6 +68,7 @@ export function AdminDashboard() {
   const [vehicleRequests, setVehicleRequests] = useState<any[]>([]);
   const [itemRequests, setItemRequests] = useState<any[]>([]);
   const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
+  const [guestRequests, setGuestRequests] = useState<any[]>([]);
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [cameramen, setCameramen] = useState<any[]>([]);
@@ -106,6 +108,7 @@ export function AdminDashboard() {
     CAMERA: { label: 'Surveillance Director', pin: '2020', icon: Camera },
     VEHICLE: { label: 'Logistics Director', pin: '3030', icon: Car },
     ITEM: { label: 'Security Director', pin: '4040', icon: Tag },
+    PROP_CASUALTY: { label: 'Property & Casualty Director', pin: '6060', icon: ClipboardList },
     OTHER: { label: 'Operations Director', pin: '5050', icon: ClipboardList },
     SYSTEM: { label: 'IT Systems Director', pin: '9090', icon: Settings }
   };
@@ -288,6 +291,41 @@ export function AdminDashboard() {
       handleFirestoreError(error, OperationType.LIST, devPath);
     });
 
+    let isFirstLoadGuest = true;
+    const guestPath = 'guest_requests';
+    const qGuest = query(collection(db, guestPath));
+    const unsubscribeGuest = onSnapshot(qGuest, (snapshot) => {
+      const docs = snapshot.docs
+          .map(doc => ({ id: doc.id, type: 'Guest Entry', ...doc.data() }))
+          .filter((req: any) => !req.archived);
+      
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setGuestRequests(docs);
+
+      if (!isFirstLoadGuest) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data() as any;
+            if (data.status === 'NEW' && !data.archived) {
+              const displayName = data.visitorNames || data.purpose;
+              notificationService.notify(`NEW GUEST ENTRANCE: ${displayName}`, {
+                body: `Department: ${data.departmentName}`,
+                icon: '/pwa-512x512.png'
+              });
+            }
+          }
+        });
+      }
+      isFirstLoadGuest = false;
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, guestPath);
+    });
+
     const userPath = 'users';
     // Fetch all workforce users to avoid complex indexing issues in early setup
     const unsubscribeTech = onSnapshot(collection(db, userPath), (snapshot) => {
@@ -316,6 +354,7 @@ export function AdminDashboard() {
       unsubscribeVeh();
       unsubscribeItem();
       unsubscribeDev();
+      unsubscribeGuest();
       unsubscribeTech();
     };
   }, []);
@@ -324,18 +363,55 @@ export function AdminDashboard() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [deleteTechConfirmId, setDeleteTechConfirmId] = useState<string | null>(null);
 
+  const getCollectionForActiveSelection = () => {
+    if (activeTab === 'SERVICE') return 'service_requests';
+    if (activeTab === 'CAMERA') return 'camera_requests';
+    if (activeTab === 'VEHICLE') return 'vehicle_requests';
+    if (activeTab === 'PROP_CASUALTY') {
+      if (clearanceType === 'ITEM') return 'item_requests';
+      if (clearanceType === 'LABOR') return 'device_requests';
+      if (clearanceType === 'GUEST') return 'guest_requests';
+    }
+    return 'service_requests';
+  };
+
+  const getCurrentRequestsSource = () => {
+    if (activeTab === 'SERVICE') return requests;
+    if (activeTab === 'CAMERA') return cameraRequests;
+    if (activeTab === 'VEHICLE') return vehicleRequests;
+    if (activeTab === 'PROP_CASUALTY') {
+      if (clearanceType === 'ITEM') return itemRequests;
+      if (clearanceType === 'LABOR') return deviceRequests;
+      if (clearanceType === 'GUEST') return guestRequests;
+    }
+    return [];
+  };
+
+  const getSectorForActiveSelection = () => {
+    if (activeTab === 'SERVICE') return 'SERVICE';
+    if (activeTab === 'CAMERA') return 'CAMERA';
+    if (activeTab === 'VEHICLE') return 'VEHICLE';
+    if (activeTab === 'PROP_CASUALTY') return 'PROP_CASUALTY';
+    return activeTab as string;
+  };
+
+  const isSectorAuthorized = (sector: string = getSectorForActiveSelection()) => {
+    return unlockedSectors.has(sector);
+  };
+
   const collectionMap = {
     SERVICE: 'service_requests',
     CAMERA: 'camera_requests',
     VEHICLE: 'vehicle_requests',
     ITEM: 'item_requests',
-    OTHER: 'device_requests'
+    OTHER: 'device_requests',
+    PROP_CASUALTY: 'item_requests'
   };
 
   const handleUpdateRecord = async () => {
     if (!selectedRequest) return;
     try {
-      const colName = collectionMap[activeTab];
+      const colName = getCollectionForActiveSelection();
       await updateDoc(doc(db, colName, selectedRequest.id), {
         ...editFormData,
         updatedAt: serverTimestamp()
@@ -352,7 +428,7 @@ export function AdminDashboard() {
   const handleSaveInlineAssigned = async () => {
     if (!selectedRequest) return;
     try {
-      const colName = collectionMap[activeTab];
+      const colName = getCollectionForActiveSelection();
       const isVehicle = selectedRequest.type === 'Vehicle' || activeTab === 'VEHICLE';
       const updateData: any = {
         updatedAt: serverTimestamp()
@@ -381,15 +457,20 @@ export function AdminDashboard() {
   };
 
   const handleApprove = async (requestId: string, directorId: string, bypassLockCheck = false) => {
-    if (!bypassLockCheck && !unlockedSectors.has(activeTab)) {
-      setPendingAction({ type: 'APPROVE', data: { requestId, directorId }, sector: activeTab });
+    if (!bypassLockCheck && !isSectorAuthorized()) {
+      setPendingAction({ type: 'APPROVE', data: { requestId, directorId }, sector: getSectorForActiveSelection() });
       setIsUnlockModalOpen(true);
       return;
     }
 
-    const colName = collectionMap[activeTab];
-    const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
-    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Laborer Request') : (req?.tripName || 'Untitled Trip');
+    const colName = getCollectionForActiveSelection();
+    const req = getCurrentRequestsSource().find(r => r.id === requestId);
+    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : 
+                        activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : 
+                        activeTab === 'VEHICLE' ? (req?.tripName || 'Untitled Trip') : 
+                        clearanceType === 'ITEM' ? (req?.itemName || 'Untitled Item') : 
+                        clearanceType === 'GUEST' ? (req?.visitorNames || 'Untitled Guest') : 
+                        (req?.projectName || 'Untitled Laborer Request');
     const path = `${colName}/${requestId}`;
     try {
       await updateDoc(doc(db, colName, requestId), {
@@ -399,26 +480,51 @@ export function AdminDashboard() {
 
       // Create notification for director
       const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
+      let displayType = activeTab.toLowerCase();
+      if (activeTab === 'PROP_CASUALTY') {
+        displayType = clearanceType === 'ITEM' ? 'exit permit' : clearanceType === 'GUEST' ? 'guest entry' : 'service request';
+      }
       await setDoc(doc(db, 'notifications', notificationId), {
         userId: directorId,
         title: 'Request Approved',
-        message: `Your ${activeTab.toLowerCase()} request "${displayName}" has been approved and moved to the dispatch queue.`,
+        message: `Your ${displayType} request "${displayName}" has been approved.`,
         read: false,
         type: 'APPROVAL',
         requestId: requestId,
         createdAt: serverTimestamp(),
       });
 
-      // If activeTab is ITEM, also send APPROVED notification to all SECURITY users
-      if (activeTab === 'ITEM') {
-        const securityUsers = await getDocs(query(collection(db, 'users'), where('role', '==', 'SECURITY')));
-        const notificationPromises = securityUsers.docs.map(uDoc => {
-          const userSecId = uDoc.id;
-          const notifSecId = `notif_app_item_admin_${Date.now()}_${userSecId}`;
-          return setDoc(doc(db, 'notifications', notifSecId), {
-            userId: userSecId,
-            title: `[APPROVED] Exit Permit: ${displayName}`,
-            message: `APPROVED EXIT: Administrator approved Exit Permit for item "${displayName}". Security clearance authorized.`,
+      // Map activeTab to matching roles for notification
+      let targetRole: string | null = null;
+      if (activeTab === 'SERVICE') targetRole = 'TECHNICIAN';
+      else if (activeTab === 'CAMERA') targetRole = 'CAMERAMAN';
+      else if (activeTab === 'VEHICLE') targetRole = 'DRIVER';
+      else if (activeTab === 'PROP_CASUALTY' && (clearanceType === 'ITEM' || clearanceType === 'GUEST')) targetRole = 'SECURITY';
+
+      if (targetRole) {
+        const portalUsers = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
+        const notificationPromises = portalUsers.docs.map(uDoc => {
+          const targetUserId = uDoc.id;
+          const sectorKey = getSectorForActiveSelection();
+          const notifId = `notif_app_${sectorKey.toLowerCase()}_admin_${Date.now()}_${targetUserId}`;
+          
+          let title = `[APPROVED] ${activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : 'P&C Service'} Request: ${displayName}`;
+          let message = `APPROVED: Administrator approved standard request for "${displayName}".`;
+          
+          if (activeTab === 'PROP_CASUALTY') {
+            if (clearanceType === 'ITEM') {
+              title = `[APPROVED] Exit Permit: ${displayName}`;
+              message = `APPROVED EXIT: Property and Casualty Service approved Exit Permit for item "${displayName}". Property and Casualty Service access authorized.`;
+            } else if (clearanceType === 'GUEST') {
+              title = `[APPROVED] Guest Entrance: ${displayName}`;
+              message = `APPROVED ENTRY: Property and Casualty Service approved Guest Entrance for "${displayName}". Property and Casualty Service access authorized.`;
+            }
+          }
+
+          return setDoc(doc(db, 'notifications', notifId), {
+            userId: targetUserId,
+            title,
+            message,
             read: false,
             role: 'ADMIN_OR_STAFF',
             type: 'APPROVAL',
@@ -437,9 +543,14 @@ export function AdminDashboard() {
 
   const handleAssign = async (requestId: string, techOrTechs: any, directorId: string) => {
     setPersonnelSearch('');
-    const colName = collectionMap[activeTab];
-    const req = (activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests).find(r => r.id === requestId);
-    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : activeTab === 'ITEM' ? (req?.itemName || 'Untitled Item') : activeTab === 'OTHER' ? (req?.projectName || 'Untitled Laborer Request') : (req?.tripName || 'Untitled Trip');
+    const colName = getCollectionForActiveSelection();
+    const req = getCurrentRequestsSource().find(r => r.id === requestId);
+    const displayName = activeTab === 'SERVICE' ? (req?.workName || 'Untitled Job') : 
+                        activeTab === 'CAMERA' ? (req?.eventTitle || 'Untitled Event') : 
+                        activeTab === 'VEHICLE' ? (req?.tripName || 'Untitled Trip') : 
+                        clearanceType === 'ITEM' ? (req?.itemName || 'Untitled Item') : 
+                        clearanceType === 'GUEST' ? (req?.visitorNames || 'Untitled Guest') : 
+                        (req?.projectName || 'Untitled Laborer Request');
     const path = `${colName}/${requestId}`;
 
     const selectedTechs = Array.isArray(techOrTechs) ? techOrTechs : (techOrTechs ? [techOrTechs] : []);
@@ -499,6 +610,7 @@ export function AdminDashboard() {
               title: 'New Task Assigned',
               body: `Hello ${currentTech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}".`,
               requestId: requestId,
+              fcmToken: currentTech.fcmToken || null, // Pass FCM token directly from client to bypass server-side Firestore lookup !
             }),
           });
         } catch (e) {
@@ -594,7 +706,7 @@ export function AdminDashboard() {
   };
 
   const handleConfirm = async (requestId: string) => {
-    const colName = collectionMap[activeTab];
+    const colName = getCollectionForActiveSelection();
     const path = `${colName}/${requestId}`;
     try {
       await updateDoc(doc(db, colName, requestId), {
@@ -611,7 +723,7 @@ export function AdminDashboard() {
   };
 
   const handleClose = async (requestId: string) => {
-    const colName = collectionMap[activeTab];
+    const colName = getCollectionForActiveSelection();
     const path = `${colName}/${requestId}`;
     try {
       await updateDoc(doc(db, colName, requestId), {
@@ -639,15 +751,15 @@ export function AdminDashboard() {
       return;
     }
 
-    const currentTabRequests = activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests;
+    const currentTabRequests = getCurrentRequestsSource();
     
     try {
       const promises = Array.from(selectedIds).map(async (id) => {
         const req = currentTabRequests.find(r => r.id === id);
         if (req) {
-          const collectionName = (collectionMap as any)[activeTab] || 'service_requests';
+          const collectionName = getCollectionForActiveSelection();
           if (collectionName) {
-            return deleteDoc(doc(db, collectionName as string, id as string));
+            return deleteDoc(doc(db, collectionName, id));
           }
         }
       });
@@ -674,8 +786,8 @@ export function AdminDashboard() {
   const openAssignModal = (request: any) => {
     setPersonnelSearch('');
     setSelectedAssignIds([]);
-    if (!unlockedSectors.has(activeTab)) {
-      setPendingAction({ type: 'ASSIGN', data: request, sector: activeTab });
+    if (!isSectorAuthorized()) {
+      setPendingAction({ type: 'ASSIGN', data: request, sector: getSectorForActiveSelection() });
       setIsUnlockModalOpen(true);
       return;
     }
@@ -874,11 +986,10 @@ export function AdminDashboard() {
     { label: t('Service Request', 'Service Rep'), value: requests.length, icon: Wrench, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
     { label: t('Camera Request', 'Camera Cov'), value: cameraRequests.length, icon: Camera, color: 'text-orange-400', bg: 'bg-orange-500/10' },
     { label: t('Vehicle Request', 'Vehicle Req'), value: vehicleRequests.length, icon: Car, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: t('Exit Permit', 'Exit Permits'), value: itemRequests.length, icon: Tag, color: 'text-pink-400', bg: 'bg-pink-500/10' },
-    { label: t('Consolidated', 'Consolidated'), value: [...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests].length, icon: ClipboardList, color: 'text-slate-400', bg: 'bg-slate-500/10' },
+    { label: t('P&C Permits', 'P&C Permits'), value: [...itemRequests, ...deviceRequests, ...guestRequests].length, icon: ClipboardList, color: 'text-pink-400', bg: 'bg-pink-500/10' },
   ];
 
-  const activeRequestsList = activeTab === 'SERVICE' ? requests : activeTab === 'CAMERA' ? cameraRequests : activeTab === 'VEHICLE' ? vehicleRequests : activeTab === 'ITEM' ? itemRequests : deviceRequests;
+  const activeRequestsList = getCurrentRequestsSource();
   const uniqueActiveRequests = activeRequestsList.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
 
   return (
@@ -968,22 +1079,32 @@ export function AdminDashboard() {
               onClick={() => { setActiveTab('VEHICLE'); setSelectedRequest(null); }} 
             />
             <TabButton 
-              active={activeTab === 'ITEM'} 
-              label={t("Exit Permit", "Exit Permit")} 
-              icon={Tag} 
-              onClick={() => { setActiveTab('ITEM'); setSelectedRequest(null); }} 
-            />
-            <TabButton 
-              active={activeTab === 'OTHER'} 
-              label={t("Laborer", "Laborer")} 
-              icon={Users} 
-              onClick={() => { setActiveTab('OTHER'); setSelectedRequest(null); }} 
+              active={activeTab === 'PROP_CASUALTY'} 
+              label={t("Property & Casualty Service", "Property & Casualty Service")} 
+              icon={ClipboardList} 
+              onClick={() => { setActiveTab('PROP_CASUALTY'); setSelectedRequest(null); }} 
             />
           </div>
+          {activeTab === 'PROP_CASUALTY' && (
+            <div className="flex items-center gap-2 mt-2">
+              <button 
+                onClick={() => setClearanceType('ITEM')}
+                className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest", clearanceType === 'ITEM' ? "bg-dark-accent text-white" : "bg-dark-main text-dark-text-subtle")}
+              >Item Exit</button>
+              <button 
+                onClick={() => setClearanceType('LABOR')}
+                className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest", clearanceType === 'LABOR' ? "bg-dark-accent text-white" : "bg-dark-main text-dark-text-subtle")}
+              >Laborer</button>
+              <button 
+                onClick={() => setClearanceType('GUEST')}
+                className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest", clearanceType === 'GUEST' ? "bg-dark-accent text-white" : "bg-dark-main text-dark-text-subtle")}
+              >Guest</button>
+            </div>
+          )}
           <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden flex flex-col h-[500px]">
              <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
                <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-                 {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'ITEM' ? 'Exit Permits Queue' : 'Laborer Requests Queue'}
+                 {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'PROP_CASUALTY' ? `${clearanceType === 'ITEM' ? 'Exit Permits' : clearanceType === 'GUEST' ? 'Guest Entrances' : 'Service Requests'} Queue` : 'Queue'}
                </h3>
                <div className="flex items-center gap-3">
                   {isSelectMode ? (

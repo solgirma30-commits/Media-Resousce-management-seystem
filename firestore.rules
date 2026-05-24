@@ -54,6 +54,7 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && (
         request.auth.token.email == 'solgirma30@gmail.com' ||
         isAdmin() || 
+        isTechnician() ||
         resource.data.directorId == request.auth.uid || 
         resource.data.assignedTechnicianId == request.auth.uid
       );
@@ -136,7 +137,7 @@ service cloud.firestore {
          incoming().diff(existing()).affectedKeys().hasOnly(['description', 'location', 'phoneNumber', 'priority', 'serviceCategory', 'updatedAt', 'fleetId', 'departmentName', 'directorName']))
       ) && isValidServiceRequest(incoming());
 
-      allow delete: if isAdmin() || (isDeptDirector() && resource.data.directorId == request.auth.uid);
+      allow delete: if isSignedIn();
     }
 
     // Camera Requests
@@ -144,6 +145,7 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && (
         request.auth.token.email == 'solgirma30@gmail.com' ||
         isAdmin() || 
+        getUserRole() == 'CAMERAMAN' ||
         resource.data.directorId == request.auth.uid ||
         resource.data.assignedTechnicianId == request.auth.uid
       );
@@ -169,7 +171,7 @@ service cloud.firestore {
         (isDeptDirector() && existing().directorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'confirmedAt', 'directorComments']) && existing().status == 'COMPLETED')
       );
 
-      allow delete: if isAdmin() || (isDeptDirector() && resource.data.directorId == request.auth.uid);
+      allow delete: if isSignedIn();
     }
 
     // Vehicle Requests
@@ -177,6 +179,7 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && (
         request.auth.token.email == 'solgirma30@gmail.com' ||
         isAdmin() || 
+        isDriver() ||
         resource.data.directorId == request.auth.uid || 
         resource.data.assignedDriverId == request.auth.uid
       );
@@ -202,7 +205,7 @@ service cloud.firestore {
         (isDeptDirector() && existing().directorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'confirmedAt', 'directorComments']) && existing().status == 'COMPLETED')
       );
 
-      allow delete: if isAdmin() || (isDeptDirector() && resource.data.directorId == request.auth.uid);
+      allow delete: if isSignedIn();
     }
 
     // Notifications
@@ -261,7 +264,7 @@ service cloud.firestore {
        allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || getUserRole() == 'SECURITY');
        allow create: if isDeptDirector() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
        allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || (getUserRole() == 'SECURITY'));
-       allow delete: if isAdmin() || (isDeptDirector() && resource.data.directorId == request.auth.uid);
+       allow delete: if isSignedIn();
     }
 
     // Device Requests
@@ -270,6 +273,14 @@ service cloud.firestore {
        allow create: if isDeptDirector() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
        allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || isTechnician());
        allow delete: if isAdmin() || (isDeptDirector() && resource.data.directorId == request.auth.uid);
+    }
+
+    // Guest Requests
+    match /guest_requests/{requestId} {
+       allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || getUserRole() == 'SECURITY');
+       allow create: if isDeptDirector() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
+       allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || (getUserRole() == 'SECURITY'));
+       allow delete: if isSignedIn();
     }
   }
 }
