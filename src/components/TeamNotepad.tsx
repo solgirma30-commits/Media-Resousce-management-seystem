@@ -42,7 +42,7 @@ export function TeamNotepad({ defaultDepartment = 'SERVICE' }: { defaultDepartme
         <option value="SERVICE">Service & Repair</option>
         <option value="CAMERA">Camera</option>
         <option value="VEHICLE">Transportation</option>
-        <option value="PROP_CASUALTY">Property & Casualty</option>
+        <option value="PROP_CASUALTY">Property & Casualty Laborer</option>
       </select>
       <textarea 
         value={message}

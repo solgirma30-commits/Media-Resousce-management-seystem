@@ -519,7 +519,7 @@ export function DeptDirectorDashboard() {
             requestTypeLabel = 'Exit Permit';
             displayName = itemName;
           } else if (clearanceType === 'LABOR') {
-            requestTypeLabel = 'Service Request';
+            requestTypeLabel = 'Laborer Request';
             displayName = workName;
           } else if (clearanceType === 'GUEST') {
             requestTypeLabel = 'Guest Entrance';
@@ -795,7 +795,7 @@ export function DeptDirectorDashboard() {
           active={activeTab === 'OTHER'} 
           onClick={() => setActiveTab('OTHER')} 
           icon={ShieldCheck} 
-          label={t("Admin Clearances", "Property and Casualty Service")} 
+          label={t("Admin Clearances", "Property and Casualty Laborer")} 
           count={itemRequests.length + deviceRequests.length + guestRequests.length}
         />
       </div>
@@ -805,7 +805,7 @@ export function DeptDirectorDashboard() {
         <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
           <div>
             <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : 'Property and Casualty Service Clearances Log'}
+              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : 'Property and Casualty Laborer Clearances Log'}
             </h3>
             <p className="text-[10px] text-dark-text-subtle mt-1">Operational records categorized by department resource load</p>
           </div>
@@ -924,7 +924,7 @@ export function DeptDirectorDashboard() {
                                   ? "text-sky-500 bg-sky-500/10 border-sky-500/20"
                                   : "text-violet-500 bg-violet-500/10 border-violet-500/20"
                               )}>
-                                {request.collectionName === 'item_requests' ? 'Item Exit' : request.collectionName === 'guest_requests' ? 'Guest Entry' : 'Service Request'}
+                                {request.collectionName === 'item_requests' ? 'Item Exit' : request.collectionName === 'guest_requests' ? 'Guest Entry' : 'Laborer Request'}
                               </span>
                             )}
                           </p>
@@ -1366,7 +1366,7 @@ export function DeptDirectorDashboard() {
                               : "bg-dark-main text-dark-text-muted border-dark-border hover:text-white hover:bg-dark-card"
                           )}
                         >
-                          Service Request
+                          Laborer Request
                         </button>
                         <button
                           type="button"

@@ -112,7 +112,7 @@ export function AdminDashboard() {
     CAMERA: { label: 'Surveillance Director', pin: '2020', icon: Camera },
     VEHICLE: { label: 'Logistics Director', pin: '3030', icon: Car },
     ITEM: { label: 'Security Director', pin: '4040', icon: Tag },
-    PROP_CASUALTY: { label: 'Property & Casualty Director', pin: '6060', icon: ClipboardList },
+    PROP_CASUALTY: { label: 'Property & Casualty Laborer Director', pin: '6060', icon: ClipboardList },
     OTHER: { label: 'Operations Director', pin: '5050', icon: ClipboardList },
     SYSTEM: { label: 'IT Systems Director', pin: '9090', icon: Settings }
   };
@@ -486,7 +486,7 @@ export function AdminDashboard() {
       const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
       let displayType = activeTab.toLowerCase();
       if (activeTab === 'PROP_CASUALTY') {
-        displayType = clearanceType === 'ITEM' ? 'exit permit' : clearanceType === 'GUEST' ? 'guest entry' : 'service request';
+        displayType = clearanceType === 'ITEM' ? 'exit permit' : clearanceType === 'GUEST' ? 'guest entry' : 'laborer request';
       }
       await setDoc(doc(db, 'notifications', notificationId), {
         userId: directorId,
@@ -518,10 +518,10 @@ export function AdminDashboard() {
           if (activeTab === 'PROP_CASUALTY') {
             if (clearanceType === 'ITEM') {
               title = `[APPROVED] Exit Permit: ${displayName}`;
-              message = `APPROVED EXIT: Property and Casualty Service approved Exit Permit for item "${displayName}". Property and Casualty Service access authorized.`;
+              message = `APPROVED EXIT: Property and Casualty Laborer approved Exit Permit for item "${displayName}". Property and Casualty Laborer access authorized.`;
             } else if (clearanceType === 'GUEST') {
               title = `[APPROVED] Guest Entrance: ${displayName}`;
-              message = `APPROVED ENTRY: Property and Casualty Service approved Guest Entrance for "${displayName}". Property and Casualty Service access authorized.`;
+              message = `APPROVED ENTRY: Property and Casualty Laborer approved Guest Entrance for "${displayName}". Property and Casualty Laborer access authorized.`;
             }
           }
 
@@ -1084,7 +1084,7 @@ export function AdminDashboard() {
             />
             <TabButton 
               active={activeTab === 'PROP_CASUALTY'} 
-              label={t("Property & Casualty Service", "Property & Casualty Service")} 
+              label={t("Property & Casualty Laborer", "Property & Casualty Laborer")} 
               icon={ClipboardList} 
               onClick={() => { setActiveTab('PROP_CASUALTY'); setSelectedRequest(null); }} 
             />
@@ -1111,7 +1111,7 @@ export function AdminDashboard() {
           )}>
              <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
                <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-                 {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'PROP_CASUALTY' ? `${clearanceType === 'ITEM' ? 'Exit Permits' : clearanceType === 'GUEST' ? 'Guest Entrances' : 'Service Requests'} Queue` : 'Queue'}
+                 {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'PROP_CASUALTY' ? `${clearanceType === 'ITEM' ? 'Exit Permits' : clearanceType === 'GUEST' ? 'Guest Entrances' : 'Laborer Requests'} Queue` : 'Queue'}
                </h3>
                <div className="flex items-center gap-3">
                   {isSelectMode ? (

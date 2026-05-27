@@ -761,7 +761,7 @@ export function TechnicianDashboard() {
                               ? (work.hostName || work.requesterName || work.directorName) 
                               : (work.requesterName || work.directorName);
                             
-                            let requester = requesterVal;
+                            const requester = requesterVal;
                             
                             // If requester is generic or same as department, try to show the other if available
                             const finalRequester = (requester === work.departmentName && work.requesterName && work.requesterName !== 'TFMC') ? work.requesterName : requester;
@@ -840,7 +840,7 @@ export function TechnicianDashboard() {
                   <Truck className="w-8 h-8 text-dark-text-subtle/40" />
                 </div>
                 <h3 className="text-xl font-medium text-slate-400">Select Task from Global Work Registry</h3>
-                <p className="text-dark-text-subtle text-[10px] uppercase font-black tracking-widest mt-2">Initialize communication with the Property and Casualty Service portal</p>
+                <p className="text-dark-text-subtle text-[10px] uppercase font-black tracking-widest mt-2">Initialize communication with the Property and Casualty Laborer portal</p>
               </motion.div>
             ) : (
               <motion.div
