@@ -160,29 +160,29 @@ export function AllInOneDashboard() {
   };
 
   return (
-    <div className="space-y-4 p-4 lg:p-6 bg-dark-main min-h-screen">
+    <div className="space-y-3 p-3 lg:p-4 bg-dark-main min-h-screen">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-dark-border">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-dark-border">
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-4"
+          className="flex items-center gap-3"
         >
-          <div className="w-12 h-12 rounded-xl bg-orange-500/10 border-2 border-orange-500/20 flex items-center justify-center shadow-2xl shadow-orange-500/10 relative group">
-            <div className="absolute inset-0 bg-orange-500/20 blur-xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
-            <Globe className="w-6 h-6 text-orange-400 relative z-10 animate-pulse" />
+          <div className="w-10 h-10 rounded-lg bg-orange-500/10 border-2 border-orange-500/20 flex items-center justify-center shadow-lg relative group">
+            <div className="absolute inset-0 bg-orange-500/20 blur-lg rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
+            <Globe className="w-5 h-5 text-orange-400 relative z-10 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-black tracking-tighter uppercase leading-none">ALL IN ONE PORTAL</h1>
-            <p className="text-dark-text-subtle mt-1 font-mono text-[9px] uppercase tracking-widest flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <h1 className="text-xl font-black text-black tracking-tighter uppercase leading-none">ALL IN ONE PORTAL</h1>
+            <p className="text-dark-text-subtle mt-0.5 font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5">
+              <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
               Universal Workforce Registry
             </p>
           </div>
         </motion.div>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex bg-dark-card p-1 rounded-xl border border-dark-border shadow-inner">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex bg-dark-card p-0.5 rounded-lg border border-dark-border shadow-inner">
             {(['CAMERA', 'SERVICE', 'VEHICLE'] as const).map((tab) => (
               <button
                 key={tab}
@@ -191,54 +191,54 @@ export function AllInOneDashboard() {
                   setSelectedIds(new Set());
                 }}
                 className={cn(
-                  "px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                  "px-4 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
                   activePortalTab === tab 
-                    ? "bg-dark-accent text-white shadow-lg shadow-dark-accent/20" 
+                    ? "bg-dark-accent text-white shadow-md shadow-dark-accent/20" 
                     : "text-dark-text-muted hover:text-dark-accent"
                 )}
               >
-                {tab === 'CAMERA' ? 'Camera Ops' : tab === 'SERVICE' ? 'Technical Services' : 'Logistic Flows'}
+                {tab === 'CAMERA' ? 'Camera' : tab === 'SERVICE' ? 'Service' : 'Flows'}
               </button>
             ))}
           </div>
 
           <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-dark-text-subtle group-focus-within:text-dark-accent transition-colors" />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-3.5 w-3.5 text-dark-text-subtle group-focus-within:text-dark-accent transition-colors" />
             </div>
             <input
               type="text"
-              placeholder="Search by personnel, work, or department..."
+              placeholder="Search personnel, work..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full md:w-80 pl-11 pr-4 py-3 bg-dark-card border border-dark-border rounded-xl text-xs text-black font-bold focus:ring-2 focus:ring-dark-accent/20 focus:border-dark-accent/40 outline-none transition-all placeholder:text-dark-text-muted/50 shadow-inner"
+              className="block w-full md:w-64 pl-9 pr-3 py-2 bg-dark-card border border-dark-border rounded-lg text-xs text-black font-bold focus:ring-1 focus:ring-dark-accent/20 focus:border-dark-accent/40 outline-none transition-all placeholder:text-dark-text-muted/50 shadow-inner"
             />
           </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Total Registry', value: allTasks.length, icon: Activity, color: 'text-orange-400' },
-          { label: 'Camera Services', value: allTasks.filter(t => t.collectionName === 'camera_requests').length, icon: Camera, color: 'text-purple-400' },
-          { label: 'Logistic Flows', value: allTasks.filter(t => t.collectionName === 'vehicle_requests').length, icon: Truck, color: 'text-blue-400' },
-          { label: 'Technical Jobs', value: allTasks.filter(t => t.collectionName === 'service_requests').length, icon: Wrench, color: 'text-emerald-400' },
+          { label: 'Total', value: allTasks.length, icon: Activity, color: 'text-orange-400' },
+          { label: 'Camera', value: allTasks.filter(t => t.collectionName === 'camera_requests').length, icon: Camera, color: 'text-purple-400' },
+          { label: 'Logistic', value: allTasks.filter(t => t.collectionName === 'vehicle_requests').length, icon: Truck, color: 'text-blue-400' },
+          { label: 'Technical', value: allTasks.filter(t => t.collectionName === 'service_requests').length, icon: Wrench, color: 'text-emerald-400' },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-dark-card border border-dark-border p-4 rounded-xl shadow-lg hover:border-dark-accent/30 transition-all group"
+            transition={{ delay: i * 0.05 }}
+            className="bg-dark-card border border-dark-border p-3 rounded-lg shadow hover:border-dark-accent/30 transition-all group"
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[9px] font-black text-dark-text-subtle uppercase tracking-widest">{stat.label}</p>
-                <h4 className="text-xl font-black text-black mt-1 tracking-tighter">{stat.value}</h4>
+                <p className="text-[8px] font-black text-dark-text-subtle uppercase tracking-widest">{stat.label}</p>
+                <h4 className="text-lg font-black text-black mt-0.5 tracking-tighter">{stat.value}</h4>
               </div>
-              <div className={cn("p-2.5 rounded-lg bg-dark-main border border-dark-border group-hover:scale-110 transition-transform", stat.color)}>
-                <stat.icon className="w-4 h-4" />
+              <div className={cn("p-2 rounded-md bg-dark-main border border-dark-border group-hover:scale-105 transition-transform", stat.color)}>
+                <stat.icon className="w-3.5 h-3.5" />
               </div>
             </div>
           </motion.div>
@@ -251,50 +251,49 @@ export function AllInOneDashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className={cn(
-          "bg-dark-card border border-dark-border rounded-2xl shadow-xl overflow-hidden transition-all duration-500",
-          isFullscreen ? "fixed inset-0 z-[100] rounded-none border-none h-screen overflow-hidden flex flex-col" : "min-h-[600px]"
+          "bg-dark-card border border-dark-border rounded-xl shadow-xl overflow-hidden transition-all duration-500",
+          isFullscreen ? "fixed inset-0 z-[100] rounded-none border-none h-screen overflow-hidden flex flex-col" : "min-h-[300px]"
         )}
       >
-        <div className="p-6 border-b border-dark-border bg-dark-sidebar/20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-500/10 rounded-lg text-orange-500">
-              <Layers className="w-4 h-4" />
+        <div className="p-2 border-b border-dark-border bg-dark-sidebar/20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1 bg-orange-500/10 rounded-md text-orange-500">
+              <Layers className="w-3 h-3" />
             </div>
             <div>
-              <h3 className="text-xs font-black text-slate-950 uppercase tracking-widest">
+              <h3 className="text-[9px] font-black text-slate-950 uppercase tracking-widest leading-none">
                 {activePortalTab === 'CAMERA' ? 'Camera Coverage' : activePortalTab === 'SERVICE' ? 'Technical Service & Repair' : 'Logistics & Transportation'} Registry
               </h3>
-              <p className="text-[10px] text-dark-text-subtle mt-0.5 font-medium uppercase tracking-tight">Relational view of assignments and personnel</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {selectedIds.size > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 {!showConfirmDelete ? (
                   <motion.button
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     onClick={() => setShowConfirmDelete(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20"
+                    className="flex items-center gap-1.5 px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3 h-3" />
                     Delete ({selectedIds.size})
                   </motion.button>
                 ) : (
-                  <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
-                    <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest mr-2">Confirm?</span>
+                  <div className="flex items-center gap-1 animate-in fade-in zoom-in duration-200">
+                    <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest mr-1">Confirm?</span>
                     <button
                       onClick={handleBulkDelete}
                       disabled={loading}
-                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                      className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
                     >
-                      Yes, Delete
+                      Delete
                     </button>
                     <button
                       onClick={() => setShowConfirmDelete(false)}
-                      className="px-3 py-1.5 bg-dark-sidebar text-dark-text-subtle hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                      className="px-2 py-1 bg-dark-sidebar text-dark-text-subtle hover:text-white rounded-md text-[8px] font-black uppercase tracking-widest transition-all"
                     >
-                      Cancel
+                      X
                     </button>
                   </div>
                 )}
@@ -302,19 +301,10 @@ export function AllInOneDashboard() {
             )}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-2 hover:bg-dark-main rounded-lg text-dark-text-subtle hover:text-dark-accent transition-colors flex items-center gap-2 group border border-transparent hover:border-dark-border"
+              className="p-1.5 hover:bg-dark-main rounded-md text-dark-text-subtle hover:text-dark-accent transition-colors flex items-center gap-1.5 group border border-transparent hover:border-dark-border"
             >
-              {isFullscreen ? (
-                <>
-                  <Minimize2 className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Normal View</span>
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="w-4 h-4" />
-                  <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Fullscreen Chart</span>
-                </>
-              )}
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{isFullscreen ? 'Exit' : 'Full'}</span>
             </button>
           </div>
         </div>
@@ -323,43 +313,43 @@ export function AllInOneDashboard() {
           "overflow-x-auto scrollbar-hide",
           isFullscreen ? "flex-1 overflow-y-auto" : ""
         )}>
-          <table className="w-full text-left border-collapse min-w-[1200px]">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead className="bg-dark-header sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-3 border-b border-dark-border w-8">
+                <th className="px-3 py-2 border-b border-dark-border w-8">
                   <input 
                     type="checkbox"
-                    className="w-3.5 h-3.5 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
+                    className="w-3 h-3 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
                     onChange={handleSelectAll}
                     checked={portalTasks.length > 0 && Array.from(selectedIds).length >= portalTasks.length}
                   />
                 </th>
-                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">No</th>
-                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Title / Location</th>
-                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Requester</th>
+                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">No</th>
+                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Title / Location</th>
+                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Requester</th>
                 
                 {activePortalTab === 'CAMERA' && (
                   <>
-                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-purple-400/80">Assigned Camera</th>
-                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-purple-400/80">Assigned Camera</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
                   </>
                 )}
                 
                 {activePortalTab === 'SERVICE' && (
                   <>
-                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-emerald-400/80">Assigned Tech</th>
-                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-emerald-400/80">Assigned Tech</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
                   </>
                 )}
                 
                 {activePortalTab === 'VEHICLE' && (
                   <>
-                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
                   </>
                 )}
 
-                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">Status</th>
-                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-right">Schedule</th>
+                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">Status</th>
+                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-right">Schedule</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border/40">
@@ -371,42 +361,42 @@ export function AllInOneDashboard() {
                     selectedIds.has(task.id) ? "bg-dark-accent/5" : ""
                   )}
                 >
-                  <td className="px-6 py-2.5">
+                  <td className="px-3 py-1">
                     <input 
                       type="checkbox"
                       checked={selectedIds.has(task.id)}
                       onChange={() => handleToggleSelect(task.id)}
-                      className="w-3.5 h-3.5 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
+                      className="w-3 h-3 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
                     />
                   </td>
-                  <td className="px-6 py-2.5 font-mono text-[9px] text-dark-accent font-black">{idx + 1}</td>
-                  <td className="px-6 py-2.5">
+                  <td className="px-3 py-1 font-mono text-[8px] text-dark-accent font-black">{idx + 1}</td>
+                  <td className="px-3 py-1">
                     <div className="flex flex-col">
-                      <span className="text-[12px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-dark-accent transition-colors leading-tight">
+                      <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-dark-accent transition-colors leading-tight">
                         {task.eventTitle || task.tripName || task.workName || 'Unnamed Request'}
                       </span>
-                      <div className="flex items-center gap-1.5 text-dark-text-muted">
-                        <MapPin className="w-2 h-2" />
-                        <span className="text-[8px] font-bold uppercase">{task.location || task.destination || 'On-Site'}</span>
+                      <div className="flex items-center gap-1 text-dark-text-muted">
+                        <MapPin className="w-1.5 h-1.5" />
+                        <span className="text-[7px] font-bold uppercase">{task.location || task.destination || 'On-Site'}</span>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-2.5 font-bold text-slate-900 text-[10px] uppercase whitespace-nowrap">
+                  <td className="px-3 py-1 font-bold text-slate-900 text-[9px] uppercase whitespace-nowrap">
                     {task.hostName || task.requesterName || 'N/A'}
                   </td>
                   
                   {activePortalTab === 'CAMERA' && (
                     <>
-                      <td className="px-6 py-2.5">
+                      <td className="px-3 py-1">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || task.assignedAgentName || 'PENDING'}</span>
-                          <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || task.assignedAgentPhone || ''}</span>
+                          <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || task.assignedAgentName || 'PENDING'}</span>
+                          <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || task.assignedAgentPhone || ''}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-2.5">
+                      <td className="px-3 py-1">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'N/A'}</span>
-                          <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                          <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'N/A'}</span>
+                          <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
                         </div>
                       </td>
                     </>
@@ -414,49 +404,46 @@ export function AllInOneDashboard() {
 
                   {activePortalTab === 'SERVICE' && (
                     <>
-                      <td className="px-6 py-2.5">
+                      <td className="px-3 py-1">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || 'PENDING'}</span>
-                          <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || ''}</span>
+                          <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || 'PENDING'}</span>
+                          <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || ''}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-2.5">
+                      <td className="px-3 py-1">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || '---'}</span>
-                          <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                          <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || '---'}</span>
+                          <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
                         </div>
                       </td>
                     </>
                   )}
 
                   {activePortalTab === 'VEHICLE' && (
-                    <td className="px-6 py-2.5">
+                    <td className="px-3 py-1">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'PENDING'}</span>
-                        <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                        <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'PENDING'}</span>
+                        <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
                       </div>
                     </td>
                   )}
 
-                  <td className="px-6 py-2.5 text-center">
+                  <td className="px-3 py-1 text-center">
                     <span className={cn(
-                      "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border",
+                      "px-1.5 py-0 rounded text-[7px] font-black uppercase tracking-widest border",
                       getStatusStyle(task.status)
                     )}>
                       {task.status}
                     </span>
                   </td>
-                  <td className="px-6 py-2.5 text-right whitespace-nowrap">
+                  <td className="px-3 py-1 text-right whitespace-nowrap">
                     <div className="flex flex-col items-end">
-                      <div className="flex items-center gap-1 text-dark-text-muted">
-                        <Clock className="w-2 h-2" />
-                        <span className="text-[9px] font-mono font-bold">
+                      <div className="flex items-center gap-0.5 text-dark-text-muted">
+                        <Clock className="w-1.5 h-1.5" />
+                        <span className="text-[8px] font-mono font-bold">
                           {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yy') : '--/--/--'}
                         </span>
                       </div>
-                      <span className="text-[8px] font-black text-dark-accent/70 uppercase leading-none">
-                        {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'HH:mm') : 'WAITING...'}
-                      </span>
                     </div>
                   </td>
                 </tr>
