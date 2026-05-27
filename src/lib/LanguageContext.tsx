@@ -1003,6 +1003,147 @@ export const translationDictionary: Record<string, Record<Language, string>> = {
     om: 'Guyyaa Hojii',
     am: 'የሥራ ቀን'
   },
+  // All In One Portal
+  'all_in_one_portal': {
+    en: 'ALL IN ONE PORTAL',
+    om: 'PORTAALII WALTAWAA',
+    am: 'ሁሉም በአንድ ፖርታል'
+  },
+  'universal_workforce_registry': {
+    en: 'Universal Workforce Registry',
+    om: 'Galmee Hojjettoota Waliigalaa',
+    am: 'ሁለንተናዊ የሥራ ኃይል መዝገብ'
+  },
+  'tab_camera': {
+    en: 'Camera',
+    om: 'Kaameeraa',
+    am: 'ካሜራ'
+  },
+  'tab_repair': {
+    en: 'Repair',
+    om: 'Suphaa',
+    am: 'ጥገና'
+  },
+  'tab_transport': {
+    en: 'Transport',
+    om: 'Geejjiba',
+    am: 'ትራንስፖርት'
+  },
+  'camera_coverage_registry': {
+    en: 'Camera Coverage Registry',
+    om: 'Galmee Hojii Kaameeraa',
+    am: 'የካሜራ ሽፋን መዝገብ'
+  },
+  'repair_service_registry': {
+    en: 'Repair Service Registry',
+    om: 'Galmee Tajaajila Suphaa',
+    am: 'የጥገና አገልግሎት መዝገብ'
+  },
+  'transport_registry': {
+    en: 'Transport Registry',
+    om: 'Galmee Geejjiba',
+    am: 'የትራንስፖርት መዝገብ'
+  },
+  'stat_total': {
+    en: 'Total',
+    om: 'Waliigala',
+    am: 'ጠቅላላ'
+  },
+  'auth_pin': {
+    en: 'Auth PIN',
+    om: 'PIN Mirkaneessaa',
+    am: 'የማረጋገጫ ፒን'
+  },
+  'verify_label': {
+    en: 'Verify',
+    om: 'Mirkaneessi',
+    am: 'አረጋግጥ'
+  },
+  'expand_registry': {
+    en: 'Expand',
+    om: 'Babbal’isi',
+    am: 'አስፋ'
+  },
+  'collapse_registry': {
+    en: 'Collapse',
+    om: 'Xiccibsi',
+    am: 'አጥፋ'
+  },
+  'exit_fullscreen': {
+    en: 'Exit',
+    om: 'Ba’i',
+    am: 'ውጣ'
+  },
+  'enter_fullscreen': {
+    en: 'Full',
+    om: 'Guutuu',
+    am: 'ሙሉ'
+  },
+  'search_personnel_work': {
+    en: 'Search personnel, work...',
+    om: 'Hojjettoota barbaadi...',
+    am: 'የስራ ኃይል ይፈልጉ...'
+  },
+  'col_no': {
+    en: 'No',
+    om: 'Lakk.',
+    am: 'ቁጥር'
+  },
+  'col_title_location': {
+    en: 'Title / Location',
+    om: 'Mataduree / Iddoo',
+    am: 'ርዕስ / ቦታ'
+  },
+  'col_requester': {
+    en: 'Requester',
+    om: 'Gaaffataa',
+    am: 'ጠያቂ'
+  },
+  'col_assigned_camera': {
+    en: 'Assigned Camera',
+    om: 'Kaameeraa Ramadame',
+    am: 'የተመደበ ካሜራ'
+  },
+  'col_assigned_driver': {
+    en: 'Assigned Driver',
+    om: 'Shoofeera Ramadame',
+    am: 'የተመደበ አሽከርካሪ'
+  },
+  'col_assigned_tech': {
+    en: 'Assigned Tech',
+    om: 'Teeknikaa Ramadame',
+    am: 'የተመደበ ቴክኒሻን'
+  },
+  'col_status': {
+    en: 'Status',
+    om: 'Haala Hojii',
+    am: 'ሁኔታ'
+  },
+  'col_schedule': {
+    en: 'Schedule',
+    om: 'Sa’aatii',
+    am: 'መርሃግብር'
+  },
+  'unnamed_request': {
+    en: 'Unnamed Request',
+    om: 'Gaaffii Maqaa hin qabne',
+    am: 'ስም የሌለው ጥያቄ'
+  },
+  'on_site': {
+    en: 'On-Site',
+    om: 'Dirree Irratti',
+    am: 'በቦታው ላይ'
+  },
+  'pending_label': {
+    en: 'PENDING',
+    om: 'EEGGANNOO IRRA',
+    am: 'በመጠባበቅ ላይ'
+  },
+  'no_vectors': {
+    en: 'No operational vectors found for this category.',
+    om: 'Ramaddi kanaaf hojiin hin argamne.',
+    am: 'ለዚህ ምድብ ምንም የሥራ እንቅስቃሴ አልተገኘም።'
+  },
   // Placeholders
   'ph_comments': {
     en: 'Add your comments or feedback on the completed work...',

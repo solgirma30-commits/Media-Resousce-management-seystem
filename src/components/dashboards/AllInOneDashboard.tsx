@@ -92,7 +92,16 @@ export function AllInOneDashboard() {
   const portalTasks = allTasks.filter(t => {
     if (activePortalTab === 'CAMERA') return t.collectionName === 'camera_requests';
     if (activePortalTab === 'SERVICE') return t.collectionName === 'service_requests';
-    if (activePortalTab === 'VEHICLE') return t.collectionName === 'vehicle_requests';
+    if (activePortalTab === 'VEHICLE') {
+      if (t.collectionName !== 'vehicle_requests') return false;
+      // Check if this vehicle request is "linked" to a camera request (unified chain)
+      const hasLinkedCamera = allTasks.some(ct => 
+        ct.collectionName === 'camera_requests' && 
+        (ct.eventTitle || ct.tripName) === (t.eventTitle || t.tripName)
+      );
+      // Only show standalone vehicle requests here; linked ones are handled in Camera tab
+      return !hasLinkedCamera;
+    }
     return false;
   }).filter(task => {
     const searchStr = `${task.eventTitle || task.tripName || task.workName || ''} ${task.requesterName || ''} ${task.hostName || ''} ${task.assignedTechnicianName || ''} ${task.assignedDriverName || ''} ${task.departmentName || ''}`.toLowerCase();
@@ -181,15 +190,36 @@ export function AllInOneDashboard() {
             <Globe className="w-5 h-5 text-orange-400 relative z-10 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-black tracking-tighter uppercase leading-none">ALL IN ONE PORTAL</h1>
+            <h1 className="text-xl font-black text-black tracking-tighter uppercase leading-none">{t('all_in_one_portal')}</h1>
             <p className="text-dark-text-subtle mt-0.5 font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5">
               <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
-              Universal Workforce Registry
+              {t('universal_workforce_registry')}
             </p>
           </div>
         </motion.div>
 
-        <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex flex-col md:flex-row gap-3 items-center">
+          {/* Language Switcher */}
+          <div className="flex bg-dark-card p-0.5 rounded-lg border border-dark-border shadow-inner mr-2">
+            {(['en', 'om', 'am'] as const).map((lang) => (
+              <button
+                key={lang}
+                onClick={() => {
+                  const { setLanguage } = useLanguage();
+                  setLanguage(lang);
+                }}
+                className={cn(
+                  "px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all",
+                  useLanguage().language === lang 
+                    ? "bg-orange-500/20 text-orange-500 shadow-sm" 
+                    : "text-dark-text-muted hover:text-orange-400"
+                )}
+              >
+                {lang}
+              </button>
+            ))}
+          </div>
+
           <div className="flex bg-dark-card p-0.5 rounded-lg border border-dark-border shadow-inner">
             {(['CAMERA', 'SERVICE', 'VEHICLE'] as const).map((tab) => (
               <button
@@ -205,7 +235,7 @@ export function AllInOneDashboard() {
                     : "text-dark-text-muted hover:text-dark-accent"
                 )}
               >
-                {tab === 'CAMERA' ? 'Camera' : tab === 'SERVICE' ? 'Service' : 'Flows'}
+                {tab === 'CAMERA' ? t('tab_camera') : tab === 'SERVICE' ? t('tab_repair') : t('tab_transport')}
               </button>
             ))}
           </div>
@@ -216,7 +246,7 @@ export function AllInOneDashboard() {
             </div>
             <input
               type="text"
-              placeholder="Search personnel, work..."
+              placeholder={t('search_personnel_work')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="block w-full md:w-64 pl-9 pr-3 py-2 bg-dark-card border border-dark-border rounded-lg text-xs text-black font-bold focus:ring-1 focus:ring-dark-accent/20 focus:border-dark-accent/40 outline-none transition-all placeholder:text-dark-text-muted/50 shadow-inner"
@@ -228,10 +258,18 @@ export function AllInOneDashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Total', value: allTasks.length, icon: Activity, color: 'text-orange-400' },
-          { label: 'Camera', value: allTasks.filter(t => t.collectionName === 'camera_requests').length, icon: Camera, color: 'text-purple-400' },
-          { label: 'Logistic', value: allTasks.filter(t => t.collectionName === 'vehicle_requests').length, icon: Truck, color: 'text-blue-400' },
-          { label: 'Technical', value: allTasks.filter(t => t.collectionName === 'service_requests').length, icon: Wrench, color: 'text-emerald-400' },
+          { label: t('stat_total'), value: allTasks.filter(t => {
+            if (t.collectionName === 'vehicle_requests') {
+              return !allTasks.some(ct => ct.collectionName === 'camera_requests' && (ct.eventTitle || ct.tripName) === (t.eventTitle || t.tripName));
+            }
+            return true;
+          }).length, icon: Activity, color: 'text-orange-400' },
+          { label: t('tab_camera'), value: allTasks.filter(t => t.collectionName === 'camera_requests').length, icon: Camera, color: 'text-purple-400' },
+          { label: t('tab_transport'), value: allTasks.filter(t => {
+            if (t.collectionName !== 'vehicle_requests') return false;
+            return !allTasks.some(ct => ct.collectionName === 'camera_requests' && (ct.eventTitle || ct.tripName) === (t.eventTitle || t.tripName));
+          }).length, icon: Truck, color: 'text-blue-400' },
+          { label: t('tab_repair'), value: allTasks.filter(t => t.collectionName === 'service_requests').length, icon: Wrench, color: 'text-emerald-400' },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -270,7 +308,7 @@ export function AllInOneDashboard() {
             </div>
             <div>
               <h3 className="text-[9px] font-black text-slate-950 uppercase tracking-widest leading-none">
-                {activePortalTab === 'CAMERA' ? 'Camera Coverage' : activePortalTab === 'SERVICE' ? 'Technical Service & Repair' : 'Logistics & Transportation'} Registry
+                {activePortalTab === 'CAMERA' ? t('camera_coverage_registry') : activePortalTab === 'SERVICE' ? t('repair_service_registry') : t('transport_registry')}
               </h3>
             </div>
           </div>
@@ -278,10 +316,10 @@ export function AllInOneDashboard() {
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
               className="p-1.5 hover:bg-dark-main rounded-md text-dark-text-subtle hover:text-dark-accent transition-colors flex items-center gap-1.5 group border border-transparent hover:border-dark-border"
-              title={isCollapsed ? "Expand Registry" : "Collapse Registry"}
+              title={isCollapsed ? t('expand_registry') : t('collapse_registry')}
             >
               {isCollapsed ? <Maximize2 className="w-3.5 h-3.5 rotate-45" /> : <Minimize2 className="w-3.5 h-3.5 rotate-45" />}
-              <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{isCollapsed ? 'Expand' : 'Collapse'}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{isCollapsed ? t('expand_registry') : t('collapse_registry')}</span>
             </button>
             {selectedIds.size > 0 && (
               <div className="flex items-center gap-1.5">
@@ -299,7 +337,7 @@ export function AllInOneDashboard() {
                   <div className="flex items-center gap-1 animate-in fade-in zoom-in duration-200">
                     <input
                       type="password"
-                      placeholder="Auth PIN"
+                      placeholder={t('auth_pin')}
                       value={deletePassword}
                       onChange={(e) => setDeletePassword(e.target.value)}
                       className="px-1.5 py-0.5 bg-dark-main border border-dark-border rounded text-[8px] font-bold text-white focus:ring-1 focus:ring-rose-500 outline-none w-16 h-6"
@@ -310,7 +348,7 @@ export function AllInOneDashboard() {
                       disabled={loading || !deletePassword}
                       className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
                     >
-                      Verify
+                      {t('verify_label')}
                     </button>
                     <button
                       onClick={() => {
@@ -330,7 +368,7 @@ export function AllInOneDashboard() {
               className="p-1.5 hover:bg-dark-main rounded-md text-dark-text-subtle hover:text-dark-accent transition-colors flex items-center gap-1.5 group border border-transparent hover:border-dark-border"
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-              <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{isFullscreen ? 'Exit' : 'Full'}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{isFullscreen ? t('exit_fullscreen') : t('enter_fullscreen')}</span>
             </button>
           </div>
         </div>
@@ -358,32 +396,31 @@ export function AllInOneDashboard() {
                         checked={portalTasks.length > 0 && Array.from(selectedIds).length >= portalTasks.length}
                       />
                     </th>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">No</th>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Title / Location</th>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Requester</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">{t('col_no')}</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">{t('col_title_location')}</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">{t('col_requester')}</th>
                     
                     {activePortalTab === 'CAMERA' && (
                       <>
-                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-purple-400/80">Assigned Camera</th>
-                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-purple-400/80">{t('col_assigned_camera')}</th>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">{t('col_assigned_driver')}</th>
                       </>
                     )}
                     
                     {activePortalTab === 'SERVICE' && (
                       <>
-                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-emerald-400/80">Assigned Tech</th>
-                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-emerald-400/80">{t('col_assigned_tech')}</th>
                       </>
                     )}
                     
                     {activePortalTab === 'VEHICLE' && (
                       <>
-                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">{t('col_assigned_driver')}</th>
                       </>
                     )}
 
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">Status</th>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-right">Schedule</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">{t('col_status')}</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-right">{t('col_schedule')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-dark-border/40">
@@ -407,11 +444,11 @@ export function AllInOneDashboard() {
                       <td className="px-3 py-1">
                         <div className="flex flex-col">
                           <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-dark-accent transition-colors leading-tight">
-                            {task.eventTitle || task.tripName || task.workName || 'Unnamed Request'}
+                            {task.eventTitle || task.tripName || task.workName || t('unnamed_request')}
                           </span>
                           <div className="flex items-center gap-1 text-dark-text-muted">
                             <MapPin className="w-1.5 h-1.5" />
-                            <span className="text-[7px] font-bold uppercase">{task.location || task.destination || 'On-Site'}</span>
+                            <span className="text-[7px] font-bold uppercase">{task.location || task.destination || t('on_site')}</span>
                           </div>
                         </div>
                       </td>
@@ -423,40 +460,41 @@ export function AllInOneDashboard() {
                         <>
                           <td className="px-3 py-1">
                             <div className="flex flex-col">
-                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || task.assignedAgentName || 'PENDING'}</span>
-                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || task.assignedAgentPhone || ''}</span>
+                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || task.assignedAgentName || task.assignedDriverName || t('pending_label')}</span>
+                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || task.assignedAgentPhone || task.assignedDriverPhone || ''}</span>
                             </div>
                           </td>
                           <td className="px-3 py-1">
-                            <div className="flex flex-col">
-                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'N/A'}</span>
-                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
-                            </div>
+                            {(() => {
+                              const linkedVehicle = allTasks.find(t => 
+                                t.collectionName === 'vehicle_requests' && 
+                                (t.eventTitle || t.tripName) === (task.eventTitle || task.tripName) &&
+                                t.id !== task.id // Ensure we don't find self if they were same (unlikely but good practice)
+                              );
+                              return (
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{linkedVehicle?.assignedDriverName || t('pending_label')}</span>
+                                  <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{linkedVehicle?.assignedDriverPhone || ''}</span>
+                                </div>
+                              );
+                            })()}
                           </td>
                         </>
                       )}
 
                       {activePortalTab === 'SERVICE' && (
-                        <>
-                          <td className="px-3 py-1">
-                            <div className="flex flex-col">
-                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || 'PENDING'}</span>
-                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || ''}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-1">
-                            <div className="flex flex-col">
-                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || '---'}</span>
-                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
-                            </div>
-                          </td>
-                        </>
+                        <td className="px-3 py-1">
+                          <div className="flex flex-col">
+                            <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || t('pending_label')}</span>
+                            <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || ''}</span>
+                          </div>
+                        </td>
                       )}
 
                       {activePortalTab === 'VEHICLE' && (
                         <td className="px-3 py-1">
                           <div className="flex flex-col">
-                            <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'PENDING'}</span>
+                            <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || t('pending_label')}</span>
                             <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
                           </div>
                         </td>
@@ -490,7 +528,7 @@ export function AllInOneDashboard() {
                             <Search className="w-8 h-8 text-dark-text-muted opacity-20" />
                           </div>
                           <p className="text-dark-text-subtle font-serif italic text-sm">
-                            No operational vectors found for this category.
+                            {t('no_vectors')}
                           </p>
                         </div>
                       </td>
