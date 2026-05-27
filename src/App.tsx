@@ -31,7 +31,8 @@ export enum UserRole {
   TECHNICIAN = 'TECHNICIAN',
   DRIVER = 'DRIVER',
   CAMERAMAN = 'CAMERAMAN',
-  SECURITY = 'SECURITY'
+  SECURITY = 'SECURITY',
+  ALL_IN_ONE = 'ALL_IN_ONE'
 }
 
 interface UserProfile {

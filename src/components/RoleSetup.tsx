@@ -72,6 +72,15 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
       bg: 'bg-pink-500/10',
       border: 'border-pink-500/20',
     },
+    {
+      id: UserRole.ALL_IN_ONE,
+      title: 'ALL IN ONE PORTAL',
+      description: 'Unified global registry for all assets.',
+      icon: Globe,
+      color: 'text-orange-400',
+      bg: 'bg-orange-500/10',
+      border: 'border-orange-500/20',
+    },
   ];
 
   const handleComplete = async () => {

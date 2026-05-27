@@ -66,10 +66,12 @@ async function startServer() {
       try {
         const adminDb = getAdminDb();
         await adminDb.collection("users").doc(personnelId).set({
-          phoneNumber: phoneNumber
+          phoneNumber: phoneNumber,
+          updatedAt: new Date()
         }, { merge: true });
       } catch (dbErr: any) {
-        console.warn("[Backend SDK Warning] Dispatch update user phone number failed (expected if database is restricted):", dbErr.message);
+        // Log as info/debug rather than warn if it's a known restriction to avoid alarming "errors" in logs
+        console.info(`[Backend SDK] Firestore sync skipped: ${dbErr.message}`);
       }
 
       // 2. Send SMS
@@ -80,7 +82,7 @@ async function startServer() {
       if (!accountSid || !authToken || !from) {
         return res.status(412).json({ 
           error: "SMS_NOT_CONFIGURED", 
-          message: "Twilio credentials missing." 
+          message: "Twilio credentials missing. SMS notification could not be sent." 
         });
       }
 
@@ -89,7 +91,10 @@ async function startServer() {
       if (clean.startsWith('0')) clean = '251' + clean.substring(1);
       const formattedTo = '+' + clean;
 
-      const twilioClient = twilio(accountSid, authToken);
+      if (!twilioClient) {
+        twilioClient = twilio(accountSid, authToken);
+      }
+
       await twilioClient.messages.create({
         body: message,
         to: formattedTo,
@@ -98,8 +103,21 @@ async function startServer() {
 
       res.json({ success: true });
     } catch (error: any) {
-      console.error("Dispatch Error:", error);
-      res.status(500).json({ error: "DISPATCH_FAILED", message: error.message });
+      console.error("Dispatch Error:", error.message);
+      
+      let errMsg = error.message;
+      let errCode = "DISPATCH_FAILED";
+
+      if (error.code === 21608) {
+        errCode = "TWILIO_21608";
+        errMsg = `The recipient number ${phoneNumber} is not verified in Twilio. Trial accounts can only send messages to verified numbers. Please verify the destination phone number in your Twilio Console or use a verified test number.`;
+      }
+
+      res.status(error.status || 500).json({ 
+        error: errCode, 
+        message: errMsg,
+        code: error.code 
+      });
     }
   });
 

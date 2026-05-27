@@ -88,7 +88,7 @@ export function DeptDirectorDashboard() {
 
   // Service Request specific
   const [category, setCategory] = useState('Hardware');
-  const [selectedFleetId, setSelectedFleetId] = useState('');
+  const [serviceRequester, setServiceRequester] = useState('');
 
   // Camera Request specific
   const [eventTitle, setEventTitle] = useState('');
@@ -96,6 +96,7 @@ export function DeptDirectorDashboard() {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [cameraPurpose, setCameraPurpose] = useState('');
+  const [cameraHostName, setCameraHostName] = useState('');
 
   // Vehicle Request specific
   const [destination, setDestination] = useState('');
@@ -104,6 +105,7 @@ export function DeptDirectorDashboard() {
   const [depDate, setDepDate] = useState('');
   const [depTime, setDepTime] = useState('');
   const [retTime, setRetTime] = useState('');
+  const [vehicleHostName, setVehicleHostName] = useState('');
 
   // Item Exit specific
   const [itemName, setItemName] = useState('');
@@ -307,11 +309,11 @@ export function DeptDirectorDashboard() {
         };
 
         if (activeTab === 'SERVICE') {
-          updateData = { ...updateData, phoneNumber, location, serviceCategory: category, workName, description, priority, fleetId: selectedFleetId || null };
+          updateData = { ...updateData, phoneNumber, location, serviceCategory: category, workName, description, priority, requesterName: serviceRequester || profile.displayName };
         } else if (activeTab === 'CAMERA') {
-          updateData = { ...updateData, eventTitle, location, date: eventDate, startTime, endTime, purpose: cameraPurpose };
+          updateData = { ...updateData, eventTitle, location, date: eventDate, startTime, endTime, purpose: cameraPurpose, hostName: cameraHostName, requesterName: cameraHostName || profile.displayName };
         } else if (activeTab === 'VEHICLE') {
-          updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengers, departureDate: depDate, departureTime: depTime, returnTime: retTime };
+          updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengers, departureDate: depDate, departureTime: depTime, returnTime: retTime, hostName: vehicleHostName || profile.displayName, requesterName: vehicleHostName || profile.displayName };
         } else if (activeTab === 'OTHER') {
           if (clearanceType === 'ITEM') {
             updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate, quantity: itemQuantity, responsiblePerson };
@@ -355,7 +357,7 @@ export function DeptDirectorDashboard() {
             workName,
             description,
             priority,
-            fleetId: selectedFleetId || null,
+            requesterName: serviceRequester || profile.displayName,
             status: 'NEW',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -374,6 +376,8 @@ export function DeptDirectorDashboard() {
             startTime,
             endTime,
             purpose: cameraPurpose,
+            requesterName: cameraHostName || profile.displayName,
+            hostName: cameraHostName || profile.displayName,
             status: 'NEW',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -390,6 +394,8 @@ export function DeptDirectorDashboard() {
             tripName: workName,
             purpose: vehiclePurpose,
             passengers,
+            requesterName: vehicleHostName || profile.displayName,
+            hostName: vehicleHostName || profile.displayName,
             departureDate: depDate,
             departureTime: depTime,
             returnTime: retTime,
@@ -409,6 +415,7 @@ export function DeptDirectorDashboard() {
                 itemName,
                 serialNumber,
                 purpose: exitReason,
+                requesterName: profile.displayName,
                 expectedReturnDate,
                 quantity: itemQuantity,
                 responsiblePerson,
@@ -426,6 +433,7 @@ export function DeptDirectorDashboard() {
                 departmentName: profile.department || 'Unknown Dept',
                 projectName: workName,
                 deviceModel: deviceModel || 'General Laborer',
+                requesterName: profile.displayName,
                 quantity: requestQty,
                 startTime: startTime,
                 endTime: endTime,
@@ -446,6 +454,7 @@ export function DeptDirectorDashboard() {
                 visitorNames,
                 visitorCompany,
                 guestCount,
+                requesterName: profile.displayName,
                 visitDate,
                 visitTime,
                 hostName: hostName || profile.displayName,
@@ -552,44 +561,6 @@ export function DeptDirectorDashboard() {
   };
 
 
-  const handleApprove = async (requestId: string, collectionName: string) => {
-    if (collectionName === 'guest_requests') return;
-    try {
-      await updateDoc(doc(db, collectionName, requestId), {
-        status: 'APPROVED',
-        approvedAt: serverTimestamp(),
-        approvedById: profile?.uid,
-        approvedByName: profile?.displayName,
-        updatedAt: serverTimestamp(),
-      });
-
-      // If approved request is of type 'ITEM' (item_requests), also send APPROVED notification to all SECURITY users
-      if (collectionName === 'item_requests') {
-        const foundReq = itemRequests.find(r => r.id === requestId);
-        const displayName = foundReq?.itemName || 'Item';
-        const securityUsers = await getDocs(query(collection(db, 'users'), where('role', '==', 'SECURITY')));
-        const notificationPromises = securityUsers.docs.map(uDoc => {
-          const userSecId = uDoc.id;
-          const notifSecId = `notif_app_item_${Date.now()}_${userSecId}`;
-          return setDoc(doc(db, 'notifications', notifSecId), {
-            userId: userSecId,
-            title: `[APPROVED] [${profile?.department || 'Dept'}] Exit Permit: ${displayName}`,
-            message: `APPROVED EXIT: ${profile?.displayName || 'Director'} approved Exit Permit for item "${displayName}". Security clearance authorized.`,
-            read: false,
-            role: 'ADMIN_OR_STAFF',
-            type: 'APPROVAL',
-            requestId: requestId,
-            createdAt: serverTimestamp(),
-          });
-        });
-        await Promise.all(notificationPromises);
-      }
-
-      toast.success('Request approved and released to operations');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `${collectionName}/${requestId}`);
-    }
-  };
 
   const handleConfirm = async (requestId: string) => {
     if (!selectedRequest) return;
@@ -666,7 +637,7 @@ export function DeptDirectorDashboard() {
     setLocation('');
     setPriority('MEDIUM');
     setPhoneNumber(profile?.phoneNumber || '');
-    setSelectedFleetId('');
+    setServiceRequester('');
     setItemName('');
     setSerialNumber('');
     setExitReason('');
@@ -678,12 +649,14 @@ export function DeptDirectorDashboard() {
     setStartTime('');
     setEndTime('');
     setCameraPurpose('');
+    setCameraHostName('');
     setDestination('');
     setVehiclePurpose('');
     setPassengers([{ name: '', location: '', phone: '' }]);
     setDepDate('');
     setDepTime('');
     setRetTime('');
+    setVehicleHostName('');
     setDeviceModel('');
     setRequestQty(1);
     setNeedDate('');
@@ -719,7 +692,7 @@ export function DeptDirectorDashboard() {
     setLocation(request.location || '');
     setPriority(request.priority || 'MEDIUM');
     setPhoneNumber(request.phoneNumber || profile?.phoneNumber || '');
-    setSelectedFleetId(request.fleetId || '');
+    setServiceRequester(request.requesterName || '');
     setItemName(request.itemName || '');
     setSerialNumber(request.serialNumber || '');
     setExitReason(request.purpose || '');
@@ -731,12 +704,14 @@ export function DeptDirectorDashboard() {
     setStartTime(request.startTime || '');
     setEndTime(request.endTime || '');
     setCameraPurpose(request.purpose || '');
+    setCameraHostName(request.hostName || '');
     setDestination(request.destination || '');
     setVehiclePurpose(request.purpose || '');
     setPassengers(request.passengers || [{ name: '', location: '', phone: '' }]);
     setDepDate(request.departureDate || '');
     setDepTime(request.departureTime || '');
     setRetTime(request.returnTime || '');
+    setVehicleHostName(request.hostName || '');
     setDeviceModel(request.deviceModel || '');
     setRequestQty(request.quantity || 1);
     setNeedDate(request.neededBy || '');
@@ -927,7 +902,7 @@ export function DeptDirectorDashboard() {
                         )}
                         <td className="py-4 px-6">
                           <p className="text-xs font-black text-black uppercase tracking-tight">{request.departmentName || 'General Dept'}</p>
-                          <p className="text-[10px] text-dark-text-subtle font-medium uppercase tracking-widest">{request.directorName || 'Unknown Agent'}</p>
+                          <p className="text-[10px] text-dark-text-subtle font-medium uppercase tracking-widest">{request.requesterName || request.directorName || 'Unknown Agent'}</p>
                         </td>
                         <td className="py-4 px-6">
                           <p className="text-sm font-bold text-slate-900 line-clamp-1 flex items-center gap-2">
@@ -987,19 +962,6 @@ export function DeptDirectorDashboard() {
                         </td>
                         <td className="py-4 px-6 text-right">
                            <div className="flex items-center justify-end gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                              {request.status === 'NEW' && request.collectionName !== 'guest_requests' && (
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleApprove(request.id, request.collectionName);
-                                  }}
-                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest rounded transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
-                                  title="Approve Request"
-                                >
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Approve
-                                </button>
-                              )}
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1300,19 +1262,15 @@ export function DeptDirectorDashboard() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Fleet Asset (Optional)")}</label>
-                        <select
-                          value={selectedFleetId}
-                          onChange={(e) => setSelectedFleetId(e.target.value)}
-                          className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all appearance-none"
-                        >
-                          <option value="">{t("No specific asset")}</option>
-                          {fleet.map(f => (
-                            <option key={f.id} value={f.id}>
-                              {f.plateNumber} ({f.model})
-                            </option>
-                          ))}
-                        </select>
+                        <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Requested Person Name")}</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder={t("e.g. John Doe")}
+                          value={serviceRequester}
+                          onChange={(e) => setServiceRequester(e.target.value)}
+                          className="w-full bg-dark-main border border-dark-border rounded-lg px-4 py-3 text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
                       </div>
                     </div>
 
@@ -1738,6 +1696,17 @@ export function DeptDirectorDashboard() {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Requester Name / Host Name")}</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder={t("e.g. Dr. Arthur or self")}
+                        value={cameraHostName}
+                        onChange={(e) => setCameraHostName(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                      />
+                    </div>
+                    <div>
                       <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Purpose / Equipment Needed")}</label>
                       <textarea
                         required
@@ -1820,6 +1789,17 @@ export function DeptDirectorDashboard() {
                           className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
                         />
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Requester Name / Contact Person")}</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder={t("Name of the person requesting the trip")}
+                        value={vehicleHostName}
+                        onChange={(e) => setVehicleHostName(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                      />
                     </div>
                     <div>
                       <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Purpose of Trip")}</label>

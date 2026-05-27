@@ -31,7 +31,9 @@ import {
   Car,
   Image as ImageIcon,
   Bell,
-  TowerControl
+  TowerControl,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { 
   collection, 
@@ -61,6 +63,7 @@ export function AdminDashboard() {
   const { profile, logout } = useAuth();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'PROP_CASUALTY'>('SERVICE');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [clearanceType, setClearanceType] = useState<'ITEM' | 'LABOR' | 'GUEST'>('ITEM');
   const [globalAlertTitle, setGlobalAlertTitle] = useState('SYSTEM ADVISORY');
   const [globalAlertMessage, setGlobalAlertMessage] = useState('Operational vector established. All stations verify handshake.');
@@ -755,7 +758,7 @@ export function AdminDashboard() {
     const currentTabRequests = getCurrentRequestsSource();
     
     try {
-      const promises = Array.from(selectedIds).map(async (id) => {
+      const promises = Array.from(selectedIds).map(async (id: string) => {
         const req = currentTabRequests.find(r => r.id === id);
         if (req) {
           const collectionName = getCollectionForActiveSelection();
@@ -984,10 +987,10 @@ export function AdminDashboard() {
   };
 
   const stats = [
-    { label: t('Service Request', 'Service Rep'), value: requests.length, icon: Wrench, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-    { label: t('Camera Request', 'Camera Cov'), value: cameraRequests.length, icon: Camera, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-    { label: t('Vehicle Request', 'Vehicle Req'), value: vehicleRequests.length, icon: Car, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: t('P&C Permits', 'P&C Permits'), value: [...itemRequests, ...deviceRequests, ...guestRequests].length, icon: ClipboardList, color: 'text-pink-400', bg: 'bg-pink-500/10' },
+    { id: 'service', label: t('Service Request', 'Service Rep'), value: requests.length, icon: Wrench, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
+    { id: 'camera', label: t('Camera Request', 'Camera Cov'), value: cameraRequests.length, icon: Camera, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+    { id: 'vehicle', label: t('Vehicle Request', 'Vehicle Req'), value: vehicleRequests.length, icon: Car, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { id: 'permits', label: t('P&C Permits', 'P&C Permits'), value: [...itemRequests, ...deviceRequests, ...guestRequests].length, icon: ClipboardList, color: 'text-pink-400', bg: 'bg-pink-500/10' },
   ];
 
   const activeRequestsList = getCurrentRequestsSource();
@@ -1048,12 +1051,12 @@ export function AdminDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
-          <div key={stat.label} className="bg-dark-card p-6 rounded-xl border border-dark-border shadow-lg">
+          <div key={stat.id} className="bg-dark-card p-6 rounded-xl border border-dark-border shadow-lg">
             <div className={cn("p-2 rounded-lg inline-flex mb-4 bg-dark-main/50", stat.color)}>
               <stat.icon className="w-4 h-4" />
             </div>
             <p className="text-2xl font-mono font-bold text-slate-950 tracking-tighter">{stat.value.toString().padStart(2, '0')}</p>
-            <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">{t(stat.label)}</p>
+            <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">{stat.label}</p>
           </div>
         ))}
       </div>
@@ -1102,7 +1105,10 @@ export function AdminDashboard() {
               >Guest</button>
             </div>
           )}
-          <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden flex flex-col h-[500px]">
+          <div className={cn(
+            "bg-dark-card rounded-xl border border-dark-border shadow-lg overflow-hidden flex flex-col transition-all duration-300",
+            isFullscreen ? "fixed inset-0 z-[110] rounded-none border-none h-screen" : "h-[500px]"
+          )}>
              <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
                <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
                  {activeTab === 'SERVICE' ? 'Service Queue' : activeTab === 'CAMERA' ? 'Coverage Queue' : activeTab === 'VEHICLE' ? 'Transportation Queue' : activeTab === 'PROP_CASUALTY' ? `${clearanceType === 'ITEM' ? 'Exit Permits' : clearanceType === 'GUEST' ? 'Guest Entrances' : 'Service Requests'} Queue` : 'Queue'}
@@ -1142,6 +1148,25 @@ export function AdminDashboard() {
                     <Search className="w-3.5 h-3.5 text-dark-text-subtle" />
                     <span className="text-[10px] font-bold text-dark-accent uppercase tracking-wide">Live Feed</span>
                   </div>
+
+                  {/* Fullscreen Toggle Button */}
+                  <button
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                    className="p-1.5 hover:bg-dark-sidebar rounded-lg text-dark-text-subtle hover:text-dark-accent transition-colors flex items-center gap-2 border border-transparent hover:border-dark-border ml-2"
+                    title={isFullscreen ? t("Exit Fullscreen") : t("Fullscreen Mode")}
+                  >
+                    {isFullscreen ? (
+                      <>
+                        <Minimize2 className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">{t("Exit")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">{t("Fullscreen")}</span>
+                      </>
+                    )}
+                  </button>
                </div>
              </div>
 
@@ -1153,6 +1178,7 @@ export function AdminDashboard() {
                        <th className="px-6 py-4 text-[10px] font-bold text-dark-text-subtle uppercase tracking-widest border-b border-dark-border w-10"></th>
                      )}
                      <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Order No")}</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Requester")}</th>
                      <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Requestor Dept")}</th>
                      <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Type of Order")}</th>
                      <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest text-black border-b border-dark-border">{t("Status")}</th>
@@ -1168,9 +1194,9 @@ export function AdminDashboard() {
                        <tr>
                           <td colSpan={isSelectMode ? 6 : 5} className="px-6 py-12 text-center text-dark-text-subtle text-sm font-serif italic">Main queue cleared</td>
                        </tr>
-                     ) : uniqueActiveRequests.map((request) => (
+                     ) : uniqueActiveRequests.map((request, idx) => (
                      <tr 
-                       key={request.id} 
+                       key={`${request.id || 'req'}-${idx}`} 
                        onClick={() => isSelectMode ? toggleSelect(request.id) : setSelectedRequest(request)}
                        className={cn(
                          "transition-colors group cursor-pointer",
@@ -1188,8 +1214,29 @@ export function AdminDashboard() {
                          </td>
                        )}
                        <td className="px-6 py-5">
-                          <div className="text-[10px] font-mono text-dark-accent font-bold uppercase tracking-widest">#{request.id.slice(-6).toUpperCase()}</div>
-                       </td>
+                          <div className="text-[10px] font-mono text-dark-accent font-bold">{idx + 1}</div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-2 text-black">
+                             <div className="w-6 h-6 rounded bg-dark-sidebar flex items-center justify-center text-[8px] font-black text-dark-text-muted border border-dark-border">
+                                {(() => {
+                                  const req = request.requesterName || request.directorName;
+                                  if (activeTab === 'CAMERA' || activeTab === 'VEHICLE') {
+                                    return (request.hostName || req || '??').charAt(0);
+                                  }
+                                  return (req || '??').charAt(0);
+                                })()}
+                             </div>
+                             <span className="text-[11px] font-bold uppercase tracking-tight text-slate-800">
+                               {(() => {
+                                 if (activeTab === 'CAMERA' || activeTab === 'VEHICLE') {
+                                   return request.hostName || request.requesterName || request.directorName || 'Unknown';
+                                 }
+                                 return request.requesterName || request.directorName || 'Unknown';
+                               })()}
+                             </span>
+                          </div>
+                        </td>
                        <td className="px-6 py-5">
                           <div className="text-[13px] font-black text-black flex items-center gap-2">
                              <span>{request.departmentName || 'General Ops'}</span>
@@ -1495,6 +1542,18 @@ export function AdminDashboard() {
                               }}
                               className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-3 text-sm text-black font-bold focus:border-dark-accent outline-none min-h-[100px]"
                            />
+                           {activeTab === 'CAMERA' && (
+                             <div className="mt-3">
+                               <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">Assigned Host</label>
+                               <input 
+                                 type="text" 
+                                 placeholder="Host Name"
+                                 value={editFormData.hostName || ''}
+                                 onChange={e => setEditFormData({...editFormData, hostName: e.target.value})}
+                                 className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                               />
+                             </div>
+                           )}
                            {activeTab === 'ITEM' && (
                              <div className="grid grid-cols-3 gap-4 mt-3">
                                <div>
@@ -1701,12 +1760,21 @@ export function AdminDashboard() {
                               </button>
                            </div>
                         </div>
-                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
-                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Asset Specifics</p>
-                           <p className="text-sm font-black text-black">
-                              {selectedRequest.vehicleType || selectedRequest.serialNumber || 'FMC STANDARD'}
-                           </p>
-                        </div>
+                        {selectedRequest.type === 'Camera' && selectedRequest.hostName ? (
+                          <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                             <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Assigned Host</p>
+                             <p className="text-sm font-black text-black">
+                                {selectedRequest.hostName}
+                             </p>
+                          </div>
+                        ) : (
+                          <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                             <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Asset Specifics</p>
+                             <p className="text-sm font-black text-black">
+                                {selectedRequest.vehicleType || selectedRequest.serialNumber || 'FMC STANDARD'}
+                             </p>
+                          </div>
+                        )}
                      </div>
                    )}
 

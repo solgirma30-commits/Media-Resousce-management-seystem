@@ -24,7 +24,9 @@ import {
   BarChart3,
   CheckCircle,
   Activity,
-  Layers
+  Layers,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -61,7 +63,7 @@ export function TechnicianDashboard() {
   const { t } = useLanguage();
   const [assignments, setAssignments] = useState<any[]>([]);
   const [allRegistryTasks, setAllRegistryTasks] = useState<any[]>([]);
-  const [fleet, setFleet] = useState<any[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission>(notificationService.getPermissionStatus());
   
@@ -351,15 +353,9 @@ export function TechnicianDashboard() {
       isFirstLoadNew = false;
     });
 
-    const fleetPath = 'fleet';
-    const unsubscribeFleet = onSnapshot(collection(db, fleetPath), (snapshot) => {
-      setFleet(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, fleetPath));
-
     return () => {
       unsubscribe();
       unsubscribeNew();
-      unsubscribeFleet();
     };
   }, [profile, portalConfig]);
 
@@ -634,8 +630,8 @@ export function TechnicianDashboard() {
             <Activity className="w-3 h-3" /> Director Notepad Broadcasts
           </h3>
           <div className="space-y-2">
-            {teamUpdates.map(msg => (
-              <div key={msg.id} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
+            {teamUpdates.map((msg, idx) => (
+              <div key={`${msg.id || 'msg'}-${idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">
@@ -657,9 +653,13 @@ export function TechnicianDashboard() {
 
       {/* Work Request Data Table */}
       <motion.div 
+        layout
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-dark-card border border-dark-border rounded-2xl shadow-xl overflow-hidden"
+        className={cn(
+          "bg-dark-card border border-dark-border rounded-2xl shadow-xl overflow-hidden transition-all duration-300",
+          isFullscreen ? "fixed inset-0 z-[100] rounded-none border-none h-screen overflow-hidden flex flex-col" : ""
+        )}
       >
         <div className="p-6 border-b border-dark-border bg-dark-sidebar/20 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -676,25 +676,47 @@ export function TechnicianDashboard() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span className="text-[9px] font-mono text-dark-text-muted uppercase">{allRegistryTasks.length} Total Records</span>
             </div>
+            
+            {/* Fullscreen Toggle Button */}
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-2 hover:bg-dark-main rounded-lg text-dark-text-subtle hover:text-dark-accent transition-colors flex items-center gap-2 group border border-transparent hover:border-dark-border"
+              title={isFullscreen ? t("Exit Fullscreen") : t("Fullscreen Mode")}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">{t("Exit")}</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">{t("Fullscreen")}</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
-        <div className="overflow-x-auto scrollbar-hide">
+        <div className={cn(
+          "overflow-x-auto scrollbar-hide",
+          isFullscreen ? "flex-1 overflow-y-auto" : ""
+        )}>
           <table className="w-full text-left border-collapse">
             <thead className="bg-dark-header">
               <tr>
                 <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Order No")}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Work Description")}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Department")}</th>
-                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Assigned Agent")}</th>
+                <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Assigned Agent / Requester")}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Status")}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border">{t("Timeline Link")}</th>
                 <th className="px-6 py-4 text-[10px] font-black text-dark-text-subtle uppercase tracking-[0.1em] border-b border-dark-border text-right whitespace-nowrap whitespace-nowrap">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border/40">
-              {allRegistryTasks.map((work) => (
+              {allRegistryTasks.map((work, idx) => (
                 <tr 
-                  key={work.id} 
+                  key={`${work.id || 'work'}-${idx}`}
                   onClick={() => setSelectedWork(work)}
                   className={cn(
                     "group transition-all cursor-pointer hover:bg-dark-main/30",
@@ -703,7 +725,7 @@ export function TechnicianDashboard() {
                 >
                   <td className="px-6 py-5">
                     <span className="text-[10px] font-mono text-dark-accent font-black tracking-widest group-hover:text-dark-accent transition-colors">
-                      #{work.id.slice(-6).toUpperCase()}
+                      {idx + 1}
                     </span>
                   </td>
                   <td className="px-6 py-5">
@@ -727,11 +749,32 @@ export function TechnicianDashboard() {
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-2.5">
                       <div className="w-7 h-7 rounded-lg bg-dark-main border border-dark-border flex items-center justify-center text-[9px] font-black text-dark-text-muted shadow-inner group-hover:border-dark-accent/40 transition-colors">
-                        {(work.assignedTechnicianName || work.assignedDriverName || '??').charAt(0)}
+                        {(work.assignedTechnicianName || work.assignedDriverName || work.requesterName || work.directorName || '??').charAt(0)}
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[11px] font-bold text-slate-900 leading-none">{work.assignedTechnicianName || work.assignedDriverName || 'Unassigned'}</span>
-                        <span className="text-[9px] text-dark-text-subtle mt-1 uppercase font-bold tracking-tight">Active Duty</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] font-bold text-slate-900 leading-none">
+                          {(() => {
+                            const agent = work.assignedTechnicianName || work.assignedDriverName;
+                            
+                            // Prioritize hostName for Camera and Vehicle requests as the "requestor person name"
+                            const requesterVal = (work.collectionName === 'camera_requests' || work.collectionName === 'vehicle_requests') 
+                              ? (work.hostName || work.requesterName || work.directorName) 
+                              : (work.requesterName || work.directorName);
+                            
+                            let requester = requesterVal;
+                            
+                            // If requester is generic or same as department, try to show the other if available
+                            const finalRequester = (requester === work.departmentName && work.requesterName && work.requesterName !== 'TFMC') ? work.requesterName : requester;
+
+                            if (agent && finalRequester && agent !== finalRequester) {
+                              return `${agent} / ${finalRequester}`;
+                            }
+                            return agent || finalRequester || 'Unassigned';
+                          })()}
+                        </span>
+                        <span className="text-[9px] text-dark-text-subtle uppercase font-bold tracking-tight">
+                          {(work.requesterName || work.directorName) && !work.assignedTechnicianName && !work.assignedDriverName ? 'Requester' : 'Active Duty'}
+                        </span>
                       </div>
                     </div>
                   </td>
@@ -882,19 +925,21 @@ export function TechnicianDashboard() {
                       </div>
                     )}
                     <div className="p-6 bg-dark-main/50 border border-dark-border rounded-xl">
-                      <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <AlertCircle className="w-3 h-3 text-amber-500" />
-                        {selectedWork.collectionName === 'vehicle_requests' ? 'Pax Metrics' : 'Fleet Asset'}
+                      <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <User className="w-3 h-3 text-indigo-500" />
+                        Requested By
                       </p>
-                      <p className="text-[0.9rem] font-bold text-emerald-400">
-                        {selectedWork.collectionName === 'vehicle_requests' ? (
-                          `${selectedWork.passengersCount} Passengers`
-                        ) : selectedWork.fleetId ? (
-                           fleet.find(f => f.id === selectedWork.fleetId)?.plateNumber || 'Linked Asset'
-                        ) : 'General Service'}
+                      <p className="text-[0.9rem] font-bold text-indigo-400">
+                        {(() => {
+                          const req = selectedWork.requesterName || selectedWork.directorName;
+                          if ((selectedWork.collectionName === 'camera_requests' || selectedWork.collectionName === 'vehicle_requests') && (req === 'TFMC' || !req)) {
+                            return selectedWork.hostName || selectedWork.requesterName || req || selectedWork.departmentName || 'General Request';
+                          }
+                          return req || selectedWork.departmentName || 'General Request';
+                        })()}
                       </p>
                       <p className="text-[11px] text-dark-text-subtle mt-1 italic font-serif">
-                        {selectedWork.collectionName === 'vehicle_requests' ? selectedWork.purpose : (selectedWork.fleetId ? fleet.find(f => f.id === selectedWork.fleetId)?.model : 'General Service')}
+                        Originating Requester
                       </p>
                     </div>
                     <div className="p-6 bg-dark-main/50 border border-dark-border rounded-xl">
@@ -1241,12 +1286,12 @@ export function TechnicianDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-3.5">
-                    {smsLogs.map((log) => {
+                    {smsLogs.map((log, idx) => {
                       const timeStr = log.sentAt?.seconds 
                         ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
                         : format(new Date(), 'h:mm a');
                       return (
-                        <div key={log.id} className="flex flex-col space-y-1">
+                        <div key={`${log.id || 'log'}-${idx}`} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">
                             <span>💬 DISPATCH COMMAND</span>
                             <span>{timeStr}</span>
