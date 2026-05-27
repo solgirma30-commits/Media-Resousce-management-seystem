@@ -160,23 +160,23 @@ export function AllInOneDashboard() {
   };
 
   return (
-    <div className="space-y-8 p-6 lg:p-10 bg-dark-main min-h-screen">
+    <div className="space-y-4 p-4 lg:p-6 bg-dark-main min-h-screen">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-dark-border">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-dark-border">
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-5"
+          className="flex items-center gap-4"
         >
-          <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border-2 border-orange-500/20 flex items-center justify-center shadow-2xl shadow-orange-500/10 relative group">
+          <div className="w-12 h-12 rounded-xl bg-orange-500/10 border-2 border-orange-500/20 flex items-center justify-center shadow-2xl shadow-orange-500/10 relative group">
             <div className="absolute inset-0 bg-orange-500/20 blur-xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
-            <Globe className="w-8 h-8 text-orange-400 relative z-10 animate-pulse" />
+            <Globe className="w-6 h-6 text-orange-400 relative z-10 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-black tracking-tighter uppercase leading-none">ALL IN ONE PORTAL</h1>
-            <p className="text-dark-text-subtle mt-2 font-mono text-[10px] uppercase tracking-widest flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Universal Workforce Registry & Assignment Intelligence
+            <h1 className="text-2xl font-black text-black tracking-tighter uppercase leading-none">ALL IN ONE PORTAL</h1>
+            <p className="text-dark-text-subtle mt-1 font-mono text-[9px] uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Universal Workforce Registry
             </p>
           </div>
         </motion.div>
@@ -218,7 +218,7 @@ export function AllInOneDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Total Registry', value: allTasks.length, icon: Activity, color: 'text-orange-400' },
           { label: 'Camera Services', value: allTasks.filter(t => t.collectionName === 'camera_requests').length, icon: Camera, color: 'text-purple-400' },
@@ -230,15 +230,15 @@ export function AllInOneDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-dark-card border border-dark-border p-6 rounded-2xl shadow-lg hover:border-dark-accent/30 transition-all group"
+            className="bg-dark-card border border-dark-border p-4 rounded-xl shadow-lg hover:border-dark-accent/30 transition-all group"
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">{stat.label}</p>
-                <h4 className="text-2xl font-black text-black mt-2 tracking-tighter">{stat.value}</h4>
+                <p className="text-[9px] font-black text-dark-text-subtle uppercase tracking-widest">{stat.label}</p>
+                <h4 className="text-xl font-black text-black mt-1 tracking-tighter">{stat.value}</h4>
               </div>
-              <div className={cn("p-3 rounded-xl bg-dark-main border border-dark-border group-hover:scale-110 transition-transform", stat.color)}>
-                <stat.icon className="w-5 h-5" />
+              <div className={cn("p-2.5 rounded-lg bg-dark-main border border-dark-border group-hover:scale-110 transition-transform", stat.color)}>
+                <stat.icon className="w-4 h-4" />
               </div>
             </div>
           </motion.div>
@@ -326,40 +326,40 @@ export function AllInOneDashboard() {
           <table className="w-full text-left border-collapse min-w-[1200px]">
             <thead className="bg-dark-header sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-5 border-b border-dark-border w-10">
+                <th className="px-6 py-3 border-b border-dark-border w-8">
                   <input 
                     type="checkbox"
-                    className="w-4 h-4 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
+                    className="w-3.5 h-3.5 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
                     onChange={handleSelectAll}
                     checked={portalTasks.length > 0 && Array.from(selectedIds).length >= portalTasks.length}
                   />
                 </th>
-                <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">No</th>
-                <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Title / Location</th>
-                <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border">Requester</th>
+                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">No</th>
+                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Title / Location</th>
+                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Requester</th>
                 
                 {activePortalTab === 'CAMERA' && (
                   <>
-                    <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border text-purple-400">Assigned Camera Man</th>
-                    <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border text-blue-400">Assigned Driver</th>
+                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-purple-400/80">Assigned Camera</th>
+                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
                   </>
                 )}
                 
                 {activePortalTab === 'SERVICE' && (
                   <>
-                    <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border text-emerald-400">Assigned Technician</th>
-                    <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border text-blue-400">Assigned Driver</th>
+                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-emerald-400/80">Assigned Tech</th>
+                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
                   </>
                 )}
                 
                 {activePortalTab === 'VEHICLE' && (
                   <>
-                    <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border text-blue-400">Assigned Driver</th>
+                    <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
                   </>
                 )}
 
-                <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border text-center">Status</th>
-                <th className="px-6 py-5 text-[10px] font-black text-dark-text-subtle uppercase tracking-widest border-b border-dark-border text-right">Date / Time</th>
+                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">Status</th>
+                <th className="px-6 py-3 text-[10px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-right">Schedule</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border/40">
@@ -371,42 +371,42 @@ export function AllInOneDashboard() {
                     selectedIds.has(task.id) ? "bg-dark-accent/5" : ""
                   )}
                 >
-                  <td className="px-6 py-6">
+                  <td className="px-6 py-2.5">
                     <input 
                       type="checkbox"
                       checked={selectedIds.has(task.id)}
                       onChange={() => handleToggleSelect(task.id)}
-                      className="w-4 h-4 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
+                      className="w-3.5 h-3.5 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
                     />
                   </td>
-                  <td className="px-6 py-6 font-mono text-[10px] text-dark-accent font-black">{idx + 1}</td>
-                  <td className="px-6 py-6">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[13px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-dark-accent transition-colors">
+                  <td className="px-6 py-2.5 font-mono text-[9px] text-dark-accent font-black">{idx + 1}</td>
+                  <td className="px-6 py-2.5">
+                    <div className="flex flex-col">
+                      <span className="text-[12px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-dark-accent transition-colors leading-tight">
                         {task.eventTitle || task.tripName || task.workName || 'Unnamed Request'}
                       </span>
-                      <div className="flex items-center gap-2 text-dark-text-muted">
-                        <MapPin className="w-2.5 h-2.5" />
-                        <span className="text-[9px] font-bold uppercase">{task.location || task.destination || 'On-Site'}</span>
+                      <div className="flex items-center gap-1.5 text-dark-text-muted">
+                        <MapPin className="w-2 h-2" />
+                        <span className="text-[8px] font-bold uppercase">{task.location || task.destination || 'On-Site'}</span>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-6 font-bold text-slate-900 text-[11px] uppercase">
+                  <td className="px-6 py-2.5 font-bold text-slate-900 text-[10px] uppercase whitespace-nowrap">
                     {task.hostName || task.requesterName || 'N/A'}
                   </td>
                   
                   {activePortalTab === 'CAMERA' && (
                     <>
-                      <td className="px-6 py-6">
+                      <td className="px-6 py-2.5">
                         <div className="flex flex-col">
-                          <span className="text-[11px] font-bold text-slate-950 uppercase">{task.assignedTechnicianName || task.assignedAgentName || 'PENDING'}</span>
-                          <span className="text-[9px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || task.assignedAgentPhone || ''}</span>
+                          <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || task.assignedAgentName || 'PENDING'}</span>
+                          <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || task.assignedAgentPhone || ''}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-6">
+                      <td className="px-6 py-2.5">
                         <div className="flex flex-col">
-                          <span className="text-[11px] font-bold text-slate-950 uppercase">{task.assignedDriverName || 'N/A'}</span>
-                          <span className="text-[9px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                          <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'N/A'}</span>
+                          <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
                         </div>
                       </td>
                     </>
@@ -414,48 +414,48 @@ export function AllInOneDashboard() {
 
                   {activePortalTab === 'SERVICE' && (
                     <>
-                      <td className="px-6 py-6">
+                      <td className="px-6 py-2.5">
                         <div className="flex flex-col">
-                          <span className="text-[11px] font-bold text-slate-950 uppercase">{task.assignedTechnicianName || 'PENDING'}</span>
-                          <span className="text-[9px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || ''}</span>
+                          <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || 'PENDING'}</span>
+                          <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || ''}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-6">
+                      <td className="px-6 py-2.5">
                         <div className="flex flex-col">
-                          <span className="text-[11px] font-bold text-slate-950 uppercase">{task.assignedDriverName || '---'}</span>
-                          <span className="text-[9px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                          <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || '---'}</span>
+                          <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
                         </div>
                       </td>
                     </>
                   )}
 
                   {activePortalTab === 'VEHICLE' && (
-                    <td className="px-6 py-6">
+                    <td className="px-6 py-2.5">
                       <div className="flex flex-col">
-                        <span className="text-[11px] font-bold text-slate-950 uppercase">{task.assignedDriverName || 'PENDING'}</span>
-                        <span className="text-[9px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                        <span className="text-[10px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'PENDING'}</span>
+                        <span className="text-[8px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
                       </div>
                     </td>
                   )}
 
-                  <td className="px-6 py-6 text-center">
+                  <td className="px-6 py-2.5 text-center">
                     <span className={cn(
-                      "px-3 py-1 rounded text-[9px] font-black uppercase tracking-widest border",
+                      "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border",
                       getStatusStyle(task.status)
                     )}>
                       {task.status}
                     </span>
                   </td>
-                  <td className="px-6 py-6 text-right whitespace-nowrap">
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="flex items-center gap-1.5 text-dark-text-muted">
-                        <Clock className="w-2.5 h-2.5" />
-                        <span className="text-[10px] font-mono font-bold">
-                          {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yyyy') : '--/--/--'}
+                  <td className="px-6 py-2.5 text-right whitespace-nowrap">
+                    <div className="flex flex-col items-end">
+                      <div className="flex items-center gap-1 text-dark-text-muted">
+                        <Clock className="w-2 h-2" />
+                        <span className="text-[9px] font-mono font-bold">
+                          {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yy') : '--/--/--'}
                         </span>
                       </div>
-                      <span className="text-[9px] font-black text-dark-accent/70 uppercase">
-                        {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'HH:mm:ss') : 'WAITING...'}
+                      <span className="text-[8px] font-black text-dark-accent/70 uppercase leading-none">
+                        {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'HH:mm') : 'WAITING...'}
                       </span>
                     </div>
                   </td>
