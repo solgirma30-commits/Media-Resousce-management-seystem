@@ -42,8 +42,10 @@ export function AllInOneDashboard() {
   const [activePortalTab, setActivePortalTab] = useState<'CAMERA' | 'SERVICE' | 'VEHICLE'>('CAMERA');
   const [allTasks, setAllTasks] = useState<any[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -118,6 +120,11 @@ export function AllInOneDashboard() {
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     
+    if (deletePassword !== 'DELETE2024') {
+      toast.error('Incorrect authorization password');
+      return;
+    }
+
     setLoading(true);
     try {
       const batch = writeBatch(db);
@@ -144,6 +151,7 @@ export function AllInOneDashboard() {
     } finally {
       setLoading(false);
       setShowConfirmDelete(false);
+      setDeletePassword('');
     }
   };
 
@@ -267,6 +275,14 @@ export function AllInOneDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-1.5 hover:bg-dark-main rounded-md text-dark-text-subtle hover:text-dark-accent transition-colors flex items-center gap-1.5 group border border-transparent hover:border-dark-border"
+              title={isCollapsed ? "Expand Registry" : "Collapse Registry"}
+            >
+              {isCollapsed ? <Maximize2 className="w-3.5 h-3.5 rotate-45" /> : <Minimize2 className="w-3.5 h-3.5 rotate-45" />}
+              <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{isCollapsed ? 'Expand' : 'Collapse'}</span>
+            </button>
             {selectedIds.size > 0 && (
               <div className="flex items-center gap-1.5">
                 {!showConfirmDelete ? (
@@ -281,16 +297,26 @@ export function AllInOneDashboard() {
                   </motion.button>
                 ) : (
                   <div className="flex items-center gap-1 animate-in fade-in zoom-in duration-200">
-                    <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest mr-1">Confirm?</span>
+                    <input
+                      type="password"
+                      placeholder="Auth PIN"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      className="px-1.5 py-0.5 bg-dark-main border border-dark-border rounded text-[8px] font-bold text-white focus:ring-1 focus:ring-rose-500 outline-none w-16 h-6"
+                      autoFocus
+                    />
                     <button
                       onClick={handleBulkDelete}
-                      disabled={loading}
+                      disabled={loading || !deletePassword}
                       className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
                     >
-                      Delete
+                      Verify
                     </button>
                     <button
-                      onClick={() => setShowConfirmDelete(false)}
+                      onClick={() => {
+                        setShowConfirmDelete(false);
+                        setDeletePassword('');
+                      }}
                       className="px-2 py-1 bg-dark-sidebar text-dark-text-subtle hover:text-white rounded-md text-[8px] font-black uppercase tracking-widest transition-all"
                     >
                       X
@@ -309,162 +335,172 @@ export function AllInOneDashboard() {
           </div>
         </div>
 
-        <div className={cn(
-          "overflow-x-auto scrollbar-hide",
-          isFullscreen ? "flex-1 overflow-y-auto" : ""
-        )}>
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead className="bg-dark-header sticky top-0 z-10">
-              <tr>
-                <th className="px-3 py-2 border-b border-dark-border w-8">
-                  <input 
-                    type="checkbox"
-                    className="w-3 h-3 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
-                    onChange={handleSelectAll}
-                    checked={portalTasks.length > 0 && Array.from(selectedIds).length >= portalTasks.length}
-                  />
-                </th>
-                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">No</th>
-                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Title / Location</th>
-                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Requester</th>
-                
-                {activePortalTab === 'CAMERA' && (
-                  <>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-purple-400/80">Assigned Camera</th>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
-                  </>
-                )}
-                
-                {activePortalTab === 'SERVICE' && (
-                  <>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-emerald-400/80">Assigned Tech</th>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
-                  </>
-                )}
-                
-                {activePortalTab === 'VEHICLE' && (
-                  <>
-                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
-                  </>
-                )}
-
-                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">Status</th>
-                <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-right">Schedule</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-dark-border/40">
-              {portalTasks.map((task, idx) => (
-                <tr 
-                  key={task.id}
-                  className={cn(
-                    "group transition-all hover:bg-dark-main/30 animate-in fade-in slide-in-from-bottom-2 duration-300",
-                    selectedIds.has(task.id) ? "bg-dark-accent/5" : ""
-                  )}
-                >
-                  <td className="px-3 py-1">
-                    <input 
-                      type="checkbox"
-                      checked={selectedIds.has(task.id)}
-                      onChange={() => handleToggleSelect(task.id)}
-                      className="w-3 h-3 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
-                    />
-                  </td>
-                  <td className="px-3 py-1 font-mono text-[8px] text-dark-accent font-black">{idx + 1}</td>
-                  <td className="px-3 py-1">
-                    <div className="flex flex-col">
-                      <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-dark-accent transition-colors leading-tight">
-                        {task.eventTitle || task.tripName || task.workName || 'Unnamed Request'}
-                      </span>
-                      <div className="flex items-center gap-1 text-dark-text-muted">
-                        <MapPin className="w-1.5 h-1.5" />
-                        <span className="text-[7px] font-bold uppercase">{task.location || task.destination || 'On-Site'}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-1 font-bold text-slate-900 text-[9px] uppercase whitespace-nowrap">
-                    {task.hostName || task.requesterName || 'N/A'}
-                  </td>
-                  
-                  {activePortalTab === 'CAMERA' && (
-                    <>
-                      <td className="px-3 py-1">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || task.assignedAgentName || 'PENDING'}</span>
-                          <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || task.assignedAgentPhone || ''}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-1">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'N/A'}</span>
-                          <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
-                        </div>
-                      </td>
-                    </>
-                  )}
-
-                  {activePortalTab === 'SERVICE' && (
-                    <>
-                      <td className="px-3 py-1">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || 'PENDING'}</span>
-                          <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || ''}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-1">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || '---'}</span>
-                          <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
-                        </div>
-                      </td>
-                    </>
-                  )}
-
-                  {activePortalTab === 'VEHICLE' && (
-                    <td className="px-3 py-1">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'PENDING'}</span>
-                        <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
-                      </div>
-                    </td>
-                  )}
-
-                  <td className="px-3 py-1 text-center">
-                    <span className={cn(
-                      "px-1.5 py-0 rounded text-[7px] font-black uppercase tracking-widest border",
-                      getStatusStyle(task.status)
-                    )}>
-                      {task.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-1 text-right whitespace-nowrap">
-                    <div className="flex flex-col items-end">
-                      <div className="flex items-center gap-0.5 text-dark-text-muted">
-                        <Clock className="w-1.5 h-1.5" />
-                        <span className="text-[8px] font-mono font-bold">
-                          {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yy') : '--/--/--'}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {portalTasks.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={10} className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-dark-sidebar flex items-center justify-center">
-                        <Search className="w-8 h-8 text-dark-text-muted opacity-20" />
-                      </div>
-                      <p className="text-dark-text-subtle font-serif italic text-sm">
-                        No operational vectors found for this category.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
+        <AnimatePresence>
+          {!isCollapsed && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className={cn(
+                "overflow-x-auto scrollbar-hide",
+                isFullscreen ? "flex-1 overflow-y-auto" : ""
               )}
-            </tbody>
-          </table>
-        </div>
+            >
+              <table className="w-full text-left border-collapse min-w-[1000px]">
+                <thead className="bg-dark-header sticky top-0 z-10">
+                  <tr>
+                    <th className="px-3 py-2 border-b border-dark-border w-8">
+                      <input 
+                        type="checkbox"
+                        className="w-3 h-3 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
+                        onChange={handleSelectAll}
+                        checked={portalTasks.length > 0 && Array.from(selectedIds).length >= portalTasks.length}
+                      />
+                    </th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">No</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Title / Location</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border">Requester</th>
+                    
+                    {activePortalTab === 'CAMERA' && (
+                      <>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-purple-400/80">Assigned Camera</th>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                      </>
+                    )}
+                    
+                    {activePortalTab === 'SERVICE' && (
+                      <>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-emerald-400/80">Assigned Tech</th>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                      </>
+                    )}
+                    
+                    {activePortalTab === 'VEHICLE' && (
+                      <>
+                        <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-blue-400/80">Assigned Driver</th>
+                      </>
+                    )}
+
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">Status</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-right">Schedule</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-border/40">
+                  {portalTasks.map((task, idx) => (
+                    <tr 
+                      key={task.id}
+                      className={cn(
+                        "group transition-all hover:bg-dark-main/30 animate-in fade-in slide-in-from-bottom-2 duration-300",
+                        selectedIds.has(task.id) ? "bg-dark-accent/5" : ""
+                      )}
+                    >
+                      <td className="px-3 py-1">
+                        <input 
+                          type="checkbox"
+                          checked={selectedIds.has(task.id)}
+                          onChange={() => handleToggleSelect(task.id)}
+                          className="w-3 h-3 rounded border-dark-border bg-dark-main focus:ring-dark-accent"
+                        />
+                      </td>
+                      <td className="px-3 py-1 font-mono text-[8px] text-dark-accent font-black">{idx + 1}</td>
+                      <td className="px-3 py-1">
+                        <div className="flex flex-col">
+                          <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-dark-accent transition-colors leading-tight">
+                            {task.eventTitle || task.tripName || task.workName || 'Unnamed Request'}
+                          </span>
+                          <div className="flex items-center gap-1 text-dark-text-muted">
+                            <MapPin className="w-1.5 h-1.5" />
+                            <span className="text-[7px] font-bold uppercase">{task.location || task.destination || 'On-Site'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-1 font-bold text-slate-900 text-[9px] uppercase whitespace-nowrap">
+                        {task.hostName || task.requesterName || 'N/A'}
+                      </td>
+                      
+                      {activePortalTab === 'CAMERA' && (
+                        <>
+                          <td className="px-3 py-1">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || task.assignedAgentName || 'PENDING'}</span>
+                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || task.assignedAgentPhone || ''}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-1">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'N/A'}</span>
+                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                            </div>
+                          </td>
+                        </>
+                      )}
+
+                      {activePortalTab === 'SERVICE' && (
+                        <>
+                          <td className="px-3 py-1">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedTechnicianName || 'PENDING'}</span>
+                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedTechnicianPhone || ''}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-1">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || '---'}</span>
+                              <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                            </div>
+                          </td>
+                        </>
+                      )}
+
+                      {activePortalTab === 'VEHICLE' && (
+                        <td className="px-3 py-1">
+                          <div className="flex flex-col">
+                            <span className="text-[9px] font-bold text-slate-950 uppercase leading-none">{task.assignedDriverName || 'PENDING'}</span>
+                            <span className="text-[7px] font-mono text-dark-accent/70 font-bold">{task.assignedDriverPhone || ''}</span>
+                          </div>
+                        </td>
+                      )}
+
+                      <td className="px-3 py-1 text-center">
+                        <span className={cn(
+                          "px-1.5 py-0 rounded text-[7px] font-black uppercase tracking-widest border",
+                          getStatusStyle(task.status)
+                        )}>
+                          {task.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1 text-right whitespace-nowrap">
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-0.5 text-dark-text-muted">
+                            <Clock className="w-1.5 h-1.5" />
+                            <span className="text-[8px] font-mono font-bold">
+                              {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yy') : '--/--/--'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {portalTasks.length === 0 && !loading && (
+                    <tr>
+                      <td colSpan={10} className="px-6 py-20 text-center">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-16 h-16 rounded-full bg-dark-sidebar flex items-center justify-center">
+                            <Search className="w-8 h-8 text-dark-text-muted opacity-20" />
+                          </div>
+                          <p className="text-dark-text-subtle font-serif italic text-sm">
+                            No operational vectors found for this category.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
