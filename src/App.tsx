@@ -47,6 +47,7 @@ interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
+  signingIn: boolean;
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
   switchRole: () => void;
@@ -64,6 +65,7 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signingIn, setSigningIn] = useState(false);
   const [isSelectingRole, setIsSelectingRole] = useState(false);
 
   const logout = useCallback(async () => {
@@ -76,6 +78,11 @@ export default function App() {
   }, []);
 
   const signIn = async () => {
+    if (signingIn) {
+      console.warn("Sign-in already in progress, ignoring duplicate request.");
+      return;
+    }
+    setSigningIn(true);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     
@@ -92,6 +99,8 @@ export default function App() {
         });
       } else if (authError.code === 'auth/popup-closed-by-user') {
         toast.error('Sign-in cancelled');
+      } else if (authError.code === 'auth/cancelled-popup-request') {
+        toast.error('Previous sign-in request was cancelled. Please try again.');
       } else if (authError.code === 'auth/unauthorized-domain') {
         const domain = window.location.hostname;
         toast.error(
@@ -107,6 +116,8 @@ export default function App() {
       } else {
         toast.error(`Sign-in failed: ${authError.message}`);
       }
+    } finally {
+      setSigningIn(false);
     }
   };
 
@@ -175,7 +186,7 @@ export default function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, logout, switchRole }}>
+    <AuthContext.Provider value={{ user, profile, loading, signingIn, signIn, logout, switchRole }}>
       <LanguageProvider>
         <Toaster 
           position="top-right" 

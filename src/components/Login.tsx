@@ -5,7 +5,7 @@ import { useAuth } from '../App';
 import { useLanguage } from '../lib/LanguageContext';
 
 export function Login() {
-  const { signIn } = useAuth();
+  const { signIn, signingIn } = useAuth();
   const { language, setLanguage, t } = useLanguage();
 
   return (
@@ -95,10 +95,15 @@ export function Login() {
 
           <button
             onClick={signIn}
-            className="w-full flex items-center justify-center gap-4 bg-white text-black font-black py-5 px-6 rounded-md transition-all shadow-xl hover:scale-[1.01] active:scale-[0.97] uppercase tracking-[0.2em] text-xs group cursor-pointer"
+            disabled={signingIn}
+            className="w-full flex items-center justify-center gap-4 bg-white text-black font-black py-5 px-6 rounded-md transition-all shadow-xl hover:scale-[1.01] active:scale-[0.97] uppercase tracking-[0.2em] text-xs group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Cpu className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-            {t('login_authenticate_google', 'Authenticate with Google')}
+            {signingIn ? (
+              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Cpu className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            )}
+            {signingIn ? t('login_signing_in', 'Authenticating...') : t('login_authenticate_google', 'Authenticate with Google')}
           </button>
           
           <p className="text-center text-[10px] text-dark-text-subtle font-mono animate-pulse">
