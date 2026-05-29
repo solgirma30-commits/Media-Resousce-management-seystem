@@ -66,19 +66,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
         });
 
         // Trigger browser notification for new items using docChanges
-        if (!isFirstLoad) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const newNotif = change.doc.data() as any;
-              // Trigger a browser-level and in-app toast popup if it's not a generic APPROVAL notification OR is a clearance approval
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const newNotif = change.doc.data() as any;
+            
+            // Check if this notification is extremely recent (created within the last 45 seconds)
+            // so we don't suppress it on portal switches or page reloads
+            const secondsAgo = newNotif.createdAt?.seconds 
+              ? (Date.now() / 1000) - newNotif.createdAt.seconds 
+              : 0;
+            const isVeryRecent = secondsAgo > 0 && secondsAgo < 45;
+
+            // Trigger a browser-level and in-app toast popup if it's not a generic APPROVAL notification OR is a clearance approval
+            if (!isFirstLoad || isVeryRecent) {
               if (newNotif.type !== 'APPROVAL' || newNotif.isClearanceApproval) {
                 notificationService.notify(newNotif.title, {
                   body: newNotif.message,
                 });
               }
             }
-          });
-        }
+          }
+        });
 
         setNotifications(docs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
         isFirstLoad = false;

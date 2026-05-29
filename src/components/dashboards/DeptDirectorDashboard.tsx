@@ -70,6 +70,13 @@ export function DeptDirectorDashboard() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [approvalPopup, setApprovalPopup] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    itemName: string;
+    type: string;
+  } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -634,6 +641,14 @@ export function DeptDirectorDashboard() {
           });
         });
         await Promise.all(notificationPromises);
+
+        setApprovalPopup({
+          isOpen: true,
+          title,
+          message,
+          itemName: displayName,
+          type: requestTypeLabel,
+        });
       }
       
       setSelectedRequest(null);
@@ -1912,6 +1927,64 @@ export function DeptDirectorDashboard() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {approvalPopup && approvalPopup.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setApprovalPopup(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="relative w-full max-w-md bg-dark-card rounded-2xl border border-dark-border shadow-2xl p-8 text-center text-slate-900 overflow-hidden"
+            >
+              {/* Decorative radial brand glow */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+              
+              <div className="mx-auto w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+                <ShieldCheck className="w-8 h-8 text-emerald-500" />
+              </div>
+              
+              <h3 className="text-xl font-bold text-slate-950 tracking-tight mb-2">
+                Clearance Approved Successfully!
+              </h3>
+              
+              <div className="inline-block px-3 py-1 bg-emerald-500/10 text-emerald-700 text-[10px] font-black rounded uppercase tracking-wider mb-4 border border-emerald-500/20">
+                {approvalPopup.type}: Approved
+              </div>
+              
+              <p className="text-sm font-semibold text-black mb-1">
+                {approvalPopup.itemName}
+              </p>
+              
+              <p className="text-xs text-dark-text-subtle font-medium leading-relaxed mb-6 bg-dark-main border border-dark-border rounded-xl p-4 italic">
+                {approvalPopup.message}
+              </p>
+
+              <div className="bg-emerald-500/5 rounded-xl p-4 border border-emerald-500/10 mb-6 text-left">
+                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                  Active Gate Clearance
+                </p>
+                <p className="text-[11px] text-dark-text-subtle leading-normal font-sans">
+                  Approval permissions and authorization documents have been securely dispatched and logged in the Security Gate portal.
+                </p>
+              </div>
+              
+              <button
+                onClick={() => setApprovalPopup(null)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-900/20 active:scale-95 text-xs uppercase tracking-widest cursor-pointer"
+              >
+                Dismiss Dialog
+              </button>
             </motion.div>
           </div>
         )}
