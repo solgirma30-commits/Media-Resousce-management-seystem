@@ -70,8 +70,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           snapshot.docChanges().forEach((change) => {
             if (change.type === "added") {
               const newNotif = change.doc.data() as any;
-              // Only trigger a browser-level popup notification if it's not a generic APPROVAL notification
-              if (newNotif.type !== 'APPROVAL') {
+              // Trigger a browser-level and in-app toast popup if it's not a generic APPROVAL notification OR is a clearance approval
+              if (newNotif.type !== 'APPROVAL' || newNotif.isClearanceApproval) {
                 notificationService.notify(newNotif.title, {
                   body: newNotif.message,
                 });

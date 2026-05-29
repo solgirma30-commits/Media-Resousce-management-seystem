@@ -27,7 +27,6 @@ import {
   query, 
   where, 
   onSnapshot, 
-  orderBy,
   addDoc,
   serverTimestamp,
   updateDoc,
@@ -129,8 +128,7 @@ export function DeptDirectorDashboard() {
     const srPath = 'service_requests';
     const srQ = query(
       collection(db, srPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      orderBy('createdAt', 'desc')
+      where('departmentName', '==', profile.department || 'Unknown')
     );
     const unsubscribeSR = onSnapshot(srQ, (snapshot) => {
       setRequests(
@@ -147,8 +145,7 @@ export function DeptDirectorDashboard() {
     const crPath = 'camera_requests';
     const crQ = query(
       collection(db, crPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      orderBy('createdAt', 'desc')
+      where('departmentName', '==', profile.department || 'Unknown')
     );
     const unsubscribeCR = onSnapshot(crQ, (snapshot) => {
       setCameraRequests(
@@ -165,8 +162,7 @@ export function DeptDirectorDashboard() {
     const vrPath = 'vehicle_requests';
     const vrQ = query(
       collection(db, vrPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      orderBy('createdAt', 'desc')
+      where('departmentName', '==', profile.department || 'Unknown')
     );
     const unsubscribeVR = onSnapshot(vrQ, (snapshot) => {
       setVehicleRequests(
@@ -183,8 +179,7 @@ export function DeptDirectorDashboard() {
     const irPath = 'item_requests';
     const irQ = query(
       collection(db, irPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      orderBy('createdAt', 'desc')
+      where('departmentName', '==', profile.department || 'Unknown')
     );
     const unsubscribeIR = onSnapshot(irQ, (snapshot) => {
       setItemRequests(
@@ -200,8 +195,7 @@ export function DeptDirectorDashboard() {
     const drPath = 'device_requests';
     const drQ = query(
       collection(db, drPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      orderBy('createdAt', 'desc')
+      where('departmentName', '==', profile.department || 'Unknown')
     );
     const unsubscribeDR = onSnapshot(drQ, (snapshot) => {
       setDeviceRequests(
@@ -217,8 +211,7 @@ export function DeptDirectorDashboard() {
     const grPath = 'guest_requests';
     const grQ = query(
       collection(db, grPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      orderBy('createdAt', 'desc')
+      where('departmentName', '==', profile.department || 'Unknown')
     );
     const unsubscribeGR = onSnapshot(grQ, (snapshot) => {
       setGuestRequests(
@@ -252,15 +245,18 @@ export function DeptDirectorDashboard() {
 
   const currentList = useMemo(() => {
     const getRawList = () => {
-      switch(activeTab) {
-        case 'SERVICE': return requests;
-        case 'CAMERA': return cameraRequests;
-        case 'VEHICLE': return vehicleRequests;
-        case 'OTHER': return [...itemRequests, ...deviceRequests, ...guestRequests].sort((a: any, b: any) => {
+      const sortByCreatedDesc = (arr: any[]) => {
+        return [...arr].sort((a: any, b: any) => {
           const tA = a.createdAt?.seconds || 0;
           const tB = b.createdAt?.seconds || 0;
           return tB - tA;
         });
+      };
+      switch(activeTab) {
+        case 'SERVICE': return sortByCreatedDesc(requests);
+        case 'CAMERA': return sortByCreatedDesc(cameraRequests);
+        case 'VEHICLE': return sortByCreatedDesc(vehicleRequests);
+        case 'OTHER': return sortByCreatedDesc([...itemRequests, ...deviceRequests, ...guestRequests]);
         default: return [];
       }
     };
@@ -580,6 +576,72 @@ export function DeptDirectorDashboard() {
     }
   };
 
+  const handleApproveClearance = async (requestId: string) => {
+    if (!selectedRequest) return;
+    const colName = selectedRequest.collectionName || 'item_requests';
+    const path = `${colName}/${requestId}`;
+    try {
+      await updateDoc(doc(db, colName, requestId), {
+        status: 'APPROVED',
+        approvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      toast.success('Request approved successfully');
+      
+      const isItem = colName === 'item_requests';
+      const isGuest = colName === 'guest_requests';
+      const isLabor = colName === 'device_requests';
+      
+      if (isItem || isGuest || isLabor) {
+        // Query users with role === 'SECURITY'
+        const securitySnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'SECURITY')));
+        const securityDocs = securitySnapshot.docs;
+        
+        let displayName = '';
+        let requestTypeLabel = '';
+        
+        if (isItem) {
+          displayName = selectedRequest.itemName || 'Untitled Item';
+          requestTypeLabel = 'Exit Permit';
+        } else if (isGuest) {
+          displayName = selectedRequest.visitorNames || 'Untitled Guest';
+          requestTypeLabel = 'Guest Entrance';
+        } else {
+          displayName = selectedRequest.projectName || 'Untitled Laborer Request';
+          requestTypeLabel = 'Laborer Request';
+        }
+        
+        const title = `[APPROVED] [${profile.department || 'Property & Casualty'}] ${requestTypeLabel}: ${displayName}`;
+        const message = isGuest
+          ? `APPROVED GUEST: Director ${profile.displayName} approved Guest Entrance for "${displayName}". Security gate clearance authorized.`
+          : isItem
+          ? `APPROVED EXIT: Director ${profile.displayName} approved Exit Permit for item "${displayName}". Security clearance authorized.`
+          : `APPROVED LABORER: Director ${profile.displayName} approved Laborer Request for "${displayName}". General access authorized.`;
+          
+        const notificationPromises = securityDocs.map(uDoc => {
+          const targetUserId = uDoc.id;
+          const notificationId = `notif_sec_approve_${Date.now()}_${targetUserId}`;
+          return setDoc(doc(db, 'notifications', notificationId), {
+            userId: targetUserId,
+            title,
+            message,
+            read: false,
+            role: 'SECURITY',
+            type: 'APPROVAL',
+            isClearanceApproval: true,
+            requestId: requestId,
+            createdAt: serverTimestamp(),
+          });
+        });
+        await Promise.all(notificationPromises);
+      }
+      
+      setSelectedRequest(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  };
+
   const handleClearSelected = async () => {
     if (selectedIds.size === 0) {
       toast.error('No records selected');
@@ -848,6 +910,7 @@ export function DeptDirectorDashboard() {
             <thead>
               <tr className="border-b border-dark-border bg-dark-main/30">
                 {isSelectMode && <th className="py-4 px-6 w-10"></th>}
+                <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">{t("Order No", "Order No")}</th>
                 <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">{t("Dept / Requester")}</th>
                 <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">{t("Request Details")}</th>
                 <th className="py-4 px-6 text-[10px] font-black text-dark-text-muted uppercase tracking-widest">{t("Status")}</th>
@@ -857,10 +920,10 @@ export function DeptDirectorDashboard() {
             </thead>
             <tbody className="divide-y divide-dark-border">
               {loading ? (
-                <tr><td colSpan={6} className="p-12 text-center text-dark-text-subtle">Retreiving records...</td></tr>
+                <tr><td colSpan={7} className="p-12 text-center text-dark-text-subtle">Retreiving records...</td></tr>
               ) : currentList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-16 text-center">
+                  <td colSpan={7} className="p-16 text-center">
                     <div className="w-16 h-16 bg-dark-main rounded-xl flex items-center justify-center mx-auto mb-4 border border-dark-border">
                       {activeTab === 'SERVICE' ? <Clock className="w-8 h-8 text-dark-border" /> : activeTab === 'CAMERA' ? <Camera className="w-8 h-8 text-dark-border" /> : activeTab === 'VEHICLE' ? <Car className="w-8 h-8 text-dark-border" /> : <ShieldCheck className="w-8 h-8 text-dark-border" />}
                     </div>
@@ -871,7 +934,7 @@ export function DeptDirectorDashboard() {
                 Object.entries(groupedByDept).map(([dept, deptRequests]) => (
                   <React.Fragment key={dept}>
                     <tr className="bg-dark-main/40">
-                      <td colSpan={6} className="px-6 py-2 border-y border-dark-border">
+                      <td colSpan={7} className="px-6 py-2 border-y border-dark-border">
                         <div className="flex items-center gap-2">
                           <div className="w-1 h-3 bg-dark-accent rounded-full" />
                           <span className="text-[10px] font-black text-dark-text-muted uppercase tracking-[0.2em]">{dept}</span>
@@ -900,6 +963,11 @@ export function DeptDirectorDashboard() {
                             </div>
                           </td>
                         )}
+                        <td className="py-4 px-6">
+                          <span className="text-[11px] font-mono font-black text-slate-800 tracking-wider">
+                            #{request.id ? request.id.slice(-6).toUpperCase() : 'N/A'}
+                          </span>
+                        </td>
                         <td className="py-4 px-6">
                           <p className="text-xs font-black text-black uppercase tracking-tight">{request.departmentName || 'General Dept'}</p>
                           <p className="text-[10px] text-dark-text-subtle font-medium uppercase tracking-widest">{request.requesterName || request.directorName || 'Unknown Agent'}</p>
@@ -1205,6 +1273,17 @@ export function DeptDirectorDashboard() {
                       >
                         Close View
                       </button>
+                      {selectedRequest.status === 'NEW' && activeTab === 'OTHER' && (
+                        <button 
+                          onClick={() => {
+                            handleApproveClearance(selectedRequest.id);
+                          }}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-all shadow-xl shadow-emerald-900/30 active:scale-95 flex items-center justify-center gap-3 animate-in fade-in zoom-in-95 duration-200"
+                        >
+                           <CheckCircle2 className="w-5 h-5" />
+                           Director Approve
+                        </button>
+                      )}
                       {selectedRequest.status === 'COMPLETED' && (
                         <button 
                           onClick={() => {

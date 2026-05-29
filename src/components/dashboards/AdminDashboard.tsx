@@ -45,6 +45,7 @@ import {
   doc,
   serverTimestamp,
   getDocs,
+  getDoc,
   where,
   deleteDoc
 } from 'firebase/firestore';
@@ -482,21 +483,137 @@ export function AdminDashboard() {
         updatedAt: serverTimestamp(),
       });
 
-      // Create notification for director
-      const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
-      let displayType = activeTab.toLowerCase();
-      if (activeTab === 'PROP_CASUALTY') {
-        displayType = clearanceType === 'ITEM' ? 'exit permit' : clearanceType === 'GUEST' ? 'guest entry' : 'laborer request';
+      const isClearance = activeTab === 'PROP_CASUALTY';
+      const audienceIds = new Set<string>();
+      if (directorId) {
+        audienceIds.add(directorId);
       }
-      await setDoc(doc(db, 'notifications', notificationId), {
-        userId: directorId,
-        title: 'Request Approved',
-        message: `Your ${displayType} request "${displayName}" has been approved.`,
-        read: false,
-        type: 'APPROVAL',
-        requestId: requestId,
-        createdAt: serverTimestamp(),
+
+      const deptName = req?.departmentName || req?.department || '';
+      const userMap = new Map<string, { fcmToken?: string; displayName?: string }>();
+
+      if (deptName) {
+        try {
+          const deptUsers = await getDocs(query(collection(db, 'users'), where('department', '==', deptName)));
+          deptUsers.docs.forEach(uDoc => {
+            audienceIds.add(uDoc.id);
+            const uData = uDoc.data();
+            userMap.set(uDoc.id, { fcmToken: uData?.fcmToken, displayName: uData?.displayName });
+          });
+        } catch (e) {
+          console.error("Failed to query department users:", e);
+        }
+      }
+
+      if (directorId && !userMap.has(directorId)) {
+        try {
+          const directorSnap = await getDoc(doc(db, 'users', directorId));
+          if (directorSnap.exists()) {
+            const dData = directorSnap.data();
+            userMap.set(directorId, { fcmToken: dData?.fcmToken, displayName: dData?.displayName });
+          }
+        } catch (e) {
+          console.error("Failed to fetch director details:", e);
+        }
+      }
+
+      // Create notifications for director & department members
+      const clearancePromises = Array.from(audienceIds).map(async (targetUserId) => {
+        const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${targetUserId}`;
+        let title: string;
+        let message: string;
+        
+        if (isClearance) {
+          if (clearanceType === 'ITEM') {
+            title = `[APPROVED] Exit Permit: ${displayName}`;
+            message = `APPROVED EXIT: Administrator approved Exit Permit for item "${displayName}". Security clearance authorized.`;
+          } else if (clearanceType === 'GUEST') {
+            title = `[APPROVED] Guest Entrance: ${displayName}`;
+            message = `APPROVED ENTRY: Administrator approved Guest Entrance for "${displayName}". Security gate clearance authorized.`;
+          } else {
+            title = `[APPROVED] Laborer Request: ${displayName}`;
+            message = `APPROVED LABORER: Administrator approved Laborer Request for "${displayName}". General access authorized.`;
+          }
+        } else {
+          const displayType = activeTab.toLowerCase();
+          title = `[APPROVED] Request: ${displayName}`;
+          message = `Your ${displayType} request "${displayName}" has been approved.`;
+        }
+
+        // 1. Save local in-app notification doc
+        await setDoc(doc(db, 'notifications', notificationId), {
+          userId: targetUserId,
+          title,
+          message,
+          read: false,
+          type: 'APPROVAL',
+          isClearanceApproval: isClearance, // This signals Layout.tsx to trigger a browser & toast popup immediately!
+          requestId: requestId,
+          createdAt: serverTimestamp(),
+        });
+
+        // 2. Dispatch real/simulated FCM Push Notification so a popup alert lands on their mobile phone even if closed
+        const uDetails = userMap.get(targetUserId);
+        if (uDetails?.fcmToken) {
+          try {
+            await fetch('/api/send-fcm-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                targetUserId,
+                title,
+                body: message,
+                requestId,
+                fcmToken: uDetails.fcmToken,
+              }),
+            });
+          } catch (fcmErr) {
+            console.error("FCM background popup failed:", fcmErr);
+          }
+        }
       });
+      await Promise.all(clearancePromises);
+
+      // Create simulated SMS log for the director/requested person if they have a phone number
+      if (directorId) {
+        try {
+          const directorSnap = await getDoc(doc(db, 'users', directorId));
+          if (directorSnap.exists()) {
+            const dData = directorSnap.data();
+            const phoneNumber = dData?.phoneNumber;
+            if (phoneNumber) {
+              const smsLogId = `sms_${Date.now()}_${directorId}`;
+              let smsMessage = '';
+              if (isClearance) {
+                if (clearanceType === 'ITEM') {
+                  smsMessage = `TRANSIT PERMIT: Your exit permit for "${displayName}" is APPROVED. Security gate notified.`;
+                } else if (clearanceType === 'GUEST') {
+                  smsMessage = `GATE ENTRY: Your guest entrance request for "${displayName}" is APPROVED. Gate clearance authorized.`;
+                } else {
+                  smsMessage = `LABOR ACCESS: Your laborer request for "${displayName}" is APPROVED. Site access cleared.`;
+                }
+              } else {
+                smsMessage = `ALERT: Your standard request "${displayName}" has been approved. Status updated to APPROVED.`;
+              }
+
+              await setDoc(doc(db, 'sim_sms_logs', smsLogId), {
+                id: smsLogId,
+                recipientId: directorId,
+                recipientName: dData.displayName || '',
+                recipientPhone: phoneNumber,
+                role: dData.role || 'DEPT_DIRECTOR',
+                message: smsMessage,
+                status: 'SENT',
+                sentAt: serverTimestamp(),
+                requestId: requestId,
+                requestType: activeTab
+              });
+            }
+          }
+        } catch (smsErr) {
+          console.error("Simulated SMS dispatch error on approval:", smsErr);
+        }
+      }
 
       // Map activeTab to matching roles for notification
       let targetRole: string | null = null;
@@ -507,8 +624,9 @@ export function AdminDashboard() {
 
       if (targetRole) {
         const portalUsers = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
-        const notificationPromises = portalUsers.docs.map(uDoc => {
+        const notificationPromises = portalUsers.docs.map(async (uDoc) => {
           const targetUserId = uDoc.id;
+          const uData = uDoc.data();
           const sectorKey = getSectorForActiveSelection();
           const notifId = `notif_app_${sectorKey.toLowerCase()}_admin_${Date.now()}_${targetUserId}`;
           
@@ -525,7 +643,8 @@ export function AdminDashboard() {
             }
           }
 
-          return setDoc(doc(db, 'notifications', notifId), {
+          // Save operator in-app notification doc
+          await setDoc(doc(db, 'notifications', notifId), {
             userId: targetUserId,
             title,
             message,
@@ -535,6 +654,25 @@ export function AdminDashboard() {
             requestId: requestId,
             createdAt: serverTimestamp(),
           });
+
+          // Also dispatch FCM background push to staff/operators so their phones alert them in the background immediately
+          if (uData?.fcmToken) {
+            try {
+              await fetch('/api/send-fcm-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  targetUserId,
+                  title,
+                  body: message,
+                  requestId,
+                  fcmToken: uData.fcmToken,
+                }),
+              });
+            } catch (fcmErr) {
+              console.error("FCM background dispatch for operator failed:", fcmErr);
+            }
+          }
         });
         await Promise.all(notificationPromises);
       }
@@ -1722,7 +1860,7 @@ export function AdminDashboard() {
                        )}
                     </div>
 
-                    {selectedRequest.status !== 'NEW' && (
+                    {selectedRequest.status !== 'NEW' && selectedRequest.type !== 'Exit Permit' && selectedRequest.type !== 'Device' && selectedRequest.type !== 'Guest Entry' && (
                      <div className="grid grid-cols-2 gap-6">
                         <div className="p-5 bg-dark-main border border-dark-border rounded-xl group relative">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">
@@ -1833,7 +1971,7 @@ export function AdminDashboard() {
                              </button>
                            )}
 
-                           {selectedRequest.status === 'APPROVED' && selectedRequest.type !== 'Exit Permit' && (
+                           {selectedRequest.status === 'APPROVED' && selectedRequest.type !== 'Exit Permit' && selectedRequest.type !== 'Device' && selectedRequest.type !== 'Guest Entry' && (
                              <button 
                                onClick={() => {
                                  openAssignModal(selectedRequest);
