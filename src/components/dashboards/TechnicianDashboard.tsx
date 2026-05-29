@@ -26,7 +26,9 @@ import {
   Activity,
   Layers,
   Maximize2,
-  Minimize2
+  Minimize2,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -64,6 +66,7 @@ export function TechnicianDashboard() {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [allRegistryTasks, setAllRegistryTasks] = useState<any[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [loading, setLoading] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission>(notificationService.getPermissionStatus());
   
@@ -695,12 +698,42 @@ export function TechnicianDashboard() {
                 </>
               )}
             </button>
+
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-1 bg-dark-main border border-dark-border rounded-lg p-0.5 shadow-inner select-none">
+              <button
+                onClick={() => setZoomLevel(prev => Math.max(60, prev - 10))}
+                disabled={zoomLevel <= 60}
+                className="p-1 text-dark-text-subtle hover:text-dark-accent disabled:opacity-40 transition-colors cursor-pointer"
+                title={t('zoom_out', 'Zoom Out')}
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setZoomLevel(100)}
+                className="px-1.5 text-[9px] font-mono font-black text-slate-800 uppercase tracking-tighter hover:text-dark-accent transition-colors cursor-pointer"
+                title={t('reset_zoom', 'Reset Zoom')}
+              >
+                {zoomLevel}%
+              </button>
+              <button
+                onClick={() => setZoomLevel(prev => Math.min(150, prev + 10))}
+                disabled={zoomLevel >= 150}
+                className="p-1 text-dark-text-subtle hover:text-dark-accent disabled:opacity-40 transition-colors cursor-pointer"
+                title={t('zoom_in', 'Zoom In')}
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
-        <div className={cn(
-          "overflow-x-auto scrollbar-hide",
-          isFullscreen ? "flex-1 overflow-y-auto" : ""
-        )}>
+        <div 
+          style={{ zoom: zoomLevel / 100 }}
+          className={cn(
+            "overflow-x-auto scrollbar-hide",
+            isFullscreen ? "flex-1 overflow-y-auto" : ""
+          )}
+        >
           <table className="w-full text-left border-collapse">
             <thead className="bg-dark-header">
               <tr>

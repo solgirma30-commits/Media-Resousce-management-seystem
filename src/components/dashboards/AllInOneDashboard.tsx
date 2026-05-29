@@ -14,6 +14,8 @@ import {
   X,
   Maximize2,
   Minimize2,
+  ZoomIn,
+  ZoomOut,
   Globe,
   TrendingUp,
   Activity,
@@ -47,6 +49,7 @@ export function AllInOneDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
 
   useEffect(() => {
     if (!profile) return;
@@ -370,12 +373,42 @@ export function AllInOneDashboard() {
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{isFullscreen ? t('exit_fullscreen') : t('enter_fullscreen')}</span>
             </button>
+
+            {/* Zoom Controls */}
+            {!isCollapsed && (
+              <div className="flex items-center gap-1 bg-dark-main border border-dark-border rounded-lg p-0.5 shadow-inner select-none">
+                <button
+                  onClick={() => setZoomLevel(prev => Math.max(60, prev - 10))}
+                  disabled={zoomLevel <= 60}
+                  className="p-1 text-dark-text-subtle hover:text-dark-accent disabled:opacity-40 transition-colors cursor-pointer"
+                  title={t('zoom_out', 'Zoom Out')}
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setZoomLevel(100)}
+                  className="px-1.5 text-[9px] font-mono font-black text-slate-800 uppercase tracking-tighter hover:text-dark-accent transition-colors cursor-pointer"
+                  title={t('reset_zoom', 'Reset Zoom')}
+                >
+                  {zoomLevel}%
+                </button>
+                <button
+                  onClick={() => setZoomLevel(prev => Math.min(150, prev + 10))}
+                  disabled={zoomLevel >= 150}
+                  className="p-1 text-dark-text-subtle hover:text-dark-accent disabled:opacity-40 transition-colors cursor-pointer"
+                  title={t('zoom_in', 'Zoom In')}
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         <AnimatePresence>
           {!isCollapsed && (
             <motion.div 
+              style={{ zoom: zoomLevel / 100 }}
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
