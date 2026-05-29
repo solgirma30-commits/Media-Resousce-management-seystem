@@ -597,7 +597,7 @@ export function AdminDashboard() {
         await setDoc(doc(db, 'notifications', techNotificationId), {
           userId: currentTech.id,
           title: `New Assignment: ${displayName}`,
-          message: `Hello ${currentTech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}". Please check your portal for details.`,
+          message: `Dear ${currentTech.displayName}, you are assigned to order no #${requestId.slice(-6).toUpperCase()}: "${displayName}". Please check your portal for details.`,
           read: false,
           type: 'ASSIGNMENT',
           requestId: requestId,
@@ -612,7 +612,7 @@ export function AdminDashboard() {
             body: JSON.stringify({
               targetUserId: currentTech.id,
               title: 'New Task Assigned',
-              body: `Hello ${currentTech.displayName}, you have been assigned to ${activeTab.toLowerCase()} assignment: "${displayName}".`,
+              body: `Dear ${currentTech.displayName}, you are assigned to order no #${requestId.slice(-6).toUpperCase()}: "${displayName}".`,
               requestId: requestId,
               fcmToken: currentTech.fcmToken || null, // Pass FCM token directly from client to bypass server-side Firestore lookup !
             }),
@@ -622,7 +622,7 @@ export function AdminDashboard() {
         }
 
         if (currentTech.phoneNumber) {
-          const smsMessage = `Vector System: Hello ${currentTech.displayName}, you have been assigned to ${activeTab.toLowerCase()} request #${requestId.slice(-6).toUpperCase()}. Please check your portal.`;
+          const smsMessage = `Dear ${currentTech.displayName}, you are assigned to order no #${requestId.slice(-6).toUpperCase()} (${activeTab.toLowerCase()} request: "${displayName}"). Please check your portal.`;
           
           // Write to Firestore 'sim_sms_logs' so the target user sees it immediately on their in-app simulated screen
           const smsLogId = `sms_${Date.now()}_${currentTech.id}`;
