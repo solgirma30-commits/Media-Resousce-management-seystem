@@ -137,7 +137,7 @@ export function AdminDashboard() {
     const unsubscribeReq = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Service', ...doc.data() }))
-          .filter((req: any) => !req.archived);
+          .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
         const timeA = a.createdAt?.seconds || 0;
@@ -174,7 +174,7 @@ export function AdminDashboard() {
     const unsubscribeCam = onSnapshot(qCam, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Camera', ...doc.data() }))
-          .filter((req: any) => !req.archived);
+          .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
         const timeA = a.createdAt?.seconds || 0;
@@ -209,7 +209,7 @@ export function AdminDashboard() {
     const unsubscribeVeh = onSnapshot(qVeh, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Vehicle', ...doc.data() }))
-          .filter((req: any) => !req.archived);
+          .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
         const timeA = a.createdAt?.seconds || 0;
@@ -244,7 +244,7 @@ export function AdminDashboard() {
     const unsubscribeItem = onSnapshot(qItem, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Exit Permit', ...doc.data() }))
-          .filter((req: any) => !req.archived);
+          .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
         const timeA = a.createdAt?.seconds || 0;
@@ -913,7 +913,7 @@ export function AdminDashboard() {
         if (req) {
           const collectionName = getCollectionForActiveSelection();
           if (collectionName) {
-            return deleteDoc(doc(db, collectionName, id));
+            return updateDoc(doc(db, collectionName, id), { purgedByAdmin: true });
           }
         }
       });
@@ -958,7 +958,7 @@ export function AdminDashboard() {
     for (const colName of collections) {
       const q = query(collection(db, colName), where('createdAt', '<', weekAgo));
       const snapshot = await getDocs(q);
-      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      const deletePromises = snapshot.docs.map(doc => updateDoc(doc.ref, { purgedByAdmin: true }));
       await Promise.all(deletePromises);
     }
     toast.success('Old records cleaned up');
@@ -1468,9 +1468,8 @@ export function AdminDashboard() {
                                      if (!auth.currentUser) { toast.error('Login permission required'); return; }
                                      await auth.currentUser.reload();
                                      const colName = collectionMap[activeTab];
-                                     await deleteDoc(doc(db, colName, request.id));
+                                     await updateDoc(doc(db, colName, request.id), { purgedByAdmin: true });
                                      toast.success('Record purged from queue');
-                                     setTimeout(() => logout(), 2000);
                                      setDeleteConfirmId(null);
                                    } catch (err) {
                                      toast.error('Purge failure');

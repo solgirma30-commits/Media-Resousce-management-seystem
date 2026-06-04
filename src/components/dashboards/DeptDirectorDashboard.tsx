@@ -685,7 +685,7 @@ export function DeptDirectorDashboard() {
             activeTab === 'VEHICLE' ? 'vehicle_requests' :
             activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
           );
-          return deleteDoc(doc(db, collectionName as string, id as string));
+          return updateDoc(doc(db, collectionName as string, id as string), { purgedByAdmin: true });
         }
       });
 
@@ -805,7 +805,7 @@ export function DeptDirectorDashboard() {
           activeTab === 'VEHICLE' ? 'vehicle_requests' :
           activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
         );
-        await deleteDoc(doc(db, colName, request.id));
+        await updateDoc(doc(db, colName, request.id), { purgedByAdmin: true });
         toast.success('Record purged permanently');
         setDeleteConfirmId(null);
       } catch (error) {

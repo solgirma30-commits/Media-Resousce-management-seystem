@@ -31,7 +31,7 @@ import {
   orderBy,
   writeBatch,
   doc,
-  deleteDoc
+  updateDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -140,13 +140,17 @@ export function AllInOneDashboard() {
 
   const confirmDelete = async () => {
     if (!deleteItem) return;
+    setLoading(true);
+    console.log("Confirming delete for:", deleteItem);
     try {
-        await deleteDoc(doc(db, deleteItem.col, deleteItem.id));
-        toast.success("Task deleted successfully");
+        await updateDoc(doc(db, deleteItem.col, deleteItem.id), { purgedByAdmin: true });
+        toast.success("Task archived successfully");
     } catch (err) {
+        console.error("Delete error:", err);
         toast.error("Failed to delete task");
     } finally {
         setDeleteItem(null);
+        setLoading(false);
     }
   };
 
@@ -166,7 +170,7 @@ export function AllInOneDashboard() {
       selectedIds.forEach(id => {
         const task = allTasks.find(t => t.id === id);
         if (task && task.collectionName) {
-          batch.delete(doc(db, task.collectionName, id));
+          batch.update(doc(db, task.collectionName, id), { purgedByAdmin: true });
           count++;
         }
       });

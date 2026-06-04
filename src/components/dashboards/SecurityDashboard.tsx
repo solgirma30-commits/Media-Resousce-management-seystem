@@ -145,7 +145,7 @@ export function SecurityDashboard() {
     e.stopPropagation();
     if (deleteConfirmId === record.id) {
       try {
-        await deleteDoc(doc(db, record.collectionName, record.id));
+        await updateDoc(doc(db, record.collectionName, record.id), { purgedByAdmin: true });
         toast.success('Record purged from registry');
         setDeleteConfirmId(null);
       } catch (error) {
@@ -164,7 +164,7 @@ export function SecurityDashboard() {
       const batch = writeBatch(db);
       selectedIds.forEach((id) => {
         const docRef = doc(db, 'item_requests', id);
-        batch.delete(docRef);
+        batch.update(docRef, { purgedByAdmin: true });
       });
       await batch.commit();
       toast.success('Selected records purged');

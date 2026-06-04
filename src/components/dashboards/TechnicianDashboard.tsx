@@ -584,7 +584,7 @@ export function TechnicianDashboard() {
 
     if (deleteConfirmId === work.id) {
       try {
-        await deleteDoc(doc(db, colName, work.id));
+        await updateDoc(doc(db, colName, work.id), { purgedByAdmin: true });
         toast.success('Record purged permanently');
         setDeleteConfirmId(null);
         if (selectedWork?.id === work.id) setSelectedWork(null);
