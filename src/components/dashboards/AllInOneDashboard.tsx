@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { RequestPasswordModal } from '../RequestPasswordModal';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -29,7 +30,8 @@ import {
   onSnapshot, 
   orderBy,
   writeBatch,
-  doc
+  doc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -128,11 +130,30 @@ export function AllInOneDashboard() {
   };
 
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<{ id: string, col: string } | null>(null);
+
+  const handleDeleteSingle = async (id: string, col: string) => {
+    setDeleteItem({ id, col });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteItem) return;
+    try {
+        await deleteDoc(doc(db, deleteItem.col, deleteItem.id));
+        toast.success("Task deleted successfully");
+    } catch (err) {
+        toast.error("Failed to delete task");
+    } finally {
+        setDeleteItem(null);
+    }
+  };
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     
-    if (deletePassword !== 'DELETE2024') {
+    if (deletePassword !== '654') {
       toast.error('Incorrect authorization password');
       return;
     }
@@ -453,6 +474,7 @@ export function AllInOneDashboard() {
                     )}
 
                     <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">{t('col_status')}</th>
+                    <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-center">Delete</th>
                     <th className="px-3 py-2 text-[9px] font-black text-dark-text-muted uppercase tracking-widest border-b border-dark-border text-right">{t('col_schedule')}</th>
                   </tr>
                 </thead>
@@ -541,6 +563,14 @@ export function AllInOneDashboard() {
                           {task.status}
                         </span>
                       </td>
+                      <td className="px-3 py-1 text-center">
+                        <button 
+                            onClick={() => handleDeleteSingle(task.id, task.collectionName)}
+                            className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                       <td className="px-3 py-1 text-right whitespace-nowrap">
                         <div className="flex flex-col items-end">
                           <div className="flex items-center gap-0.5 text-dark-text-muted">
@@ -573,6 +603,11 @@ export function AllInOneDashboard() {
           )}
         </AnimatePresence>
       </motion.div>
+      <RequestPasswordModal 
+        isOpen={showDeleteModal} 
+        onClose={() => setShowDeleteModal(false)}
+        onAuthenticated={confirmDelete}
+      />
     </div>
   );
 }

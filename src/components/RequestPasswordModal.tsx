@@ -8,7 +8,7 @@ export function RequestPasswordModal({ isOpen, onClose, onAuthenticated }: { isO
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '123456') { // Simple password as requested
+    if (password === '654') { // Simple password as requested
       onAuthenticated();
       setPassword('');
       onClose();
