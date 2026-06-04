@@ -113,7 +113,7 @@ async function startServer() {
         errMsg = `The recipient number ${phoneNumber} is not verified in Twilio. Trial accounts can only send messages to verified numbers. Please verify the destination phone number in your Twilio Console or use a verified test number.`;
       }
 
-      res.status(error.status || 500).json({ 
+      res.status(error.status || (error.code ? 422 : 500)).json({ 
         error: errCode, 
         message: errMsg,
         code: error.code 

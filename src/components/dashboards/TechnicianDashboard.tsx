@@ -65,6 +65,12 @@ export function TechnicianDashboard() {
   const { t } = useLanguage();
   const [assignments, setAssignments] = useState<any[]>([]);
   const [allRegistryTasks, setAllRegistryTasks] = useState<any[]>([]);
+  const allRegistryTasksRef = React.useRef<any[]>([]);
+
+  useEffect(() => {
+    allRegistryTasksRef.current = allRegistryTasks;
+  }, [allRegistryTasks]);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [loading, setLoading] = useState(true);
@@ -220,6 +226,27 @@ export function TechnicianDashboard() {
       if (logs.length > 0) {
         const latest = logs[0];
         if (!readIds.includes(latest.id)) {
+          
+          // Role-based/Relevance restriction:
+          // Make sure this message only pops up for the requester or assigned person.
+          if (latest.requestId) {
+             const request = allRegistryTasksRef.current.find(t => t.id === latest.requestId);
+             if (request) {
+                const isAssigned = 
+                      request.assignedTechnicianId === profile?.uid ||
+                      request.assignedDriverId === profile?.uid ||
+                      (request.assignedTechnicianIds && request.assignedTechnicianIds.includes(profile?.uid)) ||
+                      (request.assignedDriverIds && request.assignedDriverIds.includes(profile?.uid)) ||
+                      (request.assignedTechnicians && request.assignedTechnicians.some((t: any) => t.id === profile?.uid)) ||
+                      (request.assignedDrivers && request.assignedDrivers.some((d: any) => d.id === profile?.uid));
+                const isRequester = request.requesterId === profile?.uid || request.directorId === profile?.uid;
+
+                if (!isAssigned && !isRequester) {
+                  return; // Do not show popup
+                }
+             }
+          }
+
           setLastSmsNotification(latest);
           
           try {
