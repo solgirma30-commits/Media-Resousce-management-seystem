@@ -1,35 +1,20 @@
 import { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   Calendar, 
   TrendingUp, 
   CheckCircle2, 
   Clock, 
-  Users,
-  Download,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import { 
   startOfWeek, 
   endOfWeek, 
-  eachDayOfInterval, 
   format, 
-  isSameDay, 
-  subWeeks,
-  startOfDay
 } from 'date-fns';
 
 interface WeeklyReportProps {
@@ -38,48 +23,11 @@ interface WeeklyReportProps {
   onClose: () => void;
 }
 
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
-
 export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps) {
   const weeklyData = useMemo(() => {
     const now = new Date();
     const start = startOfWeek(now, { weekStartsOn: 1 });
     const end = endOfWeek(now, { weekStartsOn: 1 });
-    const days = eachDayOfInterval({ start, end });
-
-    // Requests created each day this week
-    const dailyStats = days.map(day => {
-      const dayRequests = requests.filter(r => {
-        const createdAt = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
-        return isSameDay(createdAt, day);
-      });
-      return {
-        name: format(day, 'EEE'),
-        count: dayRequests.length,
-        completed: dayRequests.filter(r => r.status === 'CONFIRMED' || r.status === 'CLOSED').length
-      };
-    });
-
-    // Department breakdown
-    const deptMap: { [key: string]: number } = {};
-    requests.forEach(r => {
-      if (r.departmentName) {
-        deptMap[r.departmentName] = (deptMap[r.departmentName] || 0) + 1;
-      }
-    });
-    const departmentData = Object.entries(deptMap).map(([name, value]) => ({ name, value }));
-
-    // Technician/Driver productivity (completed requests this week)
-    const techStats = workforce.map(member => {
-      const completed = requests.filter(r => 
-        (r.assignedTechnicianId === member.id || r.assignedDriverId === member.id) && 
-        (r.status === 'CONFIRMED' || r.status === 'CLOSED')
-      ).length;
-      return {
-        name: member.displayName.split(' ')[0],
-        completed
-      };
-    }).filter(t => t.completed > 0).sort((a, b) => b.completed - a.completed);
 
     const totalThisWeek = requests.filter(r => {
       const createdAt = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
@@ -91,43 +39,41 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
       return (r.status === 'CONFIRMED' || r.status === 'CLOSED') && updatedAt >= start && updatedAt <= end;
     }).length;
 
-    // Intelligence Table Data
-    const intelligenceData = [
-      { 
-        label: 'Support Services', 
-        total: requests.filter(r => (r.type === 'SERVICE' || !r.type) && !r.eventTitle && !r.tripName).length,
-        completed: requests.filter(r => (r.status === 'CONFIRMED' || r.status === 'CLOSED') && (r.type === 'SERVICE' || !r.type) && !r.eventTitle && !r.tripName).length,
-        trend: '+4%'
-      },
-      { 
-        label: 'Surveillance Ops', 
-        total: requests.filter(r => r.eventTitle || r.cameraList).length,
-        completed: requests.filter(r => (r.status === 'CONFIRMED' || r.status === 'CLOSED') && (r.eventTitle || r.cameraList)).length,
-        trend: '+12%'
-      },
-      { 
-        label: 'Logistics/Fleet', 
-        total: requests.filter(r => r.tripName || r.vehiclePlate).length,
-        completed: requests.filter(r => (r.status === 'CONFIRMED' || r.status === 'CLOSED') && (r.tripName || r.vehiclePlate)).length,
-        trend: '-2%'
-      },
-      { 
-        label: 'Asset Security', 
-        total: requests.filter(r => r.itemName).length,
-        completed: requests.filter(r => (r.status === 'CONFIRMED' || r.status === 'CLOSED') && r.itemName).length,
-        trend: '+8%'
-      }
-    ];
+    const taskList = requests.map(r => {
+        const createdAt = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
+        const updatedAt = r.updatedAt?.toDate ? r.updatedAt.toDate() : new Date(r.updatedAt);
+        const duration = Math.round((updatedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60)); // In hours
+        
+        const technician = workforce.find(w => w.id === r.assignedTechnicianId || w.id === r.assignedDriverId);
+        
+        return {
+            id: r.id,
+            dept: r.departmentName || 'General',
+            assignee: technician?.displayName || 'Unassigned',
+            description: r.description || r.itemName || 'No description',
+            status: r.status || 'PENDING',
+            statusLabel: (r.status === 'CONFIRMED' || r.status === 'CLOSED') ? 'Completed' : 'Pending',
+            duration: duration > 0 ? `${duration}h` : '<1h'
+        }
+    });
 
     return {
-      dailyStats,
-      departmentData,
-      techStats,
       totalThisWeek,
       completedThisWeek,
-      intelligenceData
+      taskList
     };
   }, [requests, workforce]);
+
+  const handleExport = () => {
+      const doc = new jsPDF();
+      doc.text("Weekly Intelligence Report", 14, 15);
+      autoTable(doc, {
+        head: [['Department', 'Assignee', 'Task', 'Status', 'Duration']],
+        body: weeklyData.taskList.map(t => [t.dept, t.assignee, t.description, t.statusLabel, t.duration]),
+        startY: 25,
+      });
+      doc.save('weekly-report.pdf');
+    };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-end p-0 md:p-4">
@@ -149,7 +95,7 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
           <div>
             <div className="flex items-center gap-3 mb-1">
               <Calendar className="w-5 h-5 text-dark-accent" />
-              <h2 className="text-2xl font-black text-black tracking-tight">Weekly Fleet Summary</h2>
+              <h2 className="text-2xl font-black text-black tracking-tight">Weekly Intelligence Report</h2>
             </div>
             <p className="text-dark-text-subtle text-sm font-serif italic">Operational performance for {format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'MMM d')} - {format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'MMM d, yyyy')}</p>
           </div>
@@ -168,7 +114,6 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
                 <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg">
                   <TrendingUp className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">+12% vs last week</span>
               </div>
               <p className="text-3xl font-mono font-bold text-black tracking-tighter">{weeklyData.totalThisWeek.toString().padStart(2, '0')}</p>
               <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">Requests Logged</p>
@@ -179,7 +124,6 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
                 <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">High Efficiency</span>
               </div>
               <p className="text-3xl font-mono font-bold text-black tracking-tighter">{weeklyData.completedThisWeek.toString().padStart(2, '0')}</p>
               <p className="text-[10px] font-black text-dark-text-subtle mt-1 uppercase tracking-widest">Resolutions Confirmed</p>
@@ -190,7 +134,6 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
                 <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg">
                   <Clock className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Avg 4.2h</span>
               </div>
               <p className="text-3xl font-mono font-bold text-black tracking-tighter">
                 {Math.round((weeklyData.completedThisWeek / (weeklyData.totalThisWeek || 1)) * 100)}%
@@ -199,178 +142,50 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-            <div className="bg-dark-main p-8 rounded-3xl border border-dark-border flex flex-col">
-              <h3 className="text-xs font-black text-dark-text-subtle uppercase tracking-[0.2em] mb-8">Weekly Intelligence (Operational Metrics)</h3>
+          <div className="bg-dark-main p-8 rounded-3xl border border-dark-border flex flex-col">
+              <h3 className="text-xs font-black text-dark-text-subtle uppercase tracking-[0.2em] mb-8">Task Overview</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-dark-border">
-                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest px-2">Sector</th>
-                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-center px-2">Load</th>
-                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-center px-2">Ratio</th>
-                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest text-right px-2">Trend</th>
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest px-2">Department</th>
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest px-2">Assignee</th>
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest px-2">Task</th>
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest px-2">Status</th>
+                      <th className="pb-4 text-[10px] font-black text-dark-text-muted uppercase tracking-widest px-2">Duration</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-dark-border/50">
-                    {weeklyData.intelligenceData.map((item, idx) => (
+                    {weeklyData.taskList.map((task, idx) => (
                       <tr key={idx} className="group hover:bg-dark-sidebar/30 transition-colors">
-                        <td className="py-4 px-2">
-                          <p className="text-sm font-bold text-black">{item.label}</p>
-                          <p className="text-[10px] text-dark-text-subtle group-hover:text-dark-accent transition-colors">Operational Unit</p>
-                        </td>
-                        <td className="py-4 px-2 text-center">
-                          <p className="text-sm font-mono font-bold text-black">{item.total}</p>
-                        </td>
-                        <td className="py-4 px-2 text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-[10px] font-black text-dark-accent">
-                              {Math.round((item.completed / (item.total || 1)) * 100)}%
-                            </span>
-                            <div className="w-12 h-1 bg-dark-card rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-dark-accent" 
-                                style={{ width: `${(item.completed / (item.total || 1)) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-2 text-right">
-                          <span className={cn(
-                            "text-[10px] font-black px-2 py-1 rounded",
-                            item.trend.startsWith('+') ? "text-emerald-400 bg-emerald-400/10" : "text-rose-400 bg-rose-400/10"
-                          )}>
-                            {item.trend}
+                        <td className="py-4 px-2 text-[11px] text-black font-semibold">{task.dept}</td>
+                        <td className="py-4 px-2 text-[11px] text-black font-semibold">{task.assignee}</td>
+                        <td className="py-4 px-2 text-[11px] text-black font-semibold truncate max-w-xs">{task.description}</td>
+                        <td className="py-4 px-2 text-[11px] font-bold uppercase">
+                          <span className={task.statusLabel === 'Completed' ? "text-emerald-600" : "text-amber-600"}>
+                            {task.statusLabel}
                           </span>
                         </td>
+                        <td className="py-4 px-2 text-[11px] text-dark-text-subtle font-mono">{task.duration}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-
-            <div className="bg-dark-main p-8 rounded-3xl border border-dark-border h-[400px] flex flex-col">
-              <h3 className="text-xs font-black text-dark-text-subtle uppercase tracking-[0.2em] mb-8">Daily Traffic Volume</h3>
-              <div className="flex-1 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyData.dailyStats}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }}
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
-                      contentStyle={{ 
-                        backgroundColor: '#0f172a', 
-                        border: '1px solid #1e293b', 
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        color: '#f8fafc'
-                      }}
-                    />
-                    <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={24} name="Inbound" />
-                    <Bar dataKey="completed" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} name="Resolved" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="bg-dark-main p-8 rounded-3xl border border-dark-border h-[400px] flex flex-col">
-              <h3 className="text-xs font-black text-dark-text-subtle uppercase tracking-[0.2em] mb-8">Departmental Distribution</h3>
-              <div className="flex-1 w-full flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={weeklyData.departmentData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={80}
-                      outerRadius={120}
-                      paddingAngle={8}
-                      dataKey="value"
-                    >
-                      {weeklyData.departmentData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                       contentStyle={{ 
-                        backgroundColor: '#0f172a', 
-                        border: '1px solid #1e293b', 
-                        borderRadius: '12px',
-                        fontSize: '11px'
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                {weeklyData.departmentData.slice(0, 4).map((dept, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
-                    <span className="text-[10px] font-bold text-dark-text-subtle uppercase tracking-tight truncate">{dept.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-dark-main p-8 rounded-3xl border border-dark-border">
-            <h3 className="text-xs font-black text-dark-text-subtle uppercase tracking-[0.2em] mb-8">Asset Recognition (Top Operators)</h3>
-            <div className="space-y-6">
-              {weeklyData.techStats.slice(0, 5).map((tech, i) => (
-                <div key={i} className="group">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-md bg-dark-card border border-dark-border flex items-center justify-center text-[10px] font-black text-dark-accent">
-                        0{i + 1}
-                      </div>
-                      <span className="text-sm font-bold text-black">{tech.name}</span>
-                    </div>
-                    <span className="text-xs font-mono font-bold text-dark-accent">{tech.completed} Missions</span>
-                  </div>
-                  <div className="w-full h-1 bg-dark-card rounded-full overflow-hidden border border-dark-border/50">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(tech.completed / (weeklyData.techStats[0]?.completed || 1)) * 100}%` }}
-                      className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400"
-                    />
-                  </div>
-                </div>
-              ))}
-              {weeklyData.techStats.length === 0 && (
-                <div className="py-12 text-center text-dark-text-subtle font-serif italic text-sm">Waiting for operational results</div>
-              )}
-            </div>
-          </div>
         </div>
 
         <div className="p-8 bg-dark-card/80 border-t border-dark-border flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex -space-x-3">
-              {workforce.slice(0, 4).map((member, i) => (
-                <div key={i} className="w-8 h-8 rounded-full bg-dark-sidebar border-2 border-dark-card flex items-center justify-center text-[10px] font-black text-black shadow-inner">
-                  {member.displayName[0]}
-                </div>
-              ))}
-            </div>
-            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Unified Fleet Status: Active</p>
+          <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Global Intelligence Report: Active</p>
+          <div className="flex gap-2">
+            <button onClick={handleExport} className="bg-dark-accent hover:bg-dark-accent/90 text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95">
+              <Download className="w-3.5 h-3.5" />
+              Export PDF
+            </button>
+            <button onClick={onClose} className="bg-white hover:bg-slate-200 text-dark-main px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95">
+              Dismiss
+            </button>
           </div>
-          <button className="bg-white hover:bg-slate-200 text-dark-main px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95">
-            <Download className="w-3.5 h-3.5" />
-            Export Intelligence
-          </button>
         </div>
       </motion.div>
     </div>

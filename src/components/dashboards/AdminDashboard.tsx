@@ -85,6 +85,18 @@ export function AdminDashboard() {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedAssignIds, setSelectedAssignIds] = useState<string[]>([]);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'PROP_CASUALTY' | null>(null);
+
+  const getFilteredRequestsForReport = () => {
+    switch (reportCategory) {
+      case 'SERVICE': return requests;
+      case 'CAMERA': return cameraRequests;
+      case 'VEHICLE': return vehicleRequests;
+      case 'PROP_CASUALTY': return [...itemRequests, ...deviceRequests, ...guestRequests];
+      default: return [...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests];
+    }
+  };
+
   const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
   const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
   const [personnelSearch, setPersonnelSearch] = useState('');
@@ -1178,13 +1190,7 @@ export function AdminDashboard() {
           </div>
           <p className="text-dark-text-subtle mt-1 font-serif italic">{t("Operational overview and resource allocation")}</p>
         </div>
-        <button 
-          onClick={() => setIsReportOpen(true)}
-          className="bg-dark-card hover:bg-dark-sidebar text-dark-accent border border-dark-border px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all hover:border-dark-accent active:scale-95 shadow-xl shadow-black/20"
-        >
-          <FileText className="w-4 h-4" />
-          {t("Weekly Intelligence", "Weekly Intelligence")}
-        </button>
+
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1571,6 +1577,27 @@ export function AdminDashboard() {
         </div>
         )}
         <TeamNotepad defaultDepartment={activeTab} />
+        
+        <div className="flex flex-col gap-2 w-full mt-4">
+            {[
+                {label: 'Service & Repair', type: 'SERVICE'},
+                {label: 'Camera', type: 'CAMERA'},
+                {label: 'Transportation', type: 'VEHICLE'},
+                {label: 'Property & Casualty', type: 'PROP_CASUALTY'},
+            ].map((report) => (
+                <button
+                    key={report.type}
+                    onClick={() => {
+                        setReportCategory(report.type as any);
+                        setIsReportOpen(true);
+                    }}
+                    className="bg-dark-card hover:bg-dark-sidebar text-dark-accent border border-dark-border px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-3 transition-all hover:border-dark-accent active:scale-95 shadow-xl shadow-black/20"
+                >
+                    <FileText className="w-4 h-4" />
+                    {report.label} Intelligence
+                </button>
+            ))}
+        </div>
 
       {/* Technician Allocation Modal */}
       <AnimatePresence>
@@ -2370,7 +2397,7 @@ export function AdminDashboard() {
 
         {isReportOpen && (
           <WeeklyReport 
-            requests={[...requests, ...cameraRequests, ...vehicleRequests, ...itemRequests, ...deviceRequests]}
+            requests={getFilteredRequestsForReport()}
             workforce={[...technicians, ...drivers, ...cameramen]}
             onClose={handleCloseReport}
           />
