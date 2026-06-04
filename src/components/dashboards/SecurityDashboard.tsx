@@ -287,7 +287,7 @@ export function SecurityDashboard() {
             <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
                 <LogOut className="w-4 h-4 text-pink-400" />
-                Property and Casualty Laborer: Exits
+                Item Exits
               </h3>
               <span className="bg-pink-500/10 text-pink-700 text-[10px] font-black px-2 py-0.5 rounded border border-pink-500/20 uppercase tracking-widest">
                 {pendingExits.length} Active
@@ -297,7 +297,7 @@ export function SecurityDashboard() {
               {loading ? (
                 <div className="p-12 text-center text-dark-text-subtle italic">Synchronizing registry...</div>
               ) : pendingExits.length === 0 ? (
-                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No Property and Casualty Laborer exits in queue</div>
+                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No items in exit queue</div>
               ) : (
                 pendingExits.map((req, idx) => (
                   <div key={`${req.id || 'exit'}-${idx}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
@@ -335,7 +335,7 @@ export function SecurityDashboard() {
             <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
                 <Users className="w-4 h-4 text-pink-400" />
-                Property and Casualty Laborer: Guests
+                Guest Entrance
               </h3>
               <span className="bg-pink-500/10 text-pink-700 text-[10px] font-black px-2 py-0.5 rounded border border-pink-500/20 uppercase tracking-widest">
                 {pendingGuests.length} Active
@@ -343,7 +343,7 @@ export function SecurityDashboard() {
             </div>
             <div className="divide-y divide-dark-border max-h-[400px] overflow-auto scrollbar-hide">
               {pendingGuests.length === 0 ? (
-                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No Property and Casualty Laborer guest entries</div>
+                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No guest entries</div>
               ) : (
                 pendingGuests.map((req, idx) => (
                   <div key={`${req.id || 'guest'}-${idx}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
@@ -429,7 +429,7 @@ export function SecurityDashboard() {
             <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                Operational Exit Log (Recent)
+                Item Exit Log
               </h3>
               <div className="flex items-center gap-2">
                 <button 
