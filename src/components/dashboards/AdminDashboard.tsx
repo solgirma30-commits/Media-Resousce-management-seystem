@@ -1551,6 +1551,13 @@ export function AdminDashboard() {
                   >
                     <MessageSquare className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
                   </button>
+                  <button
+                    onClick={() => handleDeleteTech(tech.id)}
+                    className="p-2.5 bg-dark-main border border-dark-border rounded-xl text-dark-text-subtle hover:text-red-500 hover:border-red-500 transition-all shadow-lg shadow-black/20 group"
+                    title="Delete Agent"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                  </button>
                   <div className={cn(
                     "w-2 h-2 rounded-full",
                     [...requests, ...cameraRequests, ...vehicleRequests].some(r => (r.assignedTechnicianId === tech.id || r.assignedDriverId === tech.id) && ['ACCEPTED', 'IN_PROGRESS'].includes(r.status)) 
