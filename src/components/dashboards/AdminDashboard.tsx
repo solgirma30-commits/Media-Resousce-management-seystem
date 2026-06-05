@@ -1933,7 +1933,14 @@ export function AdminDashboard() {
                                    {selectedRequest.assignedDriverName || selectedRequest.assignedTechnicianName || 'PENDING DISPATCH'}
                                  </p>
                                  {(selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone) && (
-                                    <p className="text-[10px] text-dark-accent font-mono mt-0.5">{selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone}</p>
+                                    <div className="flex flex-col items-start">
+                                       <p className="text-[10px] text-dark-accent font-mono mt-0.5">{selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone}</p>
+                                       <a href={`sms:${selectedRequest.assignedDriverPhone || selectedRequest.assignedTechnicianPhone}?body=${encodeURIComponent(`Dear ${selectedRequest.assignedDriverName || selectedRequest.assignedTechnicianName}, you are assigned to order no #${selectedRequest.id?.slice(-6).toUpperCase()} (${selectedRequest.type?.toLowerCase() || ''} request). Please check your portal.`)}`} 
+                                          className="inline-flex mt-2 bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest transition-colors shadow shadow-emerald-950/25 border border-emerald-400/20"
+                                       >
+                                          Dispatch via Local SIM
+                                       </a>
+                                    </div>
                                  )}
                               </div>
                               <button 
