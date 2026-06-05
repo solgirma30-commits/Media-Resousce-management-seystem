@@ -43,18 +43,135 @@ export function Login() {
         <motion.div
            initial={{ opacity: 0, y: -20 }}
            animate={{ opacity: 1, y: 0 }}
-           className="mb-8"
+           className="mb-6 flex justify-center"
         >
-           {/* Company Logo */}
-           <img 
-             src="/1749120286829_FMC_New_Logo.jfif" 
-             alt="Fana Media Corporation"
-             className="h-28 object-contain"
-             onError={(e) => {
-               // Fallback if image path is incorrect
-               e.currentTarget.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Fana_Broadcasting_Corporate_Logo.png/600px-Fana_Broadcasting_Corporate_Logo.png';
-             }}
-           />
+           {/* High-Fidelity Custom Vector SVG Fana Media Corporation Logo */}
+           <svg viewBox="0 0 280 220" className="w-56 h-auto" xmlns="http://www.w3.org/2000/svg" id="fmc-vector-logo">
+             <defs>
+               <linearGradient id="sun-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                 <stop offset="0%" stopColor="#fbbf24" />
+                 <stop offset="100%" stopColor="#f59e0b" />
+               </linearGradient>
+             </defs>
+
+             {/* Red orbiting swoosh */}
+             <path 
+               d="M 12,130 C 12,100, 268,70, 268,100 C 268,130, 12,160, 12,130 Z" 
+               fill="none" 
+               stroke="#c22032" 
+               strokeWidth="6" 
+               strokeLinecap="round" 
+               transform="rotate(-11, 140, 115)"
+             />
+
+             {/* Top Amharic Text "ፋና" */}
+             <text 
+               x="140" 
+               y="55" 
+               textAnchor="middle" 
+               fill="#105ca3" 
+               fontSize="32" 
+               fontWeight="bold" 
+               fontFamily="'Noto Sans Ethiopic', 'Abyssinica SIL', sans-serif"
+               letterSpacing="2"
+             >
+               ፋና
+             </text>
+
+             {/* Main FMC Bold letters */}
+             <g transform="translate(15, -10)">
+               {/* Letter F */}
+               <text 
+                 x="55" 
+                 y="145" 
+                 fill="#105ca3" 
+                 fontSize="68" 
+                 fontWeight="900" 
+                 fontFamily="system-ui, -apple-system, sans-serif"
+               >
+                 F
+               </text>
+
+               {/* Letter M */}
+               <text 
+                 x="92" 
+                 y="145" 
+                 fill="#105ca3" 
+                 fontSize="68" 
+                 fontWeight="900" 
+                 fontFamily="system-ui, -apple-system, sans-serif"
+               >
+                 M
+               </text>
+
+               {/* Letter C */}
+               <text 
+                 x="158" 
+                 y="145" 
+                 fill="#105ca3" 
+                 fontSize="68" 
+                 fontWeight="900" 
+                 fontFamily="system-ui, -apple-system, sans-serif"
+               >
+                 C
+               </text>
+
+               {/* Lightning Bolt Cutting Through Letter M */}
+               <polygon 
+                 points="114,92 129,92 120,114 132,114 116,142 122,120 112,120" 
+                 fill="#105ca3" 
+                 stroke="white"
+                 strokeWidth="2.5"
+                 strokeLinejoin="miter"
+               />
+
+               {/* Golden Sun inside Letter C */}
+               <circle 
+                 cx="187" 
+                 cy="120" 
+                 r="13" 
+                 fill="url(#sun-grad)" 
+               />
+             </g>
+
+             {/* Website text on the red orbit */}
+             <text 
+               x="140" 
+               y="156" 
+               textAnchor="middle" 
+               fill="#475569" 
+               fontSize="10" 
+               fontFamily="sans-serif"
+               fontWeight="bold"
+               opacity="0.85"
+             >
+               www.fanamc.com
+             </text>
+
+             {/* Bottom Company Designation */}
+             <text 
+               x="140" 
+               y="188" 
+               textAnchor="middle" 
+               fill="#134e4a" 
+               fontSize="10.5" 
+               fontWeight="bold" 
+               fontFamily="'Noto Sans Ethiopic', sans-serif"
+             >
+               ፋና ሚዲያ ኮርፖሬሽን እ.ማ
+             </text>
+             <text 
+               x="140" 
+               y="204" 
+               textAnchor="middle" 
+               fill="#0f172a" 
+               fontSize="11" 
+               fontWeight="black" 
+               fontFamily="sans-serif"
+             >
+               Fana Media Corporation S.C
+             </text>
+           </svg>
         </motion.div>
 
         <motion.div
