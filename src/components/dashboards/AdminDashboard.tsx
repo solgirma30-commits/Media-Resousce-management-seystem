@@ -1080,6 +1080,34 @@ export function AdminDashboard() {
     }
   };
 
+  const handleSendSimulatedSms = async () => {
+    if (!selectedTechForSms || !customSmsMessage) return;
+
+    try {
+      const smsLogId = `sms_${Date.now()}_${selectedTechForSms.id}`;
+      await setDoc(doc(db, 'sim_sms_logs', smsLogId), {
+        id: smsLogId,
+        recipientId: selectedTechForSms.id,
+        recipientName: selectedTechForSms.displayName,
+        recipientPhone: selectedTechForSms.phoneNumber,
+        role: selectedTechForSms.role || 'TECHNICIAN',
+        message: customSmsMessage,
+        status: 'SENT',
+        sentAt: serverTimestamp(),
+        requestType: 'MANUAL'
+      });
+      toast.success(`Simulated SMS sent to ${selectedTechForSms.displayName}`, {
+        icon: '📱',
+        style: { background: '#1e293b', color: '#fbbf24', border: '1px solid #78350f' }
+      });
+      setSelectedTechForSms(null);
+      setCustomSmsMessage('');
+    } catch (err) {
+      console.error("Failed to send simulated SMS", err);
+      toast.error("Failed to send simulated SMS");
+    }
+  };
+
   const handleSendSms = async () => {
     if (!selectedTechForSms || !customSmsMessage) return;
 
@@ -2128,14 +2156,24 @@ export function AdminDashboard() {
                       Use Device Messages (SIM)
                     </a>
                   </div>
-                  <button 
-                    disabled={!customSmsMessage.trim()}
-                    onClick={handleSendSms}
-                    className="flex-1 bg-dark-accent hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all shadow-xl shadow-indigo-900/30 flex items-center justify-center gap-3"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    Transmit SMS
-                  </button>
+                  <div className="flex-1 flex flex-col gap-2">
+                    <button 
+                      disabled={!customSmsMessage.trim()}
+                      onClick={handleSendSms}
+                      className="w-full bg-dark-accent hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all shadow-xl shadow-indigo-900/30 flex items-center justify-center gap-3 text-xs"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Transmit SMS (Twilio)
+                    </button>
+                    <button 
+                      disabled={!customSmsMessage.trim()}
+                      onClick={handleSendSimulatedSms}
+                      className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-2 rounded-xl transition-all shadow-xl shadow-amber-900/30 flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest"
+                    >
+                      <Phone className="w-3 h-3" />
+                      Transmit SIM SMS
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>

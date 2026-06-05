@@ -244,6 +244,11 @@ export function TechnicianDashboard() {
                 if (!isAssigned && !isRequester) {
                   return; // Do not show popup
                 }
+
+                // Explicitly disable popups for Camera and Driver portals as requested
+                if (profile?.role === 'CAMERAMAN' || profile?.role === 'DRIVER') {
+                  return;
+                }
              }
           }
 

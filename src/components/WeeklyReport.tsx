@@ -35,13 +35,13 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
     }).length;
 
     const completedThisWeek = requests.filter(r => {
-      const updatedAt = r.updatedAt?.toDate ? r.updatedAt.toDate() : new Date(r.updatedAt);
-      return (r.status === 'CONFIRMED' || r.status === 'CLOSED') && updatedAt >= start && updatedAt <= end;
+      const updatedAt = r.updatedAt?.toDate ? r.updatedAt.toDate() : r.updatedAt ? new Date(r.updatedAt) : new Date();
+      return (r.status === 'CONFIRMED' || r.status === 'CLOSED' || r.status === 'COMPLETED' || r.status === 'EXITED' || r.status === 'RETURNED') && updatedAt >= start && updatedAt <= end;
     }).length;
 
     const taskList = requests.map(r => {
         const createdAt = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
-        const updatedAt = r.updatedAt?.toDate ? r.updatedAt.toDate() : new Date(r.updatedAt);
+        const updatedAt = r.updatedAt?.toDate ? r.updatedAt.toDate() : r.updatedAt ? new Date(r.updatedAt) : new Date();
         const duration = Math.round((updatedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60)); // In hours
         
         const technician = workforce.find(w => w.id === r.assignedTechnicianId || w.id === r.assignedDriverId);
@@ -49,10 +49,10 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
         return {
             id: r.id,
             dept: r.departmentName || 'General',
-            assignee: technician?.displayName || 'Unassigned',
-            description: r.description || r.itemName || 'No description',
+            assignee: technician?.displayName || r.securityPersonnelName || r.requesterName || r.directorName || 'Unassigned',
+            description: r.description || r.itemName || r.visitorNames || 'No description',
             status: r.status || 'PENDING',
-            statusLabel: (r.status === 'CONFIRMED' || r.status === 'CLOSED') ? 'Completed' : 'Pending',
+            statusLabel: (r.status === 'CONFIRMED' || r.status === 'CLOSED' || r.status === 'COMPLETED' || r.status === 'EXITED' || r.status === 'RETURNED') ? 'Completed' : 'Pending',
             duration: duration > 0 ? `${duration}h` : '<1h'
         }
     });

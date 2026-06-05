@@ -543,7 +543,7 @@ export function SecurityDashboard() {
       <AnimatePresence>
         {isReportOpen && (
            <WeeklyReport 
-             requests={requests} 
+             requests={[...requests, ...guestRequests]} 
              workforce={[]} 
              onClose={() => setIsReportOpen(false)} 
            />

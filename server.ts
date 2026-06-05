@@ -103,7 +103,11 @@ async function startServer() {
 
       res.json({ success: true });
     } catch (error: any) {
-      console.error("Dispatch Error:", error.message);
+      if (error.code === 21608) {
+        console.warn("Dispatch Warning: Twilio number unverified. (Safe to ignore in trial).");
+      } else {
+        console.error("Dispatch Error:", error.message);
+      }
       
       let errMsg = error.message;
       let errCode = "DISPATCH_FAILED";
@@ -247,7 +251,12 @@ async function startServer() {
       console.log(`SMS sent successfully: ${result.sid}`);
       res.json({ success: true, sid: result.sid });
     } catch (error: any) {
-      console.error("SMS Error:", error.message, error.code ? `(Code: ${error.code})` : "");
+      if (error.code === 21608) {
+        console.warn("SMS Warning: Twilio number unverified. (Safe to ignore in trial).");
+      } else {
+        console.error("SMS Error:", error.message, error.code ? `(Code: ${error.code})` : "");
+      }
+      
       let errMsg = error.message;
       if (error.code === 21608) {
         errMsg = `The recipient number is not verified in Twilio. Trial accounts can only send messages to verified numbers. Please verify the destination phone number in your Twilio Console or dispatch via the local SIM card option.`;
