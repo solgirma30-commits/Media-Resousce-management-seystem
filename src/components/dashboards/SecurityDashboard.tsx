@@ -274,7 +274,7 @@ export function SecurityDashboard() {
           </h3>
           <div className="space-y-2">
             {teamUpdates.map((msg, idx) => (
-              <div key={`${msg.id || 'msg'}-${idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
+              <div key={`sec-msg-card-${msg.id || idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">

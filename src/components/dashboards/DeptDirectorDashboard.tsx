@@ -1840,7 +1840,7 @@ export function DeptDirectorDashboard() {
                       <div>
                         <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Passengers")}</label>
                         {passengers.map((p, index) => (
-                          <div key={index} className="grid grid-cols-3 gap-2 mb-2">
+                          <div key={`passenger-${index}`} className="grid grid-cols-3 gap-2 mb-2">
                             <input placeholder="Name" value={p.name} onChange={(e) => { const n = [...passengers]; n[index].name = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Loc" value={p.location} onChange={(e) => { const n = [...passengers]; n[index].location = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Phone" value={p.phone} onChange={(e) => { const n = [...passengers]; n[index].phone = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />

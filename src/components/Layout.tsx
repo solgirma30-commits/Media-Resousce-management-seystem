@@ -278,7 +278,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       ) : (
                         notifications.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((n, idx) => (
                           <div
-                            key={`${n.id || idx}-${idx}`}
+                            key={`notif-${n.id || idx}-${idx}`}
                             className="p-4 border-b border-dark-border last:border-0 hover:bg-dark-main/30"
                           >
                             <div className="flex items-start gap-3">

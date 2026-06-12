@@ -2507,7 +2507,7 @@ export function AdminDashboard() {
                      {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech, idx) => {
                        const isEditingThis = editingTech?.id === tech.id;
                        return (
-                         <div key={`${tech.id || idx}-${idx}`} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
+                         <div key={`tech-registry-card-${tech.id || idx}-${idx}`} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
                            {isEditingThis ? (
                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
                                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 w-full">

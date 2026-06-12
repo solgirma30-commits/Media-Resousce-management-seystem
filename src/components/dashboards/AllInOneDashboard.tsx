@@ -296,7 +296,7 @@ export function AllInOneDashboard() {
           { label: t('tab_repair'), value: allTasks.filter(t => t.collectionName === 'service_requests').length, icon: Wrench, color: 'text-emerald-400' },
         ].map((stat, i) => (
           <motion.div
-            key={`${stat.label}-${i}`}
+            key={`aio-stat-${i}-${stat.label}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
@@ -472,7 +472,7 @@ export function AllInOneDashboard() {
                 <tbody className="divide-y divide-dark-border/40">
                   {portalTasks.map((task, idx) => (
                     <tr 
-                      key={`${task.id || 'task'}-${idx}`}
+                      key={`aio-task-${task.id || idx}`}
                       className={cn(
                         "group transition-all hover:bg-dark-main/30 animate-in fade-in slide-in-from-bottom-2 duration-300",
                         selectedIds.has(task.id) ? "bg-dark-accent/5" : ""

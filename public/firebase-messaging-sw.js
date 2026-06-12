@@ -47,7 +47,8 @@ self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
   // Default to root URL if none provided
-  const urlToOpen = (event.notification.data && event.notification.data.url) || '/';
+  const rawUrl = (event.notification.data && event.notification.data.url) || '/';
+  const absoluteUrl = new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
@@ -59,8 +60,8 @@ self.addEventListener('notificationclick', function(event) {
           
           if (clientUrl.origin === self.location.origin) {
             // Focus and optionally navigate to the deep-linked page
-            if ('navigate' in client && urlToOpen !== '/') {
-              client.navigate(urlToOpen);
+            if ('navigate' in client && rawUrl !== '/') {
+              client.navigate(absoluteUrl);
             }
             return client.focus();
           }
@@ -69,7 +70,7 @@ self.addEventListener('notificationclick', function(event) {
       
       // Fallback: If no window is found, open a fresh tab
       if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
+        return clients.openWindow(absoluteUrl);
       }
     })
   );

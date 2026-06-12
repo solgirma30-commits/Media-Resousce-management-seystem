@@ -668,7 +668,7 @@ export function TechnicianDashboard() {
           </h3>
           <div className="space-y-2">
             {teamUpdates.map((msg, idx) => (
-              <div key={`${msg.id || 'msg'}-${idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
+              <div key={`tech-msg-card-${msg.id || idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">
@@ -783,7 +783,7 @@ export function TechnicianDashboard() {
             <tbody className="divide-y divide-dark-border/40">
               {allRegistryTasks.map((work, idx) => (
                 <tr 
-                  key={`${work.id || 'work'}-${idx}`}
+                  key={`tech-work-row-${work.id || idx}`}
                   onClick={() => setSelectedWork(work)}
                   className={cn(
                     "group transition-all cursor-pointer hover:bg-dark-main/30",
@@ -908,7 +908,7 @@ export function TechnicianDashboard() {
                   <Truck className="w-8 h-8 text-dark-text-subtle/40" />
                 </div>
                 <h3 className="text-xl font-medium text-slate-400">Select Task from Global Work Registry</h3>
-                <p className="text-dark-text-subtle text-[10px] uppercase font-black tracking-widest mt-2">Initialize communication with the Property and Casualty Laborer portal</p>
+                <p className="text-dark-text-subtle text-[10px] uppercase font-black tracking-widest mt-2">Initialize communication with the Property Service portal</p>
               </motion.div>
             ) : (
               <motion.div

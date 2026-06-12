@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { getToken } from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, auth } from '../lib/firebase';
+import { notificationService } from '../services/notificationService';
 
 export function useFcmToken() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
+    let unsubscribeForeground: (() => void) | undefined;
+
     const registerToken = async () => {
       try {
         const permission = await Notification.requestPermission();
@@ -35,6 +38,17 @@ export function useFcmToken() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ userId: auth.currentUser.uid, fcmToken }),
             });
+
+            // 3. Set up foreground onMessage listener
+            unsubscribeForeground = onMessage(messaging, (payload) => {
+              console.log('FCM Foreground message received:', payload);
+              if (payload.notification) {
+                notificationService.notify(payload.notification.title || 'FMC Alert', {
+                  body: payload.notification.body,
+                  data: payload.data
+                });
+              }
+            });
           }
         }
       } catch (e) {
@@ -42,6 +56,12 @@ export function useFcmToken() {
       }
     };
     registerToken();
+
+    return () => {
+      if (unsubscribeForeground) {
+        unsubscribeForeground();
+      }
+    };
   }, []);
 
   return token;
