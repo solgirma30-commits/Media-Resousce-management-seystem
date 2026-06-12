@@ -59,6 +59,7 @@ import { seedWorkforce } from '../../lib/seed';
 import { useLanguage } from '../../lib/LanguageContext';
 
 import { notificationService } from '../../services/notificationService';
+import { RequestPasswordModal } from '../RequestPasswordModal';
 
 export function AdminDashboard() {
   const { profile, logout } = useAuth();
@@ -105,6 +106,8 @@ export function AdminDashboard() {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [customSmsMessage, setCustomSmsMessage] = useState('');
   const [isOnboarding, setIsOnboarding] = useState(false);
+  const [isDeletePasswordModalOpen, setIsDeletePasswordModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk' | 'tech', request?: any, techId?: string } | null>(null);
   const [editingTech, setEditingTech] = useState<any | null>(null);
   const [isEditingInlineAssigned, setIsEditingInlineAssigned] = useState(false);
   const [inlineAssignedName, setInlineAssignedName] = useState('');
@@ -136,7 +139,7 @@ export function AdminDashboard() {
     let isFirstLoad = true;
     const unsubscribeReq = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, type: 'Service', ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Service', collectionName: srPath, ...doc.data() }))
           .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
@@ -173,7 +176,7 @@ export function AdminDashboard() {
     const qCam = query(collection(db, camPath));
     const unsubscribeCam = onSnapshot(qCam, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, type: 'Camera', ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Camera', collectionName: camPath, ...doc.data() }))
           .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
@@ -208,7 +211,7 @@ export function AdminDashboard() {
     const qVeh = query(collection(db, vehPath));
     const unsubscribeVeh = onSnapshot(qVeh, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, type: 'Vehicle', ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Vehicle', collectionName: vehPath, ...doc.data() }))
           .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
@@ -243,7 +246,7 @@ export function AdminDashboard() {
     const qItem = query(collection(db, itemPath));
     const unsubscribeItem = onSnapshot(qItem, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, type: 'Exit Permit', ...doc.data() }))
+          .map(doc => ({ id: doc.id, type: 'Exit Permit', collectionName: itemPath, ...doc.data() }))
           .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
@@ -278,8 +281,8 @@ export function AdminDashboard() {
     const qDev = query(collection(db, devPath));
     const unsubscribeDev = onSnapshot(qDev, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, type: 'Device', ...doc.data() }))
-          .filter((req: any) => !req.archived);
+          .map(doc => ({ id: doc.id, type: 'Device', collectionName: devPath, ...doc.data() }))
+          .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
         const timeA = a.createdAt?.seconds || 0;
@@ -313,8 +316,8 @@ export function AdminDashboard() {
     const qGuest = query(collection(db, guestPath));
     const unsubscribeGuest = onSnapshot(qGuest, (snapshot) => {
       const docs = snapshot.docs
-          .map(doc => ({ id: doc.id, type: 'Guest Entry', ...doc.data() }))
-          .filter((req: any) => !req.archived);
+          .map(doc => ({ id: doc.id, type: 'Guest Entry', collectionName: guestPath, ...doc.data() }))
+          .filter((req: any) => !req.archived && !req.purgedByAdmin);
       
       docs.sort((a: any, b: any) => {
         const timeA = a.createdAt?.seconds || 0;
@@ -350,13 +353,13 @@ export function AdminDashboard() {
       setAllUsers(users);
       
       const techList = users.filter((u: any) => 
-        u.role === 'TECHNICIAN' || u.id === profile?.uid
+        u.role === 'TECHNICIAN'
       );
       const driverList = users.filter((u: any) => 
-        u.role === 'DRIVER' || u.id === profile?.uid
+        u.role === 'DRIVER'
       );
       const cameraList = users.filter((u: any) => 
-        u.role === 'CAMERAMAN' || u.id === profile?.uid
+        u.role === 'CAMERAMAN'
       );
       setTechnicians(techList);
       setDrivers(driverList);
@@ -892,19 +895,17 @@ export function AdminDashboard() {
     }
   };
 
-  const handleClearSelected = async () => {
+  const handleClearSelected = () => {
     if (selectedIds.size === 0) {
       toast.error('No records selected');
       return;
     }
 
-    if (!bulkDeleteConfirm) {
-      setBulkDeleteConfirm(true);
-      setTimeout(() => setBulkDeleteConfirm(false), 3000);
-      toast('Click again to confirm PERMANENT purge of selected records', { icon: '⚠️' });
-      return;
-    }
+    setDeleteTarget({ type: 'bulk' });
+    setIsDeletePasswordModalOpen(true);
+  };
 
+  const executeBulkDelete = async () => {
     const currentTabRequests = getCurrentRequestsSource();
     
     try {
@@ -926,6 +927,39 @@ export function AdminDashboard() {
     } catch (error) {
       toast.error('Failed to delete some records');
       console.error(error);
+    }
+  };
+
+  const executeSingleDelete = async (request: any) => {
+    try {
+      const colName = request.collectionName || getCollectionForActiveSelection();
+      await updateDoc(doc(db, colName, request.id), { purgedByAdmin: true });
+      toast.success('Record purged from queue');
+      setDeleteConfirmId(null);
+    } catch (err) {
+      toast.error('Purge failure');
+      console.error(err);
+    }
+  };
+
+  const handleDeleteTech = (techId: string) => {
+    if (!techId) return;
+    if (techId === profile?.uid) {
+      toast.error('You cannot delete your own admin account');
+      return;
+    }
+    setDeleteTarget({ type: 'tech', techId });
+    setIsDeletePasswordModalOpen(true);
+  };
+
+  const executeTechDelete = async (techId: string) => {
+    try {
+      await deleteDoc(doc(db, 'users', techId));
+      toast.success('Agent removed from registry');
+      setDeleteTechConfirmId(null);
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('De-registration failure: ' + (error instanceof Error ? error.message : 'Unknown'));
     }
   };
 
@@ -1004,30 +1038,6 @@ export function AdminDashboard() {
       setEditRole('TECHNICIAN');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
-    }
-  };
-
-  const handleDeleteTech = async (techId: string) => {
-    if (!techId) return;
-    
-    if (deleteTechConfirmId === techId) {
-      try {
-        if (!auth.currentUser) {
-          toast.error('Login permission required for this approval');
-          return;
-        }
-        await auth.currentUser.reload();
-        await deleteDoc(doc(db, 'users', techId));
-        toast.success('Agent removed from registry');
-        setDeleteTechConfirmId(null);
-      } catch (error) {
-        console.error('Delete error:', error);
-        toast.error('De-registration failure: ' + (error instanceof Error ? error.message : 'Unknown'));
-      }
-    } else {
-      setDeleteTechConfirmId(techId);
-      setTimeout(() => setDeleteTechConfirmId(null), 3000);
-      toast('Click again to confirm PERMANENT de-registration', { icon: '⚠️' });
     }
   };
 
@@ -1489,30 +1499,17 @@ export function AdminDashboard() {
                                </button>
                              )}
                              <button 
-                               onClick={async (e) => {
+                               onClick={(e) => {
                                  e.stopPropagation();
-                                 if (deleteConfirmId === request.id) {
-                                   try {
-                                     if (!auth.currentUser) { toast.error('Login permission required'); return; }
-                                     await auth.currentUser.reload();
-                                     const colName = collectionMap[activeTab];
-                                     await updateDoc(doc(db, colName, request.id), { purgedByAdmin: true });
-                                     toast.success('Record purged from queue');
-                                     setDeleteConfirmId(null);
-                                   } catch (err) {
-                                     toast.error('Purge failure');
-                                   }
-                                 } else {
-                                   setDeleteConfirmId(request.id);
-                                   setTimeout(() => setDeleteConfirmId(null), 3000);
-                                   toast('Click again to confirm purge', { icon: '⚠️' });
-                                 }
+                                 setDeleteTarget({ type: 'single', request });
+                                 setIsDeletePasswordModalOpen(true);
                                }}
+                               type="button"
                                className={cn(
                                  "p-2 rounded border transition-all",
                                  deleteConfirmId === request.id 
                                    ? "bg-red-500 border-red-500 text-white animate-pulse" 
-                                   : "bg-dark-main border-dark-border text-dark-text-subtle hover:text-red-500"
+                                   : "bg-dark-main border-dark-border text-dark-text-subtle hover:text-red-500 hover:border-red-500"
                                )}
                                title="Delete Record"
                              >
@@ -1538,8 +1535,19 @@ export function AdminDashboard() {
               </h3>
             </div>
           <div className="overflow-auto flex-1 divide-y divide-dark-border">
-            {activeTab !== 'PROP_CASUALTY' && [...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => (
-              <div key={tech.id} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
+            {activeTab !== 'PROP_CASUALTY' && (
+              activeTab === 'SERVICE' ? technicians :
+              activeTab === 'VEHICLE' ? drivers :
+              activeTab === 'CAMERA' ? cameramen :
+              [...technicians, ...drivers, ...cameramen]
+            ).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+             .map(tech => ({
+               ...tech,
+               orderCount: [...requests, ...cameraRequests, ...vehicleRequests].filter(r => r.assignedTechnicianId === tech.id || r.assignedDriverId === tech.id).length
+             }))
+             .sort((a, b) => b.orderCount - a.orderCount)
+             .map((tech, idx) => (
+              <div key={`${tech.id || idx}-${idx}`} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
                 <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-slate-950 border border-dark-border uppercase">
                   {tech.displayName.split(' ').map((n: string) => n[0]).join('')}
                 </div>
@@ -1558,13 +1566,13 @@ export function AdminDashboard() {
                     <span className="text-[0.7rem] text-dark-accent/40">•</span>
                     <span className={cn(
                       "text-[0.7rem] font-mono",
-                      [...requests, ...cameraRequests, ...vehicleRequests].some(r => (r.assignedTechnicianId === tech.id || r.assignedDriverId === tech.id) && ['ACCEPTED', 'IN_PROGRESS'].includes(r.status)) 
+                      tech.orderCount > 0 
                         ? 'text-amber-500' 
                         : 'text-dark-text-subtle'
                     )}>
-                      {[...requests, ...cameraRequests, ...vehicleRequests].some(r => (r.assignedTechnicianId === tech.id || r.assignedDriverId === tech.id) && ['ACCEPTED', 'IN_PROGRESS'].includes(r.status)) 
-                        ? 'Deployed' 
-                        : 'Stationary'}
+                      {tech.orderCount > 0
+                        ? `Deployed (${tech.orderCount} Orders)` 
+                        : 'Stationary (0 Orders)'}
                     </span>
                   </div>
                 </div>
@@ -1584,16 +1592,19 @@ export function AdminDashboard() {
                   >
                     <MessageSquare className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
                   </button>
-                  <button
-                    onClick={() => handleDeleteTech(tech.id)}
-                    className="p-2.5 bg-dark-main border border-dark-border rounded-xl text-dark-text-subtle hover:text-red-500 hover:border-red-500 transition-all shadow-lg shadow-black/20 group"
-                    title="Delete Agent"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                  </button>
+                  {tech.id !== profile?.uid && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteTech(tech.id); }}
+                      className="p-2.5 bg-dark-main border border-dark-border rounded-xl text-dark-text-subtle hover:text-red-500 hover:border-red-500 transition-all shadow-lg shadow-black/20 group"
+                      title="Delete Agent"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                    </button>
+                  )}
                   <div className={cn(
                     "w-2 h-2 rounded-full",
-                    [...requests, ...cameraRequests, ...vehicleRequests].some(r => (r.assignedTechnicianId === tech.id || r.assignedDriverId === tech.id) && ['ACCEPTED', 'IN_PROGRESS'].includes(r.status)) 
+                    tech.orderCount > 0 
                       ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" 
                       : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
                   )} />
@@ -2251,15 +2262,13 @@ export function AdminDashboard() {
                  const primaryList = (activeTab === 'VEHICLE' ? drivers : activeTab === 'CAMERA' ? cameramen : technicians);
                  const list = allUsers.filter(t => {
                    if (t.role === 'ADMIN' && t.id !== profile?.uid) return false;
+                   const targetRole = activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN';
+                   if (t.role !== targetRole && t.id !== profile?.uid) return false;
+                   
                    const matchesSearch = !personnelSearch || 
                      t.displayName.toLowerCase().includes(personnelSearch.toLowerCase()) ||
                      (t.role && t.role.toLowerCase().includes(personnelSearch.toLowerCase()));
-                   if (!matchesSearch) return false;
-                   if (!personnelSearch) {
-                     const targetRole = activeTab === 'VEHICLE' ? 'DRIVER' : activeTab === 'CAMERA' ? 'CAMERAMAN' : 'TECHNICIAN';
-                     return t.role === targetRole || t.id === profile?.uid;
-                   }
-                   return true;
+                   return matchesSearch;
                  });
                  
                  if (list.length === 0) {
@@ -2276,12 +2285,12 @@ export function AdminDashboard() {
                  return (
                    <>
                      <div className="p-8 max-h-[45vh] overflow-y-auto space-y-4 border-b border-dark-border">
-                        {list.map((tech) => {
+                        {list.map((tech, idx) => {
                            const isEditingThis = editingTech?.id === tech.id;
                            const isSelected = selectedAssignIds.includes(tech.id);
                            return (
                              <div 
-                               key={tech.id} 
+                               key={`${tech.id || idx}-${idx}`} 
                                className={cn(
                                  "flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar/40 transition-all group",
                                  isSelected && "border-indigo-500/50 bg-indigo-500/[0.02]"
@@ -2495,10 +2504,10 @@ export function AdminDashboard() {
 
                 <div className="p-8 overflow-y-auto scrollbar-hide">
                   <div className="grid grid-cols-1 gap-4">
-                     {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => {
+                     {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech, idx) => {
                        const isEditingThis = editingTech?.id === tech.id;
                        return (
-                         <div key={tech.id} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
+                         <div key={`${tech.id || idx}-${idx}`} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
                            {isEditingThis ? (
                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
                                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
@@ -2584,7 +2593,8 @@ export function AdminDashboard() {
                                  </button>
                                  {tech.id !== profile?.uid && (
                                    <button 
-                                     onClick={() => handleDeleteTech(tech.id)}
+                                     type="button"
+                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteTech(tech.id); }}
                                      className={cn(
                                        "p-2 rounded-lg transition-all border",
                                        deleteTechConfirmId === tech.id
@@ -2734,6 +2744,21 @@ export function AdminDashboard() {
             </motion.div>
           </div>
         )}
+        <RequestPasswordModal 
+          isOpen={isDeletePasswordModalOpen}
+          onClose={() => setIsDeletePasswordModalOpen(false)}
+          expectedPassword="123"
+          onAuthenticated={() => {
+            setIsDeletePasswordModalOpen(false);
+            if (deleteTarget?.type === 'single') {
+              executeSingleDelete(deleteTarget.request);
+            } else if (deleteTarget?.type === 'bulk') {
+              executeBulkDelete();
+            } else if (deleteTarget?.type === 'tech' && deleteTarget.techId) {
+              executeTechDelete(deleteTarget.techId);
+            }
+          }}
+        />
       </AnimatePresence>
     </div>
   );

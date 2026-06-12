@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { RequestPasswordModal } from '../RequestPasswordModal';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -39,17 +38,17 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { toast } from 'react-hot-toast';
+import { RequestPasswordModal } from '../RequestPasswordModal';
 
 export function AllInOneDashboard() {
   const { profile } = useAuth();
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const [activePortalTab, setActivePortalTab] = useState<'CAMERA' | 'SERVICE' | 'VEHICLE'>('CAMERA');
   const [allTasks, setAllTasks] = useState<any[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [deletePassword, setDeletePassword] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [zoomLevel, setZoomLevel] = useState<number>(100);
 
@@ -68,11 +67,13 @@ export function AllInOneDashboard() {
     const unsubscribes = collections.map(col => {
       const q = query(collection(db, col.name), orderBy('createdAt', 'desc'));
       return onSnapshot(q, (snapshot) => {
-        const docs = snapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          collectionName: col.name,
-          ...doc.data() 
-        }));
+        const docs = snapshot.docs
+          .map(doc => ({ 
+            id: doc.id, 
+            collectionName: col.name,
+            ...doc.data() 
+          }))
+          .filter((t: any) => !t.purgedByAllInOne);
         
         setAllTasks(prev => {
           const others = prev.filter(t => t.collectionName !== col.name);
@@ -130,38 +131,37 @@ export function AllInOneDashboard() {
   };
 
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteItem, setDeleteItem] = useState<{ id: string, col: string } | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const handleDeleteSingle = async (id: string, col: string) => {
-    setDeleteItem({ id, col });
-    setShowDeleteModal(true);
+  const [isDeletePasswordModalOpen, setIsDeletePasswordModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk', id?: string, col?: string } | null>(null);
+
+  const handleDeleteSingle = (id: string, col: string) => {
+    setDeleteTarget({ type: 'single', id, col });
+    setIsDeletePasswordModalOpen(true);
   };
 
-  const confirmDelete = async () => {
-    if (!deleteItem) return;
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    setDeleteTarget({ type: 'bulk' });
+    setIsDeletePasswordModalOpen(true);
+  };
+
+  const executeSingleDelete = async (id: string, col: string) => {
     setLoading(true);
-    console.log("Confirming delete for:", deleteItem);
     try {
-        await updateDoc(doc(db, deleteItem.col, deleteItem.id), { purgedByAdmin: true });
+        await updateDoc(doc(db, col, id), { purgedByAllInOne: true });
         toast.success("Task archived successfully");
+        setDeleteConfirmId(null);
     } catch (err) {
         console.error("Delete error:", err);
         toast.error("Failed to delete task");
     } finally {
-        setDeleteItem(null);
         setLoading(false);
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    
-    if (deletePassword !== '654') {
-      toast.error('Incorrect authorization password');
-      return;
-    }
-
+  const executeBulkDelete = async () => {
     setLoading(true);
     try {
       const batch = writeBatch(db);
@@ -170,7 +170,7 @@ export function AllInOneDashboard() {
       selectedIds.forEach(id => {
         const task = allTasks.find(t => t.id === id);
         if (task && task.collectionName) {
-          batch.update(doc(db, task.collectionName, id), { purgedByAdmin: true });
+          batch.update(doc(db, task.collectionName, id), { purgedByAllInOne: true });
           count++;
         }
       });
@@ -188,7 +188,6 @@ export function AllInOneDashboard() {
     } finally {
       setLoading(false);
       setShowConfirmDelete(false);
-      setDeletePassword('');
     }
   };
 
@@ -232,13 +231,10 @@ export function AllInOneDashboard() {
             {(['en', 'om', 'am'] as const).map((lang) => (
               <button
                 key={lang}
-                onClick={() => {
-                  const { setLanguage } = useLanguage();
-                  setLanguage(lang);
-                }}
+                onClick={() => setLanguage(lang)}
                 className={cn(
                   "px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all",
-                  useLanguage().language === lang 
+                  language === lang 
                     ? "bg-orange-500/20 text-orange-500 shadow-sm" 
                     : "text-dark-text-muted hover:text-orange-400"
                 )}
@@ -300,7 +296,7 @@ export function AllInOneDashboard() {
           { label: t('tab_repair'), value: allTasks.filter(t => t.collectionName === 'service_requests').length, icon: Wrench, color: 'text-emerald-400' },
         ].map((stat, i) => (
           <motion.div
-            key={stat.label}
+            key={`${stat.label}-${i}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
@@ -363,25 +359,16 @@ export function AllInOneDashboard() {
                   </motion.button>
                 ) : (
                   <div className="flex items-center gap-1 animate-in fade-in zoom-in duration-200">
-                    <input
-                      type="password"
-                      placeholder={t('auth_pin')}
-                      value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
-                      className="px-1.5 py-0.5 bg-dark-main border border-dark-border rounded text-[8px] font-bold text-white focus:ring-1 focus:ring-rose-500 outline-none w-16 h-6"
-                      autoFocus
-                    />
                     <button
                       onClick={handleBulkDelete}
-                      disabled={loading || !deletePassword}
+                      disabled={loading}
                       className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
                     >
-                      {t('verify_label')}
+                      CONFIRM PURGE
                     </button>
                     <button
                       onClick={() => {
                         setShowConfirmDelete(false);
-                        setDeletePassword('');
                       }}
                       className="px-2 py-1 bg-dark-sidebar text-dark-text-subtle hover:text-white rounded-md text-[8px] font-black uppercase tracking-widest transition-all"
                     >
@@ -485,7 +472,7 @@ export function AllInOneDashboard() {
                 <tbody className="divide-y divide-dark-border/40">
                   {portalTasks.map((task, idx) => (
                     <tr 
-                      key={task.id}
+                      key={`${task.id || 'task'}-${idx}`}
                       className={cn(
                         "group transition-all hover:bg-dark-main/30 animate-in fade-in slide-in-from-bottom-2 duration-300",
                         selectedIds.has(task.id) ? "bg-dark-accent/5" : ""
@@ -569,8 +556,14 @@ export function AllInOneDashboard() {
                       </td>
                       <td className="px-3 py-1 text-center">
                         <button 
-                            onClick={() => handleDeleteSingle(task.id, task.collectionName)}
-                            className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSingle(task.id, task.collectionName);
+                            }}
+                            className={cn(
+                              "p-1.5 rounded-lg transition-all shadow-sm",
+                              deleteConfirmId === task.id ? "bg-rose-500 border border-rose-500 text-white animate-pulse" : "text-rose-500 hover:bg-rose-500/10 border border-transparent"
+                            )}
                         >
                             <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -608,9 +601,19 @@ export function AllInOneDashboard() {
         </AnimatePresence>
       </motion.div>
       <RequestPasswordModal 
-        isOpen={showDeleteModal} 
-        onClose={() => setShowDeleteModal(false)}
-        onAuthenticated={confirmDelete}
+         isOpen={isDeletePasswordModalOpen}
+         onClose={() => setIsDeletePasswordModalOpen(false)}
+         expectedPassword="123"
+         onAuthenticated={() => {
+            setIsDeletePasswordModalOpen(false);
+            if (deleteTarget) {
+              if (deleteTarget.type === 'single' && deleteTarget.id && deleteTarget.col) {
+                executeSingleDelete(deleteTarget.id, deleteTarget.col);
+              } else if (deleteTarget.type === 'bulk') {
+                executeBulkDelete();
+              }
+            }
+         }}
       />
     </div>
   );

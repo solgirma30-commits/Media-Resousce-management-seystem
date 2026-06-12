@@ -67,6 +67,8 @@ export function DeptDirectorDashboard() {
   const [guestPurpose, setGuestPurpose] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isDeletePasswordModalOpen, setIsDeletePasswordModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk', request?: any } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
@@ -141,7 +143,7 @@ export function DeptDirectorDashboard() {
       setRequests(
         snapshot.docs
           .map(doc => ({ id: doc.id, collectionName: srPath, ...doc.data() }))
-          .filter((req: any) => !req.archived)
+          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
       );
       if (activeTab === 'SERVICE') setLoading(false);
     }, (error) => {
@@ -158,7 +160,7 @@ export function DeptDirectorDashboard() {
       setCameraRequests(
         snapshot.docs
           .map(doc => ({ id: doc.id, collectionName: crPath, ...doc.data() }))
-          .filter((req: any) => !req.archived)
+          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
       );
       if (activeTab === 'CAMERA') setLoading(false);
     }, (error) => {
@@ -175,7 +177,7 @@ export function DeptDirectorDashboard() {
       setVehicleRequests(
         snapshot.docs
           .map(doc => ({ id: doc.id, collectionName: vrPath, ...doc.data() }))
-          .filter((req: any) => !req.archived)
+          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
       );
       if (activeTab === 'VEHICLE') setLoading(false);
     }, (error) => {
@@ -192,7 +194,7 @@ export function DeptDirectorDashboard() {
       setItemRequests(
         snapshot.docs
           .map(doc => ({ id: doc.id, collectionName: irPath, ...doc.data() }))
-          .filter((req: any) => !req.archived)
+          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
       );
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, irPath);
@@ -208,7 +210,7 @@ export function DeptDirectorDashboard() {
       setDeviceRequests(
         snapshot.docs
           .map(doc => ({ id: doc.id, collectionName: drPath, ...doc.data() }))
-          .filter((req: any) => !req.archived)
+          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
       );
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, drPath);
@@ -224,7 +226,7 @@ export function DeptDirectorDashboard() {
       setGuestRequests(
         snapshot.docs
           .map(doc => ({ id: doc.id, collectionName: grPath, ...doc.data() }))
-          .filter((req: any) => !req.archived)
+          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
       );
       if (activeTab === 'OTHER') setLoading(false);
     }, (error) => {
@@ -663,13 +665,11 @@ export function DeptDirectorDashboard() {
       return;
     }
 
-    if (!bulkDeleteConfirm) {
-      setBulkDeleteConfirm(true);
-      setTimeout(() => setBulkDeleteConfirm(false), 3000);
-      toast('Click again to confirm PERMANENT purge of selected records', { icon: '⚠️' });
-      return;
-    }
+    setDeleteTarget({ type: 'bulk' });
+    setIsDeletePasswordModalOpen(true);
+  };
 
+  const executeBulkDelete = async () => {
     const currentTabRequests = activeTab === 'SERVICE' ? requests : 
                                activeTab === 'CAMERA' ? cameraRequests : 
                                activeTab === 'VEHICLE' ? vehicleRequests : 
@@ -685,7 +685,7 @@ export function DeptDirectorDashboard() {
             activeTab === 'VEHICLE' ? 'vehicle_requests' :
             activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
           );
-          return updateDoc(doc(db, collectionName as string, id as string), { purgedByAdmin: true });
+          return updateDoc(doc(db, collectionName as string, id as string), { purgedByDeptDirector: true });
         }
       });
 
@@ -796,26 +796,24 @@ export function DeptDirectorDashboard() {
 
   const handleDeleteOne = async (e: React.MouseEvent, request: any) => {
     e.stopPropagation();
-    
-    if (deleteConfirmId === request.id) {
-      try {
-        const colName = request.collectionName || (
-          activeTab === 'SERVICE' ? 'service_requests' :
-          activeTab === 'CAMERA' ? 'camera_requests' :
-          activeTab === 'VEHICLE' ? 'vehicle_requests' :
-          activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
-        );
-        await updateDoc(doc(db, colName, request.id), { purgedByAdmin: true });
-        toast.success('Record purged permanently');
-        setDeleteConfirmId(null);
-      } catch (error) {
-        toast.error('Purge failure');
-        console.error(error);
-      }
-    } else {
-      setDeleteConfirmId(request.id);
-      setTimeout(() => setDeleteConfirmId(null), 3000);
-      toast('Click again to confirm PERMANENT purge', { icon: '⚠️' });
+    setDeleteTarget({ type: 'single', request });
+    setIsDeletePasswordModalOpen(true);
+  };
+
+  const executeSingleDelete = async (request: any) => {
+    try {
+      const colName = request.collectionName || (
+        activeTab === 'SERVICE' ? 'service_requests' :
+        activeTab === 'CAMERA' ? 'camera_requests' :
+        activeTab === 'VEHICLE' ? 'vehicle_requests' :
+        activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
+      );
+      await updateDoc(doc(db, colName, request.id), { purgedByDeptDirector: true });
+      toast.success('Record purged permanently');
+      setDeleteConfirmId(null);
+    } catch (error) {
+      toast.error('Purge failure');
+      console.error(error);
     }
   };
 
@@ -957,9 +955,9 @@ export function DeptDirectorDashboard() {
                         </div>
                       </td>
                     </tr>
-                    {(deptRequests as any[]).map((request) => (
+                    {(deptRequests as any[]).map((request, idx) => (
                       <tr 
-                        key={request.id} 
+                        key={`${request.id || 'req'}-${idx}`} 
                         className={cn(
                            "group transition-colors",
                            isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
@@ -1988,6 +1986,21 @@ export function DeptDirectorDashboard() {
             </motion.div>
           </div>
         )}
+
+        <RequestPasswordModal 
+          isOpen={isDeletePasswordModalOpen}
+          onClose={() => setIsDeletePasswordModalOpen(false)}
+          expectedPassword="123"
+          onAuthenticated={() => {
+            setIsDeletePasswordModalOpen(false);
+            if (deleteTarget?.type === 'single') {
+              executeSingleDelete(deleteTarget.request);
+            } else if (deleteTarget?.type === 'bulk') {
+              executeBulkDelete();
+            }
+          }}
+        />
+
       </AnimatePresence>
     </div>
   );

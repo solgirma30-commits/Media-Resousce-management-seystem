@@ -58,6 +58,7 @@ import { format } from 'date-fns';
 import { notificationService } from '../../services/notificationService';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
+import { RequestPasswordModal } from '../RequestPasswordModal';
 
 export function TechnicianDashboard() {
   useFcmToken();
@@ -309,7 +310,7 @@ export function TechnicianDashboard() {
           collectionName: path,
           ...doc.data() 
         }))
-        .filter((doc: any) => !doc.technicianArchived);
+        .filter((doc: any) => !doc.technicianArchived && !doc.purgedByTechnician);
       
       console.log(`[TechnicianDashboard] Subscription update for ${path}: fetched ${docs.length} global docs`);
       
@@ -606,28 +607,29 @@ export function TechnicianDashboard() {
     setSelectedIds(next);
   };
 
-  const handleDeleteWork = async (e: React.MouseEvent, work: any) => {
+  const [isDeletePasswordModalOpen, setIsDeletePasswordModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+
+  const handleDeleteWork = (e: React.MouseEvent, work: any) => {
     e.stopPropagation();
-    
+    setDeleteTarget(work);
+    setIsDeletePasswordModalOpen(true);
+  };
+
+  const executeDeleteWork = async (work: any) => {
     const colName = work.collectionName || (
       profile?.role === 'CAMERAMAN' ? 'camera_requests' :
       profile?.role === 'DRIVER' ? 'vehicle_requests' : 'service_requests'
     );
 
-    if (deleteConfirmId === work.id) {
-      try {
-        await updateDoc(doc(db, colName, work.id), { purgedByAdmin: true });
-        toast.success('Record purged permanently');
-        setDeleteConfirmId(null);
-        if (selectedWork?.id === work.id) setSelectedWork(null);
-      } catch (error) {
-        toast.error('Purge failure');
-        handleFirestoreError(error, OperationType.DELETE, `${colName}/${work.id}`);
-      }
-    } else {
-      setDeleteConfirmId(work.id);
-      setTimeout(() => setDeleteConfirmId(null), 3000);
-      toast('Click again to confirm PERMANENT purge', { icon: '⚠️' });
+    try {
+      await updateDoc(doc(db, colName, work.id), { purgedByTechnician: true });
+      toast.success('Record purged permanently');
+      setDeleteConfirmId(null);
+      if (selectedWork?.id === work.id) setSelectedWork(null);
+    } catch (error) {
+      toast.error('Purge failure');
+      handleFirestoreError(error, OperationType.DELETE, `${colName}/${work.id}`);
     }
   };
 
@@ -862,6 +864,7 @@ export function TechnicianDashboard() {
                   <td className="px-6 py-5 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                       <button 
+                        type="button"
                         onClick={(e) => handleDeleteWork(e, work)}
                         className={cn(
                           "p-2 rounded-lg transition-all border",
@@ -1219,6 +1222,7 @@ export function TechnicianDashboard() {
 
                         <div className="mt-10 pt-8 border-t border-dark-border flex flex-col items-center gap-2">
                            <button
+                             type="button"
                              onClick={(e) => handleDeleteWork(e, selectedWork)}
                              className={cn(
                                "w-full max-w-xs flex items-center justify-center gap-3 font-bold py-3.5 px-6 rounded-xl transition-all shadow-xl border text-xs uppercase tracking-widest cursor-pointer",
@@ -1391,6 +1395,17 @@ export function TechnicianDashboard() {
           </div>
         )}
       </AnimatePresence>
+      <RequestPasswordModal 
+         isOpen={isDeletePasswordModalOpen}
+         onClose={() => setIsDeletePasswordModalOpen(false)}
+         expectedPassword="123"
+         onAuthenticated={() => {
+            setIsDeletePasswordModalOpen(false);
+            if (deleteTarget) {
+              executeDeleteWork(deleteTarget);
+            }
+         }}
+      />
     </div>
   );
 }

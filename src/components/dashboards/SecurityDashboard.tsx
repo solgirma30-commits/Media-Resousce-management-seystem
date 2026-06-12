@@ -35,6 +35,7 @@ import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { WeeklyReport } from '../WeeklyReport';
+import { RequestPasswordModal } from '../RequestPasswordModal';
 
 export function SecurityDashboard() {
   useFcmToken();
@@ -108,7 +109,9 @@ export function SecurityDashboard() {
     );
 
     const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, collectionName: 'item_requests', ...doc.data() }));
+      const docs = snapshot.docs
+        .map(doc => ({ id: doc.id, collectionName: 'item_requests', ...doc.data() }))
+        .filter((doc: any) => !doc.purgedBySecurity);
       
       // Sort by creation time desc
       docs.sort((a: any, b: any) => {
@@ -129,7 +132,9 @@ export function SecurityDashboard() {
     );
 
     const unsubscribeGuests = onSnapshot(qGuests, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, collectionName: 'guest_requests', ...doc.data() }));
+      const docs = snapshot.docs
+        .map(doc => ({ id: doc.id, collectionName: 'guest_requests', ...doc.data() }))
+        .filter((doc: any) => !doc.purgedBySecurity);
       setGuestRequests(docs);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'guest_requests');
@@ -141,30 +146,38 @@ export function SecurityDashboard() {
     };
   }, []);
 
-  const handleDeleteRecord = async (e: React.MouseEvent, record: any) => {
+  const [isDeletePasswordModalOpen, setIsDeletePasswordModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'single' | 'bulk', record?: any, id?: string } | null>(null);
+
+  const handleDeleteRecord = (e: React.MouseEvent, record: any) => {
     e.stopPropagation();
-    if (deleteConfirmId === record.id) {
-      try {
-        await updateDoc(doc(db, record.collectionName, record.id), { purgedByAdmin: true });
-        toast.success('Record purged from registry');
-        setDeleteConfirmId(null);
-      } catch (error) {
-        toast.error('Purge failed');
-        console.error(error);
-      }
-    } else {
-      setDeleteConfirmId(record.id);
-      setTimeout(() => setDeleteConfirmId(null), 3000);
-      toast('Click again to confirm PERMANENT purge', { icon: '⚠️' });
+    setDeleteTarget({ type: 'single', record });
+    setIsDeletePasswordModalOpen(true);
+  };
+
+  const executeSingleDelete = async (record: any) => {
+    try {
+      await updateDoc(doc(db, record.collectionName, record.id), { purgedBySecurity: true });
+      toast.success('Record purged from registry');
+      setDeleteConfirmId(null);
+    } catch (error) {
+      toast.error('Purge failed');
+      console.error(error);
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
+    if (selectedIds.length === 0) return;
+    setDeleteTarget({ type: 'bulk' });
+    setIsDeletePasswordModalOpen(true);
+  };
+
+  const executeBulkDelete = async () => {
     try {
       const batch = writeBatch(db);
       selectedIds.forEach((id) => {
         const docRef = doc(db, 'item_requests', id);
-        batch.update(docRef, { purgedByAdmin: true });
+        batch.update(docRef, { purgedBySecurity: true });
       });
       await batch.commit();
       toast.success('Selected records purged');
@@ -626,6 +639,22 @@ export function SecurityDashboard() {
           </div>
         )}
       </AnimatePresence>
+
+      <RequestPasswordModal 
+         isOpen={isDeletePasswordModalOpen}
+         onClose={() => setIsDeletePasswordModalOpen(false)}
+         expectedPassword="123"
+         onAuthenticated={() => {
+            setIsDeletePasswordModalOpen(false);
+            if (deleteTarget) {
+              if (deleteTarget.type === 'single' && deleteTarget.record) {
+                executeSingleDelete(deleteTarget.record);
+              } else if (deleteTarget.type === 'bulk') {
+                executeBulkDelete();
+              }
+            }
+         }}
+      />
     </div>
   );
 }

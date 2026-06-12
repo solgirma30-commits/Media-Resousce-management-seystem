@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 
-export function RequestPasswordModal({ isOpen, onClose, onAuthenticated }: { isOpen: boolean, onClose: () => void, onAuthenticated: () => void }) {
+export function RequestPasswordModal({ isOpen, onClose, onAuthenticated, expectedPassword = '654' }: { isOpen: boolean, onClose: () => void, onAuthenticated: () => void, expectedPassword?: string }) {
   const [password, setPassword] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '654') { // Simple password as requested
+    if (password === expectedPassword) {
       onAuthenticated();
       setPassword('');
       onClose();

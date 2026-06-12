@@ -110,7 +110,7 @@ async function startServer() {
       }
       
       let errMsg = error.message;
-      let errCode = "DISPATCH_FAILED";
+      const errCode = "DISPATCH_FAILED";
 
       if (error.code === 21608) {
         errMsg = `The recipient number ${phoneNumber} is not verified in Twilio. Twilio trial restricted, simulating success locally.`;
