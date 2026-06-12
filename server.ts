@@ -161,10 +161,39 @@ async function startServer() {
       }
 
       const admin = await import("firebase-admin"); // Dynamic import for messaging
+      
+      const deepLinkUrl = requestId ? `/services?id=${requestId}` : "/";
+      
       await admin.messaging().send({
         token: fcmToken,
         notification: { title, body },
-        data: { requestId: requestId || "" },
+        data: { 
+          requestId: requestId || "",
+          url: deepLinkUrl
+        },
+        android: {
+          priority: "high",
+          notification: {
+            sound: "default",
+            clickAction: "FLUTTER_NOTIFICATION_CLICK"
+          }
+        },
+        webpush: {
+          headers: {
+            Urgency: "high"
+          },
+          notification: {
+            title,
+            body,
+            icon: "/pwa-512x512.png",
+            badge: "/pwa-512x512.png",
+            requireInteraction: true,
+            vibrate: [300, 110, 300, 110, 450, 110, 600]
+          },
+          fcmOptions: {
+            link: deepLinkUrl
+          }
+        }
       });
       res.json({ success: true });
     } catch (e: any) {

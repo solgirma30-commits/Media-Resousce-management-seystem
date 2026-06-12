@@ -46,9 +46,12 @@ class NotificationService {
         const notificationOptions: any = {
           icon: '/pwa-512x512.png',
           badge: '/pwa-512x512.png',
-          vibrate: [200, 100, 200],
-          tag: 'fmc-notification',
+          // Strong vibrating wake-up sequence for phone sleep states [vib, gap, vib, gap, ...]
+          vibrate: [300, 110, 300, 110, 450, 110, 600],
+          tag: 'fmc-notification-urgent',
           renotify: true,
+          // requireInteraction prevents the notification from disappearing on Android/iOS sleep screens
+          requireInteraction: true,
           ...options
         };
 

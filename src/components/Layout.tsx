@@ -82,6 +82,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               if (newNotif.type !== 'APPROVAL' || newNotif.isClearanceApproval) {
                 notificationService.notify(newNotif.title, {
                   body: newNotif.message,
+                  data: {
+                    url: newNotif.requestId ? `/services?id=${newNotif.requestId}` : '/'
+                  }
                 });
               }
             }
