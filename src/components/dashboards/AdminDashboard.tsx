@@ -128,7 +128,7 @@ export function AdminDashboard() {
     CAMERA: { label: 'Surveillance Director', pin: '2020', icon: Camera },
     VEHICLE: { label: 'Logistics Director', pin: '3030', icon: Car },
     ITEM: { label: 'Security Director', pin: '4040', icon: Tag },
-    PROP_CASUALTY: { label: 'Property & Casualty Laborer Director', pin: '6060', icon: ClipboardList },
+    PROP_CASUALTY: { label: 'Property Service Director', pin: '6060', icon: ClipboardList },
     OTHER: { label: 'Operations Director', pin: '5050', icon: ClipboardList },
     SYSTEM: { label: 'IT Systems Director', pin: '9090', icon: Settings }
   };
@@ -645,16 +645,16 @@ export function AdminDashboard() {
           const sectorKey = getSectorForActiveSelection();
           const notifId = `notif_app_${sectorKey.toLowerCase()}_admin_${Date.now()}_${targetUserId}`;
           
-          let title = `[APPROVED] ${activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : 'P&C Service'} Request: ${displayName}`;
+          let title = `[APPROVED] ${activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : 'Property Service'} Request: ${displayName}`;
           let message = `APPROVED: Administrator approved standard request for "${displayName}".`;
           
           if (activeTab === 'PROP_CASUALTY') {
             if (clearanceType === 'ITEM') {
               title = `[APPROVED] Exit Permit: ${displayName}`;
-              message = `APPROVED EXIT: Property and Casualty Laborer approved Exit Permit for item "${displayName}". Property and Casualty Laborer access authorized.`;
+              message = `APPROVED EXIT: Property Service approved Exit Permit for item "${displayName}". Property Service access authorized.`;
             } else if (clearanceType === 'GUEST') {
               title = `[APPROVED] Guest Entrance: ${displayName}`;
-              message = `APPROVED ENTRY: Property and Casualty Laborer approved Guest Entrance for "${displayName}". Property and Casualty Laborer access authorized.`;
+              message = `APPROVED ENTRY: Property Service approved Guest Entrance for "${displayName}". Property Service access authorized.`;
             }
           }
 
@@ -1266,7 +1266,7 @@ export function AdminDashboard() {
             />
             <TabButton 
               active={activeTab === 'PROP_CASUALTY'} 
-              label={t("Property & Casualty Laborer", "Property & Casualty Laborer")} 
+              label={t("Property Service", "Property Service")} 
               icon={ClipboardList} 
               onClick={() => { setActiveTab('PROP_CASUALTY'); setSelectedRequest(null); }} 
             />
@@ -1621,7 +1621,7 @@ export function AdminDashboard() {
                 {label: 'Service & Repair', type: 'SERVICE'},
                 {label: 'Camera', type: 'CAMERA'},
                 {label: 'Transportation', type: 'VEHICLE'},
-                {label: 'Property & Casualty', type: 'PROP_CASUALTY'},
+                {label: 'Property Service', type: 'PROP_CASUALTY'},
             ].map((report) => (
                 <button
                     key={report.type}

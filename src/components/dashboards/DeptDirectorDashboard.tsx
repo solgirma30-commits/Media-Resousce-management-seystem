@@ -620,7 +620,7 @@ export function DeptDirectorDashboard() {
           requestTypeLabel = 'Laborer Request';
         }
         
-        const title = `[APPROVED] [${profile.department || 'Property & Casualty'}] ${requestTypeLabel}: ${displayName}`;
+        const title = `[APPROVED] [${profile.department || 'Property Service'}] ${requestTypeLabel}: ${displayName}`;
         const message = isGuest
           ? `APPROVED GUEST: Director ${profile.displayName} approved Guest Entrance for "${displayName}". Security gate clearance authorized.`
           : isItem
@@ -870,7 +870,7 @@ export function DeptDirectorDashboard() {
           active={activeTab === 'OTHER'} 
           onClick={() => setActiveTab('OTHER')} 
           icon={ShieldCheck} 
-          label={t("Admin Clearances", "Property and Casualty Laborer")} 
+          label={t("Property Service", "Property Service")} 
           count={itemRequests.length + deviceRequests.length + guestRequests.length}
         />
       </div>
@@ -880,7 +880,7 @@ export function DeptDirectorDashboard() {
         <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-card/50">
           <div>
             <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
-              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : 'Property and Casualty Laborer Clearances Log'}
+              {activeTab === 'SERVICE' ? 'Service Log' : activeTab === 'CAMERA' ? 'Camera Coverage Log' : activeTab === 'VEHICLE' ? 'Transportation Log' : 'Property Service Clearances Log'}
             </h3>
             <p className="text-[10px] text-dark-text-subtle mt-1">Operational records categorized by department resource load</p>
           </div>
