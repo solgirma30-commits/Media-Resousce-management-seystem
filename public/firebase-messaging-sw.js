@@ -30,10 +30,13 @@ messaging.onBackgroundMessage((payload) => {
     badge: '/pwa-512x512.png',
     // Strong vibrating sequence to wake screen and capture user attention on mobile sleep
     vibrate: [300, 110, 300, 110, 450, 110, 600],
-    tag: 'fmc-alert-urgent',
+    tag: 'fmc-alert-urgent-' + Date.now(),
     renotify: true,
     // requireInteraction guarantees the pop-up notification stays visual and doesn't self-minimize
     requireInteraction: true,
+    actions: [
+      { action: 'open', title: 'Open Dashboard' }
+    ],
     data: {
       url: urlToOpen
     }

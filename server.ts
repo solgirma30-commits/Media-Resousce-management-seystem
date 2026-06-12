@@ -174,8 +174,12 @@ async function startServer() {
         android: {
           priority: "high",
           notification: {
+            title,
+            body,
             sound: "default",
-            clickAction: "FLUTTER_NOTIFICATION_CLICK"
+            priority: "max",
+            visibility: "public",
+            notificationCount: 1,
           }
         },
         webpush: {
@@ -188,7 +192,13 @@ async function startServer() {
             icon: "/pwa-512x512.png",
             badge: "/pwa-512x512.png",
             requireInteraction: true,
-            vibrate: [300, 110, 300, 110, 450, 110, 600]
+            vibrate: [300, 110, 300, 110, 450, 110, 600],
+            actions: [
+              { action: "open", title: "View Details" }
+            ],
+            data: {
+              url: deepLinkUrl
+            }
           },
           fcmOptions: {
             link: deepLinkUrl

@@ -13,11 +13,20 @@ export function useFcmToken() {
       try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
+          // Explicitly register the service worker for background push
+          let registration;
+          try {
+            registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+            console.log('FCM Service Worker registered:', registration);
+            // Wait for service worker to be ready
+            await navigator.serviceWorker.ready;
+          } catch (swErr) {
+            console.warn('Manual SW registration failed, falling back to auto:', swErr);
+          }
+
           const fcmToken = await getToken(messaging, { 
-            vapidKey: 'BIj7C8x49zNn-5vJ29qM4n_R_0P3A6bV1J4S9E_f9s7n_v7O4r2Xn1n_qZ9A3vD4J1W7Qz1oX-o6L7K3j2V' // Should be fetched from config or server!
-            // I need a VAPID key. I will ask the user or just use a placeholder I will rotate? 
-            // Actually, I can't know the VAPID key. 
-            // I'll try without vapidKey and see if it works, or use a placeholder from docs.
+            serviceWorkerRegistration: registration,
+            vapidKey: 'BIj7C8x49zNn-5vJ29qM4n_R_0P3A6bV1J4S9E_f9s7n_v7O4r2Xn1n_qZ9A3vD4J1W7Qz1oX-o6L7K3j2V' 
           });
           
           if (fcmToken && auth.currentUser) {
