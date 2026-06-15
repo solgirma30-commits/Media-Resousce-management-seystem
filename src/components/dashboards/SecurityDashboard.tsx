@@ -25,7 +25,8 @@ import {
   orderBy,
   serverTimestamp,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  limit
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -36,6 +37,7 @@ import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { WeeklyReport } from '../WeeklyReport';
 import { RequestPasswordModal } from '../RequestPasswordModal';
+import { MobileNotificationBanner } from '../MobileNotificationBanner';
 
 export function SecurityDashboard() {
   useFcmToken();
@@ -57,7 +59,8 @@ export function SecurityDashboard() {
   useEffect(() => {
     const qUpdates = query(
       collection(db, 'department_updates'),
-      where('department', '==', 'PROP_CASUALTY')
+      where('department', '==', 'PROP_CASUALTY'),
+      limit(20)
     );
     
     const unsubscribe = onSnapshot(qUpdates, (snapshot) => {
@@ -96,7 +99,8 @@ export function SecurityDashboard() {
         }
       });
     }, (error) => {
-      console.error("Notepad updates subscription failed:", error);
+      setLoading(false);
+      handleFirestoreError(error, OperationType.LIST, 'department_updates');
     });
     return () => unsubscribe();
   }, []);
@@ -105,7 +109,8 @@ export function SecurityDashboard() {
     // Security only sees APPROVED requests for items
     const qItems = query(
       collection(db, 'item_requests'),
-      where('status', 'in', ['APPROVED', 'EXITED', 'RETURNED'])
+      where('status', 'in', ['APPROVED', 'EXITED', 'RETURNED']),
+      limit(50)
     );
 
     const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
@@ -123,20 +128,23 @@ export function SecurityDashboard() {
       setRequests(docs.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
       setLoading(false);
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, 'item_requests');
     });
 
     const qGuests = query(
       collection(db, 'guest_requests'),
-      where('status', 'in', ['APPROVED', 'COMPLETED'])
+      where('status', 'in', ['APPROVED', 'COMPLETED']),
+      limit(50)
     );
 
     const unsubscribeGuests = onSnapshot(qGuests, (snapshot) => {
       const docs = snapshot.docs
         .map(doc => ({ id: doc.id, collectionName: 'guest_requests', ...doc.data() }))
         .filter((doc: any) => !doc.purgedBySecurity);
-      setGuestRequests(docs);
+      setGuestRequests(docs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, 'guest_requests');
     });
 
@@ -238,9 +246,9 @@ export function SecurityDashboard() {
         <div>
           <h1 className="text-3xl font-medium text-slate-950 tracking-tight flex items-center gap-3">
             <ShieldCheck className="w-8 h-8 text-pink-500" />
-            Security Asset Monitoring
+            {t('sec_checkpoint_title', 'Security Asset Monitoring')}
           </h1>
-          <p className="text-dark-text-subtle mt-1 font-serif italic text-sm">Authorized Item Exit & Return Verification Portal</p>
+          <p className="text-dark-text-subtle mt-1 font-serif italic text-sm">{t('sec_active_exit_vectors', 'Authorized Item Exit & Return Verification Portal')}</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -248,13 +256,13 @@ export function SecurityDashboard() {
             className="bg-dark-card border border-dark-border py-2.5 px-4 rounded-xl text-dark-accent hover:bg-dark-main flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all"
           >
             <BarChart3 className="w-4 h-4" />
-            Report
+            {t('weekly_report', 'Report')}
           </button>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-text-subtle" />
             <input 
               type="text"
-              placeholder="Search S/N or Item..."
+              placeholder={t('search_active_clearance', 'Search S/N or Item...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-dark-card border border-dark-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-black font-bold focus:ring-1 focus:ring-pink-500 outline-none w-64 transition-all"
@@ -263,6 +271,8 @@ export function SecurityDashboard() {
         </div>
       </div>
 
+      <MobileNotificationBanner />
+
       {teamUpdates.length > 0 && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
@@ -270,11 +280,11 @@ export function SecurityDashboard() {
           className="bg-dark-card border-l-4 border-l-dark-accent border border-t-dark-border border-r-dark-border border-b-dark-border rounded-lg shadow-xl overflow-hidden p-4"
         >
           <h3 className="text-[10px] font-black text-dark-accent uppercase tracking-widest mb-3 flex items-center gap-2">
-            <Activity className="w-3 h-3" /> Director Notepad Broadcasts
+            <Activity className="w-3 h-3" /> {t('Director Notepad Broadcasts')}
           </h3>
           <div className="space-y-2">
             {teamUpdates.map((msg, idx) => (
-              <div key={`sec-msg-card-${msg.id || idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
+              <div key={`sec-team-msg-${msg.id || idx}-${idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">
@@ -300,20 +310,20 @@ export function SecurityDashboard() {
             <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
                 <LogOut className="w-4 h-4 text-pink-400" />
-                Item Exits
+                {t('Item Exits')}
               </h3>
               <span className="bg-pink-500/10 text-pink-700 text-[10px] font-black px-2 py-0.5 rounded border border-pink-500/20 uppercase tracking-widest">
-                {pendingExits.length} Active
+                {pendingExits.length} {t('Active')}
               </span>
             </div>
             <div className="divide-y divide-dark-border max-h-[400px] overflow-auto scrollbar-hide">
               {loading ? (
-                <div className="p-12 text-center text-dark-text-subtle italic">Synchronizing registry...</div>
+                <div className="p-12 text-center text-dark-text-subtle italic">{t('Synchronizing registry...')}</div>
               ) : pendingExits.length === 0 ? (
-                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No items in exit queue</div>
+                <div className="p-12 text-center text-dark-text-subtle italic font-serif">{t('No items in exit queue')}</div>
               ) : (
                 pendingExits.map((req, idx) => (
-                  <div key={`${req.id || 'exit'}-${idx}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
+                  <div key={`pending-exit-${req.id || idx}-${idx}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
                     <div className="flex items-center gap-5">
                       <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-pink-600 group-hover:scale-110 transition-transform">
                         <Tag className="w-6 h-6" />
@@ -332,11 +342,11 @@ export function SecurityDashboard() {
                         </div>
                       </div>
                     </div>
-                    <button 
+                     <button 
                       onClick={() => setSelectedRequest(req)}
                       className="px-6 py-2.5 bg-dark-main hover:bg-pink-500 text-dark-text-subtle hover:text-white border border-dark-border hover:border-pink-500 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
                     >
-                      Verify Release
+                      {t('sec_gate_out', 'Verify Release')}
                     </button>
                   </div>
                 ))
@@ -348,18 +358,18 @@ export function SecurityDashboard() {
             <div className="p-6 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
               <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest flex items-center gap-2">
                 <Users className="w-4 h-4 text-pink-400" />
-                Guest Entrance
+                {t('Guest Entrance')}
               </h3>
               <span className="bg-pink-500/10 text-pink-700 text-[10px] font-black px-2 py-0.5 rounded border border-pink-500/20 uppercase tracking-widest">
-                {pendingGuests.length} Active
+                {pendingGuests.length} {t('Active')}
               </span>
             </div>
             <div className="divide-y divide-dark-border max-h-[400px] overflow-auto scrollbar-hide">
               {pendingGuests.length === 0 ? (
-                <div className="p-12 text-center text-dark-text-subtle italic font-serif">No guest entries</div>
+                <div className="p-12 text-center text-dark-text-subtle italic font-serif">{t('No guest entries')}</div>
               ) : (
                 pendingGuests.map((req, idx) => (
-                  <div key={`${req.id || 'guest'}-${idx}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
+                  <div key={`pending-guest-${req.id || idx}-${idx}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
                     <div className="flex items-center gap-5">
                       <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-pink-600 group-hover:scale-110 transition-transform">
                         <Users className="w-6 h-6" />
@@ -402,7 +412,7 @@ export function SecurityDashboard() {
                  <div className="p-10 text-center text-dark-text-subtle text-xs italic">Operational guest registry clear</div>
                ) : (
                   loggedGuests.map((req, idx) => (
-                    <div key={`${req.id || 'log-guest'}-${idx}`} className="p-5 flex items-center justify-between bg-dark-main/20">
+                    <div key={`logged-guest-${req.id || idx}-${idx}`} className="p-5 flex items-center justify-between bg-dark-main/20">
                        <div className="flex items-center gap-4">
                          <div className="w-8 h-8 rounded-lg flex items-center justify-center border bg-emerald-500/10 border-emerald-500/20 text-emerald-700">
                            <CheckCircle2 className="w-4 h-4" />
@@ -477,7 +487,7 @@ export function SecurityDashboard() {
                  <div className="p-10 text-center text-dark-text-subtle text-xs italic">Operational registry clear</div>
                ) : (
                   loggedExits.map((req, idx) => (
-                    <div key={`${req.id || 'log-exit'}-${idx}`} className={cn("p-5 flex items-center justify-between group transition-all", isSelectMode ? "bg-dark-main/40" : "bg-dark-main/20")}>
+                    <div key={`logged-exit-${req.id || idx}-${idx}`} className={cn("p-5 flex items-center justify-between group transition-all", isSelectMode ? "bg-dark-main/40" : "bg-dark-main/20")}>
                        <div className="flex items-center gap-4">
                          {isSelectMode && (
                              <input 
@@ -534,19 +544,19 @@ export function SecurityDashboard() {
 
         <div className="space-y-6">
           <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg p-6">
-             <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest mb-4">Security Protocol</h3>
+             <h3 className="text-[11px] font-black text-dark-text-muted uppercase tracking-widest mb-4">{t('sec_security_protocol', 'Security Protocol')}</h3>
              <ul className="space-y-3">
                 <li className="flex items-start gap-3">
                    <div className="w-1.5 h-1.5 rounded-full bg-pink-500 mt-1"></div>
-                   <p className="text-[11px] text-dark-text-subtle leading-relaxed">Match Item Name and S/N with physical asset before release.</p>
+                   <p className="text-[11px] text-dark-text-subtle leading-relaxed">{t('Match Item Name and S/N with physical asset before release.')}</p>
                 </li>
                 <li className="flex items-start gap-3">
                    <div className="w-1.5 h-1.5 rounded-full bg-pink-500 mt-1"></div>
-                   <p className="text-[11px] text-dark-text-subtle leading-relaxed">Verify operational approval status in system before gate-out.</p>
+                   <p className="text-[11px] text-dark-text-subtle leading-relaxed">{t('Verify operational approval status in system before gate-out.')}</p>
                 </li>
                 <li className="flex items-start gap-3">
                    <div className="w-1.5 h-1.5 rounded-full bg-pink-500 mt-1"></div>
-                   <p className="text-[11px] text-dark-text-subtle leading-relaxed">Ensure personnel identity matches the system assignment.</p>
+                   <p className="text-[11px] text-dark-text-subtle leading-relaxed">{t('Ensure personnel identity matches the system assignment.')}</p>
                 </li>
              </ul>
           </div>

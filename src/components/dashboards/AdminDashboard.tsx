@@ -47,7 +47,8 @@ import {
   getDocs,
   getDoc,
   where,
-  deleteDoc
+  deleteDoc,
+  limit
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -135,7 +136,10 @@ export function AdminDashboard() {
   
   useEffect(() => {
     const srPath = 'service_requests';
-    const q = query(collection(db, srPath));
+    const q = query(
+      collection(db, srPath),
+      limit(50)
+    );
     let isFirstLoad = true;
     const unsubscribeReq = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs
@@ -168,12 +172,16 @@ export function AdminDashboard() {
       setLoading(false);
       isFirstLoad = false;
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, srPath);
     });
 
     let isFirstLoadCam = true;
     const camPath = 'camera_requests';
-    const qCam = query(collection(db, camPath));
+    const qCam = query(
+      collection(db, camPath),
+      limit(50)
+    );
     const unsubscribeCam = onSnapshot(qCam, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Camera', collectionName: camPath, ...doc.data() }))
@@ -203,12 +211,16 @@ export function AdminDashboard() {
       }
       isFirstLoadCam = false;
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, camPath);
     });
 
     let isFirstLoadVeh = true;
     const vehPath = 'vehicle_requests';
-    const qVeh = query(collection(db, vehPath));
+    const qVeh = query(
+      collection(db, vehPath),
+      limit(50)
+    );
     const unsubscribeVeh = onSnapshot(qVeh, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Vehicle', collectionName: vehPath, ...doc.data() }))
@@ -238,12 +250,16 @@ export function AdminDashboard() {
       }
       isFirstLoadVeh = false;
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, vehPath);
     });
 
     let isFirstLoadItem = true;
     const itemPath = 'item_requests';
-    const qItem = query(collection(db, itemPath));
+    const qItem = query(
+      collection(db, itemPath),
+      limit(50)
+    );
     const unsubscribeItem = onSnapshot(qItem, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Exit Permit', collectionName: itemPath, ...doc.data() }))
@@ -273,12 +289,16 @@ export function AdminDashboard() {
       }
       isFirstLoadItem = false;
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, itemPath);
     });
 
     let isFirstLoadDev = true;
     const devPath = 'device_requests';
-    const qDev = query(collection(db, devPath));
+    const qDev = query(
+      collection(db, devPath),
+      limit(50)
+    );
     const unsubscribeDev = onSnapshot(qDev, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Device', collectionName: devPath, ...doc.data() }))
@@ -308,12 +328,16 @@ export function AdminDashboard() {
       }
       isFirstLoadDev = false;
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, devPath);
     });
 
     let isFirstLoadGuest = true;
     const guestPath = 'guest_requests';
-    const qGuest = query(collection(db, guestPath));
+    const qGuest = query(
+      collection(db, guestPath),
+      limit(50)
+    );
     const unsubscribeGuest = onSnapshot(qGuest, (snapshot) => {
       const docs = snapshot.docs
           .map(doc => ({ id: doc.id, type: 'Guest Entry', collectionName: guestPath, ...doc.data() }))
@@ -343,12 +367,14 @@ export function AdminDashboard() {
       }
       isFirstLoadGuest = false;
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, guestPath);
     });
 
     const userPath = 'users';
-    // Fetch all workforce users to avoid complex indexing issues in early setup
-    const unsubscribeTech = onSnapshot(collection(db, userPath), (snapshot) => {
+    // Fetch workforce users with limit to avoid burning quota
+    const qUsers = query(collection(db, userPath), limit(450));
+    const unsubscribeTech = onSnapshot(qUsers, (snapshot) => {
       const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAllUsers(users);
       
@@ -365,6 +391,7 @@ export function AdminDashboard() {
       setDrivers(driverList);
       setCameramen(cameraList);
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, userPath);
     });
 
@@ -1276,15 +1303,15 @@ export function AdminDashboard() {
               <button 
                 onClick={() => setClearanceType('ITEM')}
                 className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest", clearanceType === 'ITEM' ? "bg-dark-accent text-white" : "bg-dark-main text-dark-text-subtle")}
-              >Item Exit</button>
+              >{t('Item Exit')}</button>
               <button 
                 onClick={() => setClearanceType('LABOR')}
                 className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest", clearanceType === 'LABOR' ? "bg-dark-accent text-white" : "bg-dark-main text-dark-text-subtle")}
-              >Laborer</button>
+              >{t('Laborer')}</button>
               <button 
                 onClick={() => setClearanceType('GUEST')}
                 className={cn("px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest", clearanceType === 'GUEST' ? "bg-dark-accent text-white" : "bg-dark-main text-dark-text-subtle")}
-              >Guest</button>
+              >{t('Guest')}</button>
             </div>
           )}
           <div className={cn(
@@ -1378,7 +1405,7 @@ export function AdminDashboard() {
                        </tr>
                      ) : uniqueActiveRequests.map((request, idx) => (
                      <tr 
-                       key={`${request.id || 'req'}-${idx}`} 
+                       key={`admin-req-${request.id || idx}-${idx}`} 
                        onClick={() => isSelectMode ? toggleSelect(request.id) : setSelectedRequest(request)}
                        className={cn(
                          "transition-colors group cursor-pointer",
@@ -1527,7 +1554,7 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        {activeTab !== 'ITEM' && (
+        {activeTab !== 'PROP_CASUALTY' && (
           <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg flex flex-col h-[600px]">
             <div className="p-6 border-b border-dark-border bg-dark-card/50">
               <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
@@ -1547,7 +1574,7 @@ export function AdminDashboard() {
              }))
              .sort((a, b) => b.orderCount - a.orderCount)
              .map((tech, idx) => (
-              <div key={`${tech.id || idx}-${idx}`} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
+              <div key={`workload-tech-${tech.id || idx}-${idx}`} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
                 <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-slate-950 border border-dark-border uppercase">
                   {tech.displayName.split(' ').map((n: string) => n[0]).join('')}
                 </div>
@@ -1926,6 +1953,32 @@ export function AdminDashboard() {
                               {selectedRequest.workName || selectedRequest.eventTitle || selectedRequest.tripName || selectedRequest.itemName || selectedRequest.deviceModel || 'Vector Operational Objective'}
                               <div className="mt-2 text-xs font-sans not-italic text-slate-700 opacity-80 border-t border-dark-border pt-2 mt-4">
                                 {selectedRequest.description || selectedRequest.purpose || selectedRequest.destination || 'No secondary intelligence provided.'}
+                              
+                              {selectedRequest.attachmentUrl && (
+                                <div className="mt-6 pt-4 border-t border-dark-border/40">
+                                  <p className="text-[10px] font-black uppercase text-dark-text-subtle mb-3 font-mono flex items-center gap-2">
+                                    <Tag className="w-3 h-3 text-dark-accent" />
+                                    Accompanying Documentation
+                                  </p>
+                                  <a 
+                                    href={selectedRequest.attachmentUrl} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="flex items-center gap-3 p-3 bg-dark-accent/5 border border-dark-accent/20 rounded-xl hover:bg-dark-accent/10 transition-all group"
+                                  >
+                                    <div className="w-10 h-10 rounded-lg bg-dark-accent flex items-center justify-center shadow-lg shadow-indigo-950/40 group-hover:scale-105 transition-transform">
+                                      <MessageSquare className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[11px] font-black text-black truncate uppercase tracking-tight">
+                                        {selectedRequest.attachmentName || 'Request Document'}
+                                      </p>
+                                      <p className="text-[9px] text-dark-accent font-bold uppercase tracking-widest mt-0.5">Click to view official filing</p>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-dark-accent/40" />
+                                  </a>
+                                </div>
+                              )}
                               </div>
                             </div>
                           )

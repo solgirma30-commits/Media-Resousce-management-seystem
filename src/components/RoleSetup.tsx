@@ -9,7 +9,7 @@ import { cn } from '../lib/utils';
 import { useLanguage } from '../lib/LanguageContext';
 
 export function RoleSetup({ onComplete }: { onComplete: () => void }) {
-  const { user, profile: existingProfile } = useAuth();
+  const { user, profile: existingProfile, setProfile } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(existingProfile?.role || null);
   const [fullName, setFullName] = useState(existingProfile?.displayName || user?.displayName || '');
@@ -110,7 +110,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
     setIsSubmitting(true);
     const path = `users/${user.uid}`;
     try {
-      const profile: any = {
+      const newProfileData: any = {
         uid: user.uid,
         email: user.email,
         displayName: fullName,
@@ -121,14 +121,23 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
       };
 
       if (!existingProfile) {
-        profile.createdAt = serverTimestamp();
+        newProfileData.createdAt = serverTimestamp();
       }
 
       if (user.photoURL) {
-        profile.photoURL = user.photoURL;
+        newProfileData.photoURL = user.photoURL;
       }
 
-      await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), newProfileData, { merge: true });
+      
+      // Manually update the profile in context as a fallback if real-time listener is offline/dead due to quota
+      if (typeof setProfile === 'function') {
+         setProfile({
+           ...newProfileData,
+           updatedAt: new Date() // Convert timestamp for local state
+         } as any);
+      }
+
       toast.success('System credentials generated');
       onComplete();
     } catch (error) {

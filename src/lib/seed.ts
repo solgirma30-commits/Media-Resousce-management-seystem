@@ -7,7 +7,7 @@ export async function seedWorkforce() {
   const driversCount = 50;
 
   const roles = [
-    { prefix: 'TECH', role: 'TECHNICIAN', count: techniciansCount, namePrefix: 'Technician' },
+    { prefix: 'TECH', role: 'TECHNICIAN', count: techniciansCount, namePrefix: 'Tech' },
     { prefix: 'CAM', role: 'CAMERAMAN', count: cameramenCount, namePrefix: 'Cameraman' },
     { prefix: 'DRV', role: 'DRIVER', count: driversCount, namePrefix: 'Driver' }
   ];

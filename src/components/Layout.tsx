@@ -22,6 +22,7 @@ import {
   orderBy,
   updateDoc,
   doc,
+  limit,
 } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
@@ -49,6 +50,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       collection(db, path),
       where("userId", "==", profile.uid),
       where("read", "==", false),
+      limit(20)
     );
 
     let isFirstLoad = true;
@@ -276,9 +278,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           </p>
                         </div>
                       ) : (
-                        notifications.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((n, idx) => (
+                        notifications.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((n) => (
                           <div
-                            key={`notif-${n.id || idx}-${idx}`}
+                            key={`notif-${n.id}`}
                             className="p-4 border-b border-dark-border last:border-0 hover:bg-dark-main/30"
                           >
                             <div className="flex items-start gap-3">

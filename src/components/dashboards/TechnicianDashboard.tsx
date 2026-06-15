@@ -28,7 +28,9 @@ import {
   Maximize2,
   Minimize2,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Tag,
+  ChevronRight
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -48,7 +50,8 @@ import {
   serverTimestamp,
   getDocs,
   setDoc,
-  deleteDoc
+  deleteDoc,
+  limit
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -59,6 +62,7 @@ import { notificationService } from '../../services/notificationService';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { RequestPasswordModal } from '../RequestPasswordModal';
+import { MobileNotificationBanner } from '../MobileNotificationBanner';
 
 export function TechnicianDashboard() {
   useFcmToken();
@@ -151,7 +155,8 @@ export function TechnicianDashboard() {
     if (!portalConfig.department) return;
     const qUpdates = query(
       collection(db, 'department_updates'),
-      where('department', '==', portalConfig.department)
+      where('department', '==', portalConfig.department),
+      limit(20)
     );
     
     const unsubscribe = onSnapshot(qUpdates, (snapshot) => {
@@ -190,7 +195,8 @@ export function TechnicianDashboard() {
         }
       });
     }, (error) => {
-      console.error("Notepad updates subscription failed:", error);
+      setLoading(false);
+      handleFirestoreError(error, OperationType.LIST, 'department_updates');
     });
     return () => unsubscribe();
   }, [portalConfig.department]);
@@ -201,7 +207,8 @@ export function TechnicianDashboard() {
 
     const qSms = query(
       collection(db, 'sim_sms_logs'),
-      where('recipientId', '==', profile.uid)
+      where('recipientId', '==', profile.uid),
+      limit(20)
     );
 
     const unsubscribeSms = onSnapshot(qSms, (snapshot) => {
@@ -217,7 +224,7 @@ export function TechnicianDashboard() {
         return timeB - timeA;
       });
 
-      setSmsLogs(logs);
+      setSmsLogs(logs.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
 
       const readIds = JSON.parse(localStorage.getItem(`read_sms_${profile.uid}`) || '[]');
       const unreadCount = logs.filter((log: any) => !readIds.includes(log.id)).length;
@@ -272,7 +279,7 @@ export function TechnicianDashboard() {
         }
       }
     }, (error) => {
-      console.error("SMS notification subscription failure:", error);
+      handleFirestoreError(error, OperationType.LIST, 'sim_sms_logs');
     });
 
     return () => unsubscribeSms();
@@ -300,7 +307,10 @@ export function TechnicianDashboard() {
     if (!profile) return;
 
     const path = portalConfig.collection;
-    const q = query(collection(db, path)); // Query ALL tasks in the collection for proper "Global Work Registry" representation
+    const q = query(
+      collection(db, path),
+      limit(100)
+    ); // Query ALL tasks in the collection for proper "Global Work Registry" representation
 
     let isFirstLoad = true;
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -364,13 +374,17 @@ export function TechnicianDashboard() {
       setLoading(false);
       isFirstLoad = false;
     }, (error) => {
-        console.error(`[TechnicianDashboard] Error in ${path}:`, error);
+        setLoading(false);
         handleFirestoreError(error, OperationType.LIST, path);
     });
 
     // Listen for NEW unassigned requests to notify technicians in real-time
     let isFirstLoadNew = true;
-    const qNew = query(collection(db, path), where('status', '==', 'NEW'));
+    const qNew = query(
+      collection(db, path), 
+      where('status', '==', 'NEW'),
+      limit(20)
+    );
     const unsubscribeNew = onSnapshot(qNew, (snapshot) => {
       if (!isFirstLoadNew) {
         snapshot.docChanges().forEach(change => {
@@ -657,6 +671,8 @@ export function TechnicianDashboard() {
         </div>
       </div>
 
+      <MobileNotificationBanner />
+
       {teamUpdates.length > 0 && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
@@ -667,8 +683,8 @@ export function TechnicianDashboard() {
             <Activity className="w-3 h-3" /> Director Notepad Broadcasts
           </h3>
           <div className="space-y-2">
-            {teamUpdates.map((msg, idx) => (
-              <div key={`tech-msg-card-${msg.id || idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
+                {teamUpdates.map((msg, idx) => (
+              <div key={`tech-msg-card-${msg.id || idx}-${idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">
@@ -704,14 +720,14 @@ export function TechnicianDashboard() {
               <ClipboardList className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-xs font-black text-slate-950 uppercase tracking-widest">Global Work Registry</h3>
-              <p className="text-[10px] text-dark-text-subtle mt-0.5 font-medium uppercase tracking-tight">Consolidated operational ledger</p>
+              <h3 className="text-xs font-black text-slate-950 uppercase tracking-widest">{t('Global Work Registry')}</h3>
+              <p className="text-[10px] text-dark-text-subtle mt-0.5 font-medium uppercase tracking-tight">{t('Consolidated operational ledger', 'Consolidated operational ledger')}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-dark-main rounded-full border border-dark-border">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[9px] font-mono text-dark-text-muted uppercase">{allRegistryTasks.length} Total Records</span>
+              <span className="text-[9px] font-mono text-dark-text-muted uppercase">{allRegistryTasks.length} {t('Total Records', 'Total Records')}</span>
             </div>
             
             {/* Fullscreen Toggle Button */}
@@ -783,7 +799,7 @@ export function TechnicianDashboard() {
             <tbody className="divide-y divide-dark-border/40">
               {allRegistryTasks.map((work, idx) => (
                 <tr 
-                  key={`tech-work-row-${work.id || idx}`}
+                  key={`tech-work-row-${work.id || idx}-${idx}`}
                   onClick={() => setSelectedWork(work)}
                   className={cn(
                     "group transition-all cursor-pointer hover:bg-dark-main/30",
@@ -907,8 +923,8 @@ export function TechnicianDashboard() {
                 <div className="w-20 h-20 rounded-full bg-dark-main/50 border border-dark-border flex items-center justify-center mb-6">
                   <Truck className="w-8 h-8 text-dark-text-subtle/40" />
                 </div>
-                <h3 className="text-xl font-medium text-slate-400">Select Task from Global Work Registry</h3>
-                <p className="text-dark-text-subtle text-[10px] uppercase font-black tracking-widest mt-2">Initialize communication with the Property Service portal</p>
+                <h3 className="text-xl font-medium text-slate-400">{t('Select Task from Global Work Registry')}</h3>
+                <p className="text-dark-text-subtle text-[10px] uppercase font-black tracking-widest mt-2">{t('Initialize communication with the Property Service portal', 'Initialize communication with the Property Service portal')}</p>
               </motion.div>
             ) : (
               <motion.div
@@ -1010,6 +1026,34 @@ export function TechnicianDashboard() {
                         Originating Requester
                       </p>
                     </div>
+
+                    {selectedWork.attachmentUrl && (
+                      <div className="p-1 bg-gradient-to-br from-dark-card to-dark-main border border-dark-border rounded-xl group hover:border-indigo-400/40 transition-colors shadow-lg">
+                        <div className="p-5">
+                          <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Tag className="w-3 h-3 text-indigo-400" />
+                            Official filing Documents
+                          </p>
+                          <a 
+                            href={selectedWork.attachmentUrl} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="flex items-center gap-3 p-2 bg-indigo-500/5 border border-indigo-500/10 rounded-lg hover:bg-indigo-500/10 transition-all"
+                          >
+                            <div className="w-9 h-9 rounded-lg bg-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-950/40">
+                              <MessageSquare className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-black text-black truncate uppercase tracking-tight">
+                                {selectedWork.attachmentName || 'Original Request'}
+                              </p>
+                              <p className="text-[8px] text-indigo-400 font-bold uppercase tracking-widest mt-0.2">View Word/PDF</p>
+                            </div>
+                            <ChevronRight className="w-3 h-3 text-indigo-400/50" />
+                          </a>
+                        </div>
+                      </div>
+                    )}
                     <div className="p-6 bg-dark-main/50 border border-dark-border rounded-xl">
                       <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3 flex items-center gap-2">
                         <AlertCircle className="w-3 h-3 text-amber-500" />
@@ -1044,14 +1088,14 @@ export function TechnicianDashboard() {
                         <div className="w-16 h-16 rounded-full bg-dark-accent/10 border border-dark-accent/20 flex items-center justify-center mb-6 text-dark-accent">
                           <Check className="w-8 h-8" />
                         </div>
-                        <h4 className="text-xl font-black text-black mb-2">Initialize Assignment</h4>
-                        <p className="text-dark-text-subtle text-sm mb-8 max-w-sm">Synchronize your local node with the central portal to accept this work vector.</p>
+                        <h4 className="text-xl font-black text-black mb-2">{t('Initialize Assignment')}</h4>
+                        <p className="text-dark-text-subtle text-sm mb-8 max-w-sm">{t('Synchronize your local node with the central portal to accept this work vector.')}</p>
                         <button
                           onClick={() => updateStatus(selectedWork.id, 'ACCEPTED')}
                           className="w-full max-w-xs flex items-center justify-center gap-3 bg-dark-accent hover:bg-indigo-600 text-white font-bold py-4 rounded-xl transition-all shadow-xl shadow-indigo-900/30 active:scale-95 group"
                         >
                           <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                          Accept & Confirm Link
+                          {t('Accept & Confirm Link', 'Accept & Confirm Link')}
                         </button>
                       </div>
                     )}
@@ -1061,14 +1105,14 @@ export function TechnicianDashboard() {
                         <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6 text-amber-500">
                           <Truck className="w-8 h-8" />
                         </div>
-                        <h4 className="text-xl font-black text-black mb-2">Ready for Deployment</h4>
-                        <p className="text-dark-text-subtle text-sm mb-8 max-w-sm">Set your status to 'In Progress' when arriving at the operational site.</p>
+                        <h4 className="text-xl font-black text-black mb-2">{t('Ready for Deployment')}</h4>
+                        <p className="text-dark-text-subtle text-sm mb-8 max-w-sm">{t("Set your status to 'In Progress' when arriving at the operational site.")}</p>
                         <button
                           onClick={() => updateStatus(selectedWork.id, 'IN_PROGRESS')}
                           className="w-full max-w-xs flex items-center justify-center gap-3 bg-amber-500 hover:bg-amber-600 text-white font-bold py-4 rounded-xl transition-all shadow-xl shadow-amber-900/30 active:scale-95 group"
                         >
                           <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                          Begin Active Operation
+                          {t('Begin Active Operation', 'Begin Active Operation')}
                         </button>
                       </div>
                     )}
@@ -1360,7 +1404,7 @@ export function TechnicianDashboard() {
                         ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
                         : format(new Date(), 'h:mm a');
                       return (
-                        <div key={`${log.id || 'log'}-${idx}`} className="flex flex-col space-y-1">
+                        <div key={`sms-log-${log.id || idx}-${idx}`} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">
                             <span>💬 DISPATCH COMMAND</span>
                             <span>{timeStr}</span>

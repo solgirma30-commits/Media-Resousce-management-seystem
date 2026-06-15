@@ -1239,6 +1239,91 @@ export const translationDictionary: Record<string, Record<Language, string>> = {
     en: 'Explain why this item is leaving the premises...',
     om: 'Meeshaan kun maaliif akka ba’u ibsi...',
     am: 'ዕቃው ከግቢው የሚወጣበትን ምክንያት ያብራሩ...'
+  },
+  'Item Exit': {
+    en: 'Item Exit',
+    om: 'Ba’iinsa Meeshaa',
+    am: 'የዕቃ መውጫ'
+  },
+  'Laborer': {
+    en: 'Laborer',
+    om: 'Hojjetaa Guyyaa',
+    am: 'የቀን ሰራተኛ'
+  },
+  'Guest': {
+    en: 'Guest',
+    om: 'Keessummaa',
+    am: 'እንግዳ'
+  },
+  'Item Exits': {
+    en: 'Item Exits',
+    om: 'Ba’iinsa Meeshaalee',
+    am: 'የዕቃዎች መውጫ'
+  },
+  'Guest Entrance': {
+    en: 'Guest Entrance',
+    om: 'Seensa Keessummaa',
+    am: 'የእንግዳ መግቢያ'
+  },
+  'Synchronizing registry...': {
+    en: 'Synchronizing registry...',
+    om: 'Galmee sinkronayiz gochaa jira...',
+    am: 'መዝገብ በመጫን ላይ...'
+  },
+  'No items in exit queue': {
+    en: 'No items in exit queue',
+    om: 'Tarree ba’iinsaa keessa meeshaan hin jiru',
+    am: 'በመውጫ ወረፋ ውስጥ ምንም ዕቃ የለም'
+  },
+  'No guest entries': {
+    en: 'No guest entries',
+    om: 'Seensi keessummaa hin jiru',
+    am: 'ምንም የእንግዳ መግቢያ የለም'
+  },
+  'Director Notepad Broadcasts': {
+    en: 'Director Notepad Broadcasts',
+    om: 'Akeekkachiisa Oolmaa Daayirekteeraa',
+    am: 'የዳይሬክተር ማስታወሻ ስርጭቶች'
+  },
+  'Global Work Registry': {
+    en: 'Global Work Registry',
+    om: 'Galmee Hojii Waliigalaa',
+    am: 'አጠቃላይ የሥራ መዝገብ'
+  },
+  'Select Task from Global Work Registry': {
+    en: 'Select Task from Global Work Registry',
+    om: 'Galmee Waliigala irraa Hojii Filadhu',
+    am: 'ከአጠቃላይ የሥራ መዝገብ ላይ ሥራ ይምረጡ'
+  },
+  'Initialize Assignment': {
+    en: 'Initialize Assignment',
+    om: 'Hojii Jalqabi',
+    am: 'ምደባውን ጀምር'
+  },
+  'Ready for Deployment': {
+    en: 'Ready for Deployment',
+    om: 'Hojiif Qophaa’eera',
+    am: 'ለስምሪት ዝግጁ'
+  },
+  'Active Operational Vector': {
+    en: 'Active Operational Vector',
+    om: 'Tarkaanfii Hojii Idilee',
+    am: 'ንቁ የሥራ ስምሪት'
+  },
+  'Assignment Data Secured': {
+    en: 'Assignment Data Secured',
+    om: 'Ragaan Hojii Eegameera',
+    am: 'የምደባ መረጃ ተጠብቋል'
+  },
+  'Request Details': {
+    en: 'Request Details',
+    om: 'Ibsa Gaaffii',
+    am: 'የጥያቄ ዝርዝሮች'
+  },
+  'Direct Comms': {
+    en: 'Direct Comms',
+    om: 'Quunnamtii Kallattii',
+    am: 'ቀጥታ ግንኙነት'
   }
 };
 

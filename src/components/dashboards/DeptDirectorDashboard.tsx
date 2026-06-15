@@ -33,9 +33,11 @@ import {
   doc,
   getDocs,
   setDoc,
-  deleteDoc
+  deleteDoc,
+  limit
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, handleFirestoreError, OperationType, storage } from '../../lib/firebase';
 import { useAuth } from '../../App';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
@@ -43,6 +45,7 @@ import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { RequestPasswordModal } from '../RequestPasswordModal';
+import { MobileNotificationBanner } from '../MobileNotificationBanner';
 
 export function DeptDirectorDashboard() {
   useFcmToken();
@@ -97,6 +100,8 @@ export function DeptDirectorDashboard() {
   // Service Request specific
   const [category, setCategory] = useState('Hardware');
   const [serviceRequester, setServiceRequester] = useState('');
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Camera Request specific
   const [eventTitle, setEventTitle] = useState('');
@@ -137,7 +142,8 @@ export function DeptDirectorDashboard() {
     const srPath = 'service_requests';
     const srQ = query(
       collection(db, srPath),
-      where('departmentName', '==', profile.department || 'Unknown')
+      where('departmentName', '==', profile.department || 'Unknown'),
+      limit(50)
     );
     const unsubscribeSR = onSnapshot(srQ, (snapshot) => {
       setRequests(
@@ -147,6 +153,7 @@ export function DeptDirectorDashboard() {
       );
       if (activeTab === 'SERVICE') setLoading(false);
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, srPath);
     });
 
@@ -154,7 +161,8 @@ export function DeptDirectorDashboard() {
     const crPath = 'camera_requests';
     const crQ = query(
       collection(db, crPath),
-      where('departmentName', '==', profile.department || 'Unknown')
+      where('departmentName', '==', profile.department || 'Unknown'),
+      limit(50)
     );
     const unsubscribeCR = onSnapshot(crQ, (snapshot) => {
       setCameraRequests(
@@ -164,6 +172,7 @@ export function DeptDirectorDashboard() {
       );
       if (activeTab === 'CAMERA') setLoading(false);
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, crPath);
     });
 
@@ -171,7 +180,8 @@ export function DeptDirectorDashboard() {
     const vrPath = 'vehicle_requests';
     const vrQ = query(
       collection(db, vrPath),
-      where('departmentName', '==', profile.department || 'Unknown')
+      where('departmentName', '==', profile.department || 'Unknown'),
+      limit(50)
     );
     const unsubscribeVR = onSnapshot(vrQ, (snapshot) => {
       setVehicleRequests(
@@ -181,6 +191,7 @@ export function DeptDirectorDashboard() {
       );
       if (activeTab === 'VEHICLE') setLoading(false);
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, vrPath);
     });
 
@@ -188,7 +199,8 @@ export function DeptDirectorDashboard() {
     const irPath = 'item_requests';
     const irQ = query(
       collection(db, irPath),
-      where('departmentName', '==', profile.department || 'Unknown')
+      where('departmentName', '==', profile.department || 'Unknown'),
+      limit(50)
     );
     const unsubscribeIR = onSnapshot(irQ, (snapshot) => {
       setItemRequests(
@@ -197,6 +209,7 @@ export function DeptDirectorDashboard() {
           .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
       );
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, irPath);
     });
 
@@ -204,7 +217,8 @@ export function DeptDirectorDashboard() {
     const drPath = 'device_requests';
     const drQ = query(
       collection(db, drPath),
-      where('departmentName', '==', profile.department || 'Unknown')
+      where('departmentName', '==', profile.department || 'Unknown'),
+      limit(50)
     );
     const unsubscribeDR = onSnapshot(drQ, (snapshot) => {
       setDeviceRequests(
@@ -213,6 +227,7 @@ export function DeptDirectorDashboard() {
           .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
       );
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, drPath);
     });
 
@@ -220,7 +235,8 @@ export function DeptDirectorDashboard() {
     const grPath = 'guest_requests';
     const grQ = query(
       collection(db, grPath),
-      where('departmentName', '==', profile.department || 'Unknown')
+      where('departmentName', '==', profile.department || 'Unknown'),
+      limit(50)
     );
     const unsubscribeGR = onSnapshot(grQ, (snapshot) => {
       setGuestRequests(
@@ -230,14 +246,20 @@ export function DeptDirectorDashboard() {
       );
       if (activeTab === 'OTHER') setLoading(false);
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, grPath);
     });
 
     const fleetPath = 'fleet';
-    const fleetQuery = query(collection(db, fleetPath), where('status', '==', 'OPERATIONAL'));
+    const fleetQuery = query(
+      collection(db, fleetPath), 
+      where('status', '==', 'OPERATIONAL'),
+      limit(20)
+    );
     const unsubscribeFleet = onSnapshot(fleetQuery, (snapshot) => {
       setFleet(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
+      setLoading(false);
       handleFirestoreError(error, OperationType.LIST, fleetPath);
     });
 
@@ -302,6 +324,24 @@ export function DeptDirectorDashboard() {
     }
 
     try {
+      let attachmentUrl = '';
+      let attachmentName = '';
+
+      if (attachedFile) {
+        setIsUploading(true);
+        try {
+          const fileRef = ref(storage, `requests/${activeTab}/${Date.now()}_${attachedFile.name}`);
+          const snapshot = await uploadBytes(fileRef, attachedFile);
+          attachmentUrl = await getDownloadURL(snapshot.ref);
+          attachmentName = attachedFile.name;
+        } catch (uploadErr) {
+          console.error('File upload failed:', uploadErr);
+          toast.error('Failed to upload attachment. Submitting without it.');
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
       let docRef;
       if (isEditing && editingId) {
         const colName = activeTab === 'SERVICE' ? 'service_requests' : 
@@ -312,6 +352,11 @@ export function DeptDirectorDashboard() {
         let updateData: any = {
           updatedAt: serverTimestamp(),
         };
+
+        if (attachmentUrl) {
+          updateData.attachmentUrl = attachmentUrl;
+          updateData.attachmentName = attachmentName;
+        }
 
         if (activeTab === 'SERVICE') {
           updateData = { ...updateData, phoneNumber, location, serviceCategory: category, workName, description, priority, requesterName: serviceRequester || profile.displayName };
@@ -366,6 +411,8 @@ export function DeptDirectorDashboard() {
             status: 'NEW',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
+            attachmentUrl,
+            attachmentName,
             };
             docRef = await addDoc(collection(db, path), newRequest);
         } else if (activeTab === 'CAMERA') {
@@ -386,6 +433,8 @@ export function DeptDirectorDashboard() {
             status: 'NEW',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
+            attachmentUrl,
+            attachmentName,
             };
             docRef = await addDoc(collection(db, path), newRequest);
         } else if (activeTab === 'VEHICLE') {
@@ -407,6 +456,8 @@ export function DeptDirectorDashboard() {
             status: 'NEW',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
+            attachmentUrl,
+            attachmentName,
             };
             docRef = await addDoc(collection(db, path), newRequest);
         } else if (activeTab === 'OTHER') {
@@ -427,6 +478,8 @@ export function DeptDirectorDashboard() {
                 status: 'NEW',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
+                attachmentUrl,
+                attachmentName,
               };
               docRef = await addDoc(collection(db, path), newRequest);
             } else if (clearanceType === 'LABOR') {
@@ -447,6 +500,8 @@ export function DeptDirectorDashboard() {
                 status: 'NEW',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
+                attachmentUrl,
+                attachmentName,
               };
               docRef = await addDoc(collection(db, path), newRequest);
             } else if (clearanceType === 'GUEST') {
@@ -467,6 +522,8 @@ export function DeptDirectorDashboard() {
                 status: 'NEW',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
+                attachmentUrl,
+                attachmentName,
               };
               docRef = await addDoc(collection(db, path), newRequest);
             }
@@ -477,6 +534,8 @@ export function DeptDirectorDashboard() {
       setIsModalOpen(false);
       setIsEditing(false);
       setEditingId(null);
+      setAttachedFile(null);
+      setIsUploading(false);
         
       if (!isEditing) {
         const realRequestId = docRef?.id || `REQ-${Date.now()}`;
@@ -843,6 +902,8 @@ export function DeptDirectorDashboard() {
         </button>
       </div>
 
+      <MobileNotificationBanner />
+
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-dark-border overflow-x-auto pb-px">
         <TabButton 
@@ -1111,7 +1172,7 @@ export function DeptDirectorDashboard() {
              >
                 <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
                    <div>
-                      <h2 className="text-2xl font-medium text-slate-950 tracking-tight">Request Details</h2>
+                      <h2 className="text-2xl font-medium text-slate-950 tracking-tight">{t('Request Details')}</h2>
                       <p className="text-dark-text-subtle text-sm mt-1">Status: {selectedRequest.status.replace('_', ' ')}</p>
                    </div>
                    <button onClick={() => setSelectedRequest(null)} className="p-2 text-dark-text-subtle hover:text-white transition-colors">
@@ -1906,6 +1967,8 @@ export function DeptDirectorDashboard() {
                     </div>
                   </>
                 )}
+
+
 
 
 

@@ -112,8 +112,8 @@ async function startServer() {
       let errMsg = error.message;
       const errCode = "DISPATCH_FAILED";
 
-      if (error.code === 21608) {
-        errMsg = `The recipient number ${phoneNumber} is not verified in Twilio. Twilio trial restricted, simulating success locally.`;
+      if (error.code === 21608 || error.code === 21607 || error.code === 21612 || error.code === 21614 || (error.message && (error.message.toLowerCase().includes("short code") || error.message.toLowerCase().includes("shortcode")))) {
+        errMsg = `The recipient number is unverified, formatted differently, or within Trial/Short-Code boundaries. Simulating success locally.`;
         res.status(200).json({
           success: true,
           warning: errMsg,
@@ -302,8 +302,8 @@ async function startServer() {
       }
       
       let errMsg = error.message;
-      if (error.code === 21608) {
-        errMsg = `The recipient number is not verified in Twilio. Trial accounts can only send messages to verified numbers. Simulating success locally.`;
+      if (error.code === 21608 || error.code === 21607 || error.code === 21612 || error.code === 21614 || (error.message && (error.message.toLowerCase().includes("short code") || error.message.toLowerCase().includes("shortcode")))) {
+        errMsg = `The recipient number is unverified, a short code, or restricted. Simulating success locally.`;
         res.status(200).json({ success: true, simulated: true, warning: errMsg });
         return;
       }

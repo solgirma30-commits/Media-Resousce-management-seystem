@@ -30,7 +30,8 @@ import {
   orderBy,
   writeBatch,
   doc,
-  updateDoc
+  updateDoc,
+  limit
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
@@ -65,7 +66,11 @@ export function AllInOneDashboard() {
     ];
 
     const unsubscribes = collections.map(col => {
-      const q = query(collection(db, col.name), orderBy('createdAt', 'desc'));
+      const q = query(
+        collection(db, col.name), 
+        orderBy('createdAt', 'desc'),
+        limit(100)
+      );
       return onSnapshot(q, (snapshot) => {
         const docs = snapshot.docs
           .map(doc => ({ 
@@ -88,6 +93,7 @@ export function AllInOneDashboard() {
         });
         setLoading(false);
       }, (error) => {
+        setLoading(false);
         handleFirestoreError(error, OperationType.LIST, col.name);
       });
     });
@@ -472,7 +478,7 @@ export function AllInOneDashboard() {
                 <tbody className="divide-y divide-dark-border/40">
                   {portalTasks.map((task, idx) => (
                     <tr 
-                      key={`aio-task-${task.id || idx}`}
+                      key={`aio-list-item-${task.collectionName}-${task.id || idx}`}
                       className={cn(
                         "group transition-all hover:bg-dark-main/30 animate-in fade-in slide-in-from-bottom-2 duration-300",
                         selectedIds.has(task.id) ? "bg-dark-accent/5" : ""
