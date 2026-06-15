@@ -534,19 +534,6 @@ export function AdminDashboard() {
       const deptName = req?.departmentName || req?.department || '';
       const userMap = new Map<string, { fcmToken?: string; displayName?: string }>();
 
-      if (deptName) {
-        try {
-          const deptUsers = await getDocs(query(collection(db, 'users'), where('department', '==', deptName)));
-          deptUsers.docs.forEach(uDoc => {
-            audienceIds.add(uDoc.id);
-            const uData = uDoc.data();
-            userMap.set(uDoc.id, { fcmToken: uData?.fcmToken, displayName: uData?.displayName });
-          });
-        } catch (e) {
-          console.error("Failed to query department users:", e);
-        }
-      }
-
       if (directorId && !userMap.has(directorId)) {
         try {
           const directorSnap = await getDoc(doc(db, 'users', directorId));
@@ -559,7 +546,7 @@ export function AdminDashboard() {
         }
       }
 
-      // Create notifications for director & department members
+      // Create notification for director
       const clearancePromises = Array.from(audienceIds).map(async (targetUserId) => {
         const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${targetUserId}`;
         let title: string;
@@ -657,67 +644,6 @@ export function AdminDashboard() {
         }
       }
 
-      // Map activeTab to matching roles for notification
-      let targetRole: string | null = null;
-      if (activeTab === 'SERVICE') targetRole = 'TECHNICIAN';
-      else if (activeTab === 'CAMERA') targetRole = 'CAMERAMAN';
-      else if (activeTab === 'VEHICLE') targetRole = 'DRIVER';
-      else if (activeTab === 'PROP_CASUALTY' && (clearanceType === 'ITEM' || clearanceType === 'GUEST')) targetRole = 'SECURITY';
-
-      if (targetRole) {
-        const portalUsers = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
-        const notificationPromises = portalUsers.docs.map(async (uDoc) => {
-          const targetUserId = uDoc.id;
-          const uData = uDoc.data();
-          const sectorKey = getSectorForActiveSelection();
-          const notifId = `notif_app_${sectorKey.toLowerCase()}_admin_${Date.now()}_${targetUserId}`;
-          
-          let title = `[APPROVED] ${activeTab === 'SERVICE' ? 'Service' : activeTab === 'CAMERA' ? 'Camera' : activeTab === 'VEHICLE' ? 'Vehicle' : 'Property Service'} Request: ${displayName}`;
-          let message = `APPROVED: Administrator approved standard request for "${displayName}".`;
-          
-          if (activeTab === 'PROP_CASUALTY') {
-            if (clearanceType === 'ITEM') {
-              title = `[APPROVED] Exit Permit: ${displayName}`;
-              message = `APPROVED EXIT: Property Service approved Exit Permit for item "${displayName}". Property Service access authorized.`;
-            } else if (clearanceType === 'GUEST') {
-              title = `[APPROVED] Guest Entrance: ${displayName}`;
-              message = `APPROVED ENTRY: Property Service approved Guest Entrance for "${displayName}". Property Service access authorized.`;
-            }
-          }
-
-          // Save operator in-app notification doc
-          await setDoc(doc(db, 'notifications', notifId), {
-            userId: targetUserId,
-            title,
-            message,
-            read: false,
-            role: 'ADMIN_OR_STAFF',
-            type: 'APPROVAL',
-            requestId: requestId,
-            createdAt: serverTimestamp(),
-          });
-
-          // Also dispatch FCM background push to staff/operators so their phones alert them in the background immediately
-          if (uData?.fcmToken) {
-            try {
-              await fetch('/api/send-fcm-notification', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  targetUserId,
-                  title,
-                  body: message,
-                  requestId,
-                  fcmToken: uData.fcmToken,
-                }),
-              });
-            } catch (fcmErr) {
-              console.error("FCM background dispatch for operator failed:", fcmErr);
-            }
-          }
-        });
-        await Promise.all(notificationPromises);
-      }
 
       toast.success('Request approved');
     } catch (error) {
@@ -1405,7 +1331,7 @@ export function AdminDashboard() {
                        </tr>
                      ) : uniqueActiveRequests.map((request, idx) => (
                      <tr 
-                       key={`admin-req-${request.id || idx}-${idx}`} 
+                       key={`admin-req-${request.collectionName || 'none'}-${request.id || idx}-${idx}`} 
                        onClick={() => isSelectMode ? toggleSelect(request.id) : setSelectedRequest(request)}
                        className={cn(
                          "transition-colors group cursor-pointer",

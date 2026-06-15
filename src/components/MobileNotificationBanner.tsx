@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useFcmToken } from '../hooks/useFcmToken';
-import { Smartphone, Bell, AlertCircle, CheckCircle2, Info, ChevronRight, X } from 'lucide-react';
+import { Smartphone, Bell, CheckCircle2, ChevronRight, X, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../lib/LanguageContext';
@@ -24,7 +24,7 @@ export function MobileNotificationBanner() {
 
   const handleActivate = async () => {
     try {
-      const res = await requestNotificationPermission();
+      await requestNotificationPermission();
       if (Notification.permission === 'granted') {
         toast.success(t('Background push alerts configured successfully!', 'Background push alerts configured successfully!'));
       } else if (Notification.permission === 'denied') {

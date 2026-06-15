@@ -6,7 +6,6 @@ import {
   ClipboardList,
   Users,
   Bell,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -19,7 +18,6 @@ import {
   query,
   where,
   onSnapshot,
-  orderBy,
   updateDoc,
   doc,
   limit,
@@ -278,9 +276,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           </p>
                         </div>
                       ) : (
-                        notifications.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((n) => (
+                        notifications.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((n, idx) => (
                           <div
-                            key={`notif-${n.id}`}
+                            key={`notif-${n.id}-${idx}`}
                             className="p-4 border-b border-dark-border last:border-0 hover:bg-dark-main/30"
                           >
                             <div className="flex items-start gap-3">

@@ -187,7 +187,7 @@ export const translationDictionary: Record<string, Record<Language, string>> = {
     am: 'FMC አስተዳዳሪ'
   },
   'fmc_request': {
-    en: 'FMC REQUEST',
+    en: 'FMC REQUEST (Directors & Team Leaders)',
     om: 'GAAPHILEESSAA FMC',
     am: 'FMC ጠያቂ'
   },

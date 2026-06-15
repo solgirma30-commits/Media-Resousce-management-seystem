@@ -42,6 +42,7 @@ interface UserProfile {
   displayName: string;
   role: UserRole;
   department?: string;
+  phoneNumber?: string;
 }
 
 interface AuthContextType {

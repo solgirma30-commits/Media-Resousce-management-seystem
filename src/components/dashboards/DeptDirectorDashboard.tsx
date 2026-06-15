@@ -1018,7 +1018,7 @@ export function DeptDirectorDashboard() {
                     </tr>
                     {(deptRequests as any[]).map((request, idx) => (
                       <tr 
-                        key={`${request.id || 'req'}-${idx}`} 
+                        key={`${dept}-${request.id || 'req'}-${idx}`} 
                         className={cn(
                            "group transition-colors",
                            isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
@@ -1149,6 +1149,7 @@ export function DeptDirectorDashboard() {
       <RequestPasswordModal 
          isOpen={isPasswordModalOpen} 
          onClose={() => setIsPasswordModalOpen(false)} 
+         expectedPassword={['654', profile?.phoneNumber].filter(Boolean) as string[]}
          onAuthenticated={() => {
             setIsPasswordModalOpen(false);
             setIsModalOpen(true);
@@ -1400,7 +1401,7 @@ export function DeptDirectorDashboard() {
                 </p>
               </div>
               
-              <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto">
+              <div className="p-8 space-y-6 overflow-y-auto">
                 {activeTab === 'SERVICE' && (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1901,7 +1902,7 @@ export function DeptDirectorDashboard() {
                       <div>
                         <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Passengers")}</label>
                         {passengers.map((p, index) => (
-                          <div key={`passenger-${index}`} className="grid grid-cols-3 gap-2 mb-2">
+                          <div key={`passenger-${index}-${p.name.replace(/\s+/g, '-').toLowerCase()}`} className="grid grid-cols-3 gap-2 mb-2">
                             <input placeholder="Name" value={p.name} onChange={(e) => { const n = [...passengers]; n[index].name = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Loc" value={p.location} onChange={(e) => { const n = [...passengers]; n[index].location = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Phone" value={p.phone} onChange={(e) => { const n = [...passengers]; n[index].phone = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
@@ -1981,13 +1982,14 @@ export function DeptDirectorDashboard() {
                     Discard
                   </button>
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={handleSubmit}
                     className="flex-1 px-6 py-4 rounded-lg bg-dark-accent text-white font-bold hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-900/30 active:scale-95 text-[0.8rem]"
                   >
                     {isEditing ? 'Sync & Update Record' : (activeTab === 'SERVICE' ? 'Submit Service Request' : activeTab === 'CAMERA' ? 'Request Coverage' : activeTab === 'VEHICLE' ? 'Request Assignment' : 'Submit Payload')}
                   </button>
                 </div>
-              </form>
+              </div>
             </motion.div>
           </div>
         )}
