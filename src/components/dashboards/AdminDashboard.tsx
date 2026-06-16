@@ -547,12 +547,12 @@ export function AdminDashboard() {
       }
 
       // Create notification for director
-      const clearancePromises = Array.from(audienceIds).map(async (targetUserId) => {
-        const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${targetUserId}`;
-        let title: string;
-        let message: string;
-        
-        if (isClearance) {
+      if (isClearance) {
+        const clearancePromises = Array.from(audienceIds).map(async (targetUserId) => {
+          const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${targetUserId}`;
+          let title: string;
+          let message: string;
+          
           if (clearanceType === 'ITEM') {
             title = `[APPROVED] Exit Permit: ${displayName}`;
             message = `APPROVED EXIT: Administrator approved Exit Permit for item "${displayName}". Security clearance authorized.`;
@@ -563,57 +563,51 @@ export function AdminDashboard() {
             title = `[APPROVED] Laborer Request: ${displayName}`;
             message = `APPROVED LABORER: Administrator approved Laborer Request for "${displayName}". General access authorized.`;
           }
-        } else {
-          const displayType = activeTab.toLowerCase();
-          title = `[APPROVED] Request: ${displayName}`;
-          message = `Your ${displayType} request "${displayName}" has been approved.`;
-        }
 
-        // 1. Save local in-app notification doc
-        await setDoc(doc(db, 'notifications', notificationId), {
-          userId: targetUserId,
-          title,
-          message,
-          read: false,
-          type: 'APPROVAL',
-          isClearanceApproval: isClearance, // This signals Layout.tsx to trigger a browser & toast popup immediately!
-          requestId: requestId,
-          createdAt: serverTimestamp(),
-        });
+          // 1. Save local in-app notification doc
+          await setDoc(doc(db, 'notifications', notificationId), {
+            userId: targetUserId,
+            title,
+            message,
+            read: false,
+            type: 'APPROVAL',
+            isClearanceApproval: isClearance, // This signals Layout.tsx to trigger a browser & toast popup immediately!
+            requestId: requestId,
+            createdAt: serverTimestamp(),
+          });
 
-        // 2. Dispatch real/simulated FCM Push Notification so a popup alert lands on their mobile phone even if closed
-        const uDetails = userMap.get(targetUserId);
-        if (uDetails?.fcmToken) {
-          try {
-            await fetch('/api/send-fcm-notification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                targetUserId,
-                title,
-                body: message,
-                requestId,
-                fcmToken: uDetails.fcmToken,
-              }),
-            });
-          } catch (fcmErr) {
-            console.error("FCM background popup failed:", fcmErr);
+          // 2. Dispatch real/simulated FCM Push Notification so a popup alert lands on their mobile phone even if closed
+          const uDetails = userMap.get(targetUserId);
+          if (uDetails?.fcmToken) {
+            try {
+              await fetch('/api/send-fcm-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  targetUserId,
+                  title,
+                  body: message,
+                  requestId,
+                  fcmToken: uDetails.fcmToken,
+                }),
+              });
+            } catch (fcmErr) {
+              console.error("FCM background popup failed:", fcmErr);
+            }
           }
-        }
-      });
-      await Promise.all(clearancePromises);
+        });
+        await Promise.all(clearancePromises);
 
-      // Create simulated SMS log for the director/requested person if they have a phone number
-      if (directorId) {
-        try {
-          const directorSnap = await getDoc(doc(db, 'users', directorId));
-          if (directorSnap.exists()) {
-            const dData = directorSnap.data();
-            const phoneNumber = dData?.phoneNumber;
-            if (phoneNumber) {
-              const smsLogId = `sms_${Date.now()}_${directorId}`;
-              let smsMessage = '';
-              if (isClearance) {
+        // Create simulated SMS log for the director/requested person if they have a phone number
+        if (directorId) {
+          try {
+            const directorSnap = await getDoc(doc(db, 'users', directorId));
+            if (directorSnap.exists()) {
+              const dData = directorSnap.data();
+              const phoneNumber = dData?.phoneNumber;
+              if (phoneNumber) {
+                const smsLogId = `sms_${Date.now()}_${directorId}`;
+                let smsMessage = '';
                 if (clearanceType === 'ITEM') {
                   smsMessage = `TRANSIT PERMIT: Your exit permit for "${displayName}" is APPROVED. Security gate notified.`;
                 } else if (clearanceType === 'GUEST') {
@@ -621,26 +615,24 @@ export function AdminDashboard() {
                 } else {
                   smsMessage = `LABOR ACCESS: Your laborer request for "${displayName}" is APPROVED. Site access cleared.`;
                 }
-              } else {
-                smsMessage = `ALERT: Your standard request "${displayName}" has been approved. Status updated to APPROVED.`;
-              }
 
-              await setDoc(doc(db, 'sim_sms_logs', smsLogId), {
-                id: smsLogId,
-                recipientId: directorId,
-                recipientName: dData.displayName || '',
-                recipientPhone: phoneNumber,
-                role: dData.role || 'DEPT_DIRECTOR',
-                message: smsMessage,
-                status: 'SENT',
-                sentAt: serverTimestamp(),
-                requestId: requestId,
-                requestType: activeTab
-              });
+                await setDoc(doc(db, 'sim_sms_logs', smsLogId), {
+                  id: smsLogId,
+                  recipientId: directorId,
+                  recipientName: dData.displayName || '',
+                  recipientPhone: phoneNumber,
+                  role: dData.role || 'DEPT_DIRECTOR',
+                  message: smsMessage,
+                  status: 'SENT',
+                  sentAt: serverTimestamp(),
+                  requestId: requestId,
+                  requestType: activeTab
+                });
+              }
             }
+          } catch (smsErr) {
+            console.error("Simulated SMS dispatch error on approval:", smsErr);
           }
-        } catch (smsErr) {
-          console.error("Simulated SMS dispatch error on approval:", smsErr);
         }
       }
 
@@ -700,10 +692,13 @@ export function AdminDashboard() {
       for (const currentTech of selectedTechs) {
         // Create in-app notification for technician
         const techNotificationId = `notif_tech_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${currentTech.id}`;
+        const techTitle = `[NEW TASK] You are assigned for task`;
+        const techMessage = `Dear ${currentTech.displayName}, you are assigned for task: ${displayName}.`;
+
         await setDoc(doc(db, 'notifications', techNotificationId), {
           userId: currentTech.id,
-          title: `New Assignment: ${displayName}`,
-          message: `Dear ${currentTech.displayName}, you are assigned to order no #${requestId.slice(-6).toUpperCase()}: "${displayName}". Please check your portal for details.`,
+          title: techTitle,
+          message: techMessage,
           read: false,
           type: 'ASSIGNMENT',
           requestId: requestId,
@@ -717,8 +712,8 @@ export function AdminDashboard() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               targetUserId: currentTech.id,
-              title: 'New Task Assigned',
-              body: `Dear ${currentTech.displayName}, you are assigned to order no #${requestId.slice(-6).toUpperCase()}: "${displayName}".`,
+              title: techTitle,
+              body: techMessage,
               requestId: requestId,
               fcmToken: currentTech.fcmToken || null, // Pass FCM token directly from client to bypass server-side Firestore lookup !
             }),
@@ -728,7 +723,7 @@ export function AdminDashboard() {
         }
 
         if (currentTech.phoneNumber) {
-          const smsMessage = `Dear ${currentTech.displayName}, you are assigned to order no #${requestId.slice(-6).toUpperCase()} (${activeTab.toLowerCase()} request: "${displayName}"). Please check your portal.`;
+          const smsMessage = `Dear ${currentTech.displayName}, you are assigned for task: "${displayName}". Please check your portal.`;
           
           // Write to Firestore 'sim_sms_logs' so the target user sees it immediately on their in-app simulated screen
           const smsLogId = `sms_${Date.now()}_${currentTech.id}`;
@@ -795,77 +790,84 @@ export function AdminDashboard() {
         }
       }
 
-      // Fetch director/requester details to send FCM and SMS alerts
-      let directorFcmToken = '';
-      let directorPhone = '';
-      let directorNameVal = '';
-      if (directorId) {
-        try {
-          const directorSnap = await getDoc(doc(db, 'users', directorId));
-          if (directorSnap.exists()) {
-            const dData = directorSnap.data();
-            directorFcmToken = dData?.fcmToken || '';
-            directorPhone = dData?.phoneNumber || '';
-            directorNameVal = dData?.displayName || '';
+      // Fetch director/requester details to send FCM and SMS alerts (only for PROP_CASUALTY/Property and Service)
+      if (activeTab === 'PROP_CASUALTY' || activeTab === 'SERVICE' || activeTab === 'CAMERA' || activeTab === 'VEHICLE') {
+        let directorFcmToken = '';
+        let directorPhone = '';
+        let directorNameVal = '';
+        if (directorId) {
+          try {
+            const directorSnap = await getDoc(doc(db, 'users', directorId));
+            if (directorSnap.exists()) {
+              const dData = directorSnap.data();
+              directorFcmToken = dData?.fcmToken || '';
+              directorPhone = dData?.phoneNumber || '';
+              directorNameVal = dData?.displayName || '';
+            }
+          } catch (e) {
+            console.error("Failed to fetch director details in handleAssign:", e);
           }
-        } catch (e) {
-          console.error("Failed to fetch director details in handleAssign:", e);
         }
-      }
 
-      // Create notification for director
-      const dirNotificationId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
-      const dirTitle = `[APPROVED & ASSIGNED] Request: ${displayName}`;
-      const dirMessage = `Your request "${displayName}" has been approved and assigned to ${activeTab === 'VEHICLE' ? 'Driver' : 'Technician'} [${names}].`;
+        // Create notification for director
+        const dirNotificationId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
+        let dirTitle = `[APPROVED & ASSIGNED] Request: ${displayName}`;
+        let dirMessage = `Your request "${displayName}" has been approved and assigned to ${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Technician'} [${names}].`;
 
-      await setDoc(doc(db, 'notifications', dirNotificationId), {
-        userId: directorId,
-        title: dirTitle,
-        message: dirMessage,
-        read: false,
-        type: 'ASSIGNMENT',
-        isClearanceApproval: true, // Triggers immediate local UI and browser popup/notification
-        requestId: requestId,
-        createdAt: serverTimestamp(),
-      });
+        if (activeTab === 'SERVICE' || activeTab === 'CAMERA' || activeTab === 'VEHICLE') {
+          dirTitle = `[ASSIGNED] Request Status`;
+          dirMessage = `${names} is assigned for your task ${displayName}`;
+        }
 
-      // Send real/simulated FCM push notification to director's phone/screen
-      if (directorFcmToken) {
-        try {
-          await fetch('/api/send-fcm-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              targetUserId: directorId,
-              title: dirTitle,
-              body: dirMessage,
+        await setDoc(doc(db, 'notifications', dirNotificationId), {
+          userId: directorId,
+          title: dirTitle,
+          message: dirMessage,
+          read: false,
+          type: 'ASSIGNMENT',
+          isClearanceApproval: true, // Triggers immediate local UI and browser popup/notification
+          requestId: requestId,
+          createdAt: serverTimestamp(),
+        });
+
+        // Send real/simulated FCM push notification to director's phone/screen
+        if (directorFcmToken) {
+          try {
+            await fetch('/api/send-fcm-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                targetUserId: directorId,
+                title: dirTitle,
+                body: dirMessage,
+                requestId: requestId,
+                fcmToken: directorFcmToken,
+              }),
+            });
+          } catch (e) {
+            console.error("FCM dispatch failed for Director:", e);
+          }
+        }
+
+        // Write SMS simulated log for Director
+        if (directorPhone) {
+          const dirSmsLogId = `sms_dir_${Date.now()}_${directorId}`;
+          try {
+            await setDoc(doc(db, 'sim_sms_logs', dirSmsLogId), {
+              id: dirSmsLogId,
+              recipientId: directorId,
+              recipientName: directorNameVal,
+              recipientPhone: directorPhone,
+              role: 'DEPT_DIRECTOR',
+              message: dirMessage,
+              status: 'SENT',
+              sentAt: serverTimestamp(),
               requestId: requestId,
-              fcmToken: directorFcmToken,
-            }),
-          });
-        } catch (e) {
-          console.error("FCM dispatch failed for Director:", e);
-        }
-      }
-
-      // Write SMS simulated log for Director
-      if (directorPhone) {
-        const dirSmsLogId = `sms_dir_${Date.now()}_${directorId}`;
-        try {
-          await setDoc(doc(db, 'sim_sms_logs', dirSmsLogId), {
-            id: dirSmsLogId,
-            recipientId: directorId,
-            recipientName: directorNameVal,
-            recipientPhone: directorPhone,
-            role: 'DEPT_DIRECTOR',
-            message: dirMessage,
-            status: 'SENT',
-            sentAt: serverTimestamp(),
-            requestId: requestId,
-            requestType: activeTab
-          });
-        } catch (err) {
-          console.error("Failed to write Director sim_sms_logs:", err);
+              requestType: activeTab
+            });
+          } catch (err) {
+            console.error("Failed to write Director sim_sms_logs:", err);
+          }
         }
       }
 

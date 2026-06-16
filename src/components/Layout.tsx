@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Home,
@@ -39,6 +39,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { token, permission, requestNotificationPermission } = useFcmToken();
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>("default");
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const notifiedSessionIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (permission) {
@@ -85,7 +86,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
             const newNotif = change.doc.data() as any;
+            const notifId = change.doc.id;
             
+            if (notifiedSessionIds.current.has(notifId)) {
+              return;
+            }
+            notifiedSessionIds.current.add(notifId);
+
             // Check if this notification is extremely recent (created within the last 15 minutes / 900 seconds)
             // so we don't suppress it on portal switches, page reloads, or device wake actions
             const secondsAgo = newNotif.createdAt?.seconds 
@@ -93,15 +100,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
               : 0;
             const isVeryRecent = secondsAgo > 0 && secondsAgo < 900;
 
-            // Trigger a browser-level and in-app toast popup for all notifications
-            if (!isFirstLoad || isVeryRecent) {
-              notificationService.notify(newNotif.title, {
-                body: newNotif.message,
-                data: {
-                  url: newNotif.requestId ? `/services?id=${newNotif.requestId}` : '/'
-                }
-              });
+            if (isFirstLoad && !isVeryRecent) {
+              return;
             }
+
+            // Trigger a browser-level and in-app toast popup for all notifications
+            notificationService.notify(newNotif.title, {
+              body: newNotif.message,
+              data: {
+                url: newNotif.requestId ? `/services?id=${newNotif.requestId}` : '/'
+              }
+            });
           }
         });
 
