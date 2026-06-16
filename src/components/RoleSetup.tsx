@@ -30,7 +30,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
     {
       id: UserRole.DEPT_DIRECTOR,
       title: 'FMC REQUEST',
-      description: 'Request & track services (Directors & Team Leaders).',
+      description: 'Request & track services.',
       icon: UserRound,
       color: 'text-blue-400',
       bg: 'bg-blue-500/10',
