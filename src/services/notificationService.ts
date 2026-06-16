@@ -33,10 +33,11 @@ class NotificationService {
   }
 
   public async notify(title: string, options?: NotificationOptions) {
-    // 1. Show in-app toast always
-    toast(title, {
+    // 1. Show in-app toast always showing the full detailed body message
+    const toastMsg = options?.body ? `${title}\n${options.body}` : title;
+    toast(toastMsg, {
       icon: '🔔',
-      duration: 4000,
+      duration: 5000,
       position: 'top-center',
     });
 

@@ -45,7 +45,6 @@ import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { RequestPasswordModal } from '../RequestPasswordModal';
-import { MobileNotificationBanner } from '../MobileNotificationBanner';
 
 export function DeptDirectorDashboard() {
   useFcmToken();
@@ -918,8 +917,6 @@ export function DeptDirectorDashboard() {
           {t("Create New")} {activeTab === 'SERVICE' ? t("Service Request") : activeTab === 'CAMERA' ? t("Camera Request") : activeTab === 'VEHICLE' ? t("Vehicle Request") : t("Admin Clearance")}
         </button>
       </div>
-
-      <MobileNotificationBanner />
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-dark-border overflow-x-auto pb-px">

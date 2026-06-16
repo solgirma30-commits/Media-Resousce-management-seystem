@@ -62,7 +62,6 @@ import { notificationService } from '../../services/notificationService';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { RequestPasswordModal } from '../RequestPasswordModal';
-import { MobileNotificationBanner } from '../MobileNotificationBanner';
 
 export function TechnicianDashboard() {
   useFcmToken();
@@ -670,8 +669,6 @@ export function TechnicianDashboard() {
           </div>
         </div>
       </div>
-
-      <MobileNotificationBanner />
 
       {teamUpdates.length > 0 && (
         <motion.div 

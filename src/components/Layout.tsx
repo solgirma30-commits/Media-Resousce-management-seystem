@@ -28,6 +28,7 @@ import { useAuth, UserRole } from "../App";
 import { cn } from "../lib/utils";
 import { notificationService } from "../services/notificationService";
 import { useLanguage } from "../lib/LanguageContext";
+import { useFcmToken } from "../hooks/useFcmToken";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { profile, logout, switchRole } = useAuth();
@@ -35,7 +36,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const { token, permission, requestNotificationPermission } = useFcmToken();
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>("default");
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+
+  useEffect(() => {
+    if (permission) {
+      setPermissionStatus(permission);
+      // If notification permission is default, we can prompt mobile users elegantly
+      if (permission === 'default') {
+        const dismissed = localStorage.getItem('fmc_notif_prompt_dismissed');
+        if (!dismissed) {
+          setShowNotificationPrompt(true);
+        }
+      }
+    }
+  }, [permission]);
 
   useEffect(() => {
     if (!profile) return;
@@ -70,23 +86,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
           if (change.type === "added") {
             const newNotif = change.doc.data() as any;
             
-            // Check if this notification is extremely recent (created within the last 45 seconds)
-            // so we don't suppress it on portal switches or page reloads
+            // Check if this notification is extremely recent (created within the last 15 minutes / 900 seconds)
+            // so we don't suppress it on portal switches, page reloads, or device wake actions
             const secondsAgo = newNotif.createdAt?.seconds 
               ? (Date.now() / 1000) - newNotif.createdAt.seconds 
               : 0;
-            const isVeryRecent = secondsAgo > 0 && secondsAgo < 45;
+            const isVeryRecent = secondsAgo > 0 && secondsAgo < 900;
 
-            // Trigger a browser-level and in-app toast popup if it's not a generic APPROVAL notification OR is a clearance approval
+            // Trigger a browser-level and in-app toast popup for all notifications
             if (!isFirstLoad || isVeryRecent) {
-              if (newNotif.type !== 'APPROVAL' || newNotif.isClearanceApproval) {
-                notificationService.notify(newNotif.title, {
-                  body: newNotif.message,
-                  data: {
-                    url: newNotif.requestId ? `/services?id=${newNotif.requestId}` : '/'
-                  }
-                });
-              }
+              notificationService.notify(newNotif.title, {
+                body: newNotif.message,
+                data: {
+                  url: newNotif.requestId ? `/services?id=${newNotif.requestId}` : '/'
+                }
+              });
             }
           }
         });
@@ -101,12 +115,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [profile]);
 
   const handleRequestPermission = async () => {
-    const granted = await notificationService.requestPermission();
-    setPermissionStatus(granted ? "granted" : "denied");
-    if (granted) {
-      toast.success("Push notifications enabled!");
-    } else {
-      toast.error("Permission denied. Check browser settings.");
+    try {
+      const freshToken = await requestNotificationPermission();
+      if (freshToken) {
+        setPermissionStatus("granted");
+        setShowNotificationPrompt(false);
+        toast.success(t("notifications_enabled_success", "Push notifications activated successfully! Safeguard armed."));
+      } else {
+        const currentPerm = typeof Notification !== 'undefined' ? Notification.permission : 'default';
+        setPermissionStatus(currentPerm);
+        if (currentPerm === "granted") {
+          // Token register succeeded or completed
+          setPermissionStatus("granted");
+          setShowNotificationPrompt(false);
+          toast.success(t("notifications_enabled_success", "Push notifications activated successfully! Safeguard armed."));
+        } else if (currentPerm === "denied") {
+          toast.error(t("notifications_permission_denied", "Notification permission was blocked. Please reset site permissions in your browser."));
+        } else {
+          toast.error(t("notifications_setup_cancelled", "Notification activation was cancelled or interrupted."));
+        }
+      }
+    } catch (err) {
+      console.error("Error requesting permission:", err);
+      toast.error("Permission request failed or was interrupted.");
     }
   };
 
@@ -604,6 +635,62 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {children}
       </main>
+
+      {/* Floating dynamic prompt for mobile/all background notifications setup */}
+      <AnimatePresence>
+        {showNotificationPrompt && permissionStatus === 'default' && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.95 }}
+            transition={{ type: "spring", damping: 20, stiffness: 150 }}
+            className="fixed bottom-4 inset-x-4 md:left-auto md:right-4 md:w-96 z-[9999] overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 text-white rounded-2xl p-4 shadow-2xl flex flex-col gap-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-450 shrink-0 mt-0.5">
+                  <Bell className="w-5 h-5 animate-pulse text-indigo-400" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-300">
+                    {t('enable_background_alerts', 'Mobile Alerts Setup')}
+                  </h4>
+                  <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
+                    {t('alert_prompt_body', 'Get real-time task dispatches, driver assignments, and portal approvals even if your app or phone screen is closed. Highly recommended!')}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('fmc_notif_prompt_dismissed', 'true');
+                    setShowNotificationPrompt(false);
+                  }}
+                  className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 justify-end pt-1">
+                <button
+                  onClick={() => {
+                    localStorage.setItem('fmc_notif_prompt_dismissed', 'true');
+                    setShowNotificationPrompt(false);
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-white transition-all cursor-pointer whitespace-nowrap"
+                >
+                  {t('not_now', 'Not Now')}
+                </button>
+                <button
+                  onClick={handleRequestPermission}
+                  className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-[9px] font-black uppercase tracking-wider text-white shadow-lg shadow-indigo-900/30 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+                >
+                  {t('activate_alerts_btn', 'Activate Background Alerts')}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

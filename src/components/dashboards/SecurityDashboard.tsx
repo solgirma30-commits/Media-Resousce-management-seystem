@@ -37,7 +37,6 @@ import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { WeeklyReport } from '../WeeklyReport';
 import { RequestPasswordModal } from '../RequestPasswordModal';
-import { MobileNotificationBanner } from '../MobileNotificationBanner';
 
 export function SecurityDashboard() {
   useFcmToken();
@@ -270,8 +269,6 @@ export function SecurityDashboard() {
           </div>
         </div>
       </div>
-
-      <MobileNotificationBanner />
 
       {teamUpdates.length > 0 && (
         <motion.div 

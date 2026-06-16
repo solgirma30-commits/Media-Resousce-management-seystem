@@ -795,18 +795,79 @@ export function AdminDashboard() {
         }
       }
 
+      // Fetch director/requester details to send FCM and SMS alerts
+      let directorFcmToken = '';
+      let directorPhone = '';
+      let directorNameVal = '';
+      if (directorId) {
+        try {
+          const directorSnap = await getDoc(doc(db, 'users', directorId));
+          if (directorSnap.exists()) {
+            const dData = directorSnap.data();
+            directorFcmToken = dData?.fcmToken || '';
+            directorPhone = dData?.phoneNumber || '';
+            directorNameVal = dData?.displayName || '';
+          }
+        } catch (e) {
+          console.error("Failed to fetch director details in handleAssign:", e);
+        }
+      }
+
       // Create notification for director
       const dirNotificationId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
-      const roleLabel = activeTab === 'VEHICLE' ? 'Driver(s)' : activeTab === 'CAMERA' ? 'Cameraman/Cameramen' : 'Technician(s)';
+      const dirTitle = `[APPROVED & ASSIGNED] Request: ${displayName}`;
+      const dirMessage = `Your request "${displayName}" has been approved and assigned to ${activeTab === 'VEHICLE' ? 'Driver' : 'Technician'} [${names}].`;
+
       await setDoc(doc(db, 'notifications', dirNotificationId), {
         userId: directorId,
-        title: 'Agent Assigned',
-        message: `${roleLabel} [${names}] assigned to your request: "${displayName}"`,
+        title: dirTitle,
+        message: dirMessage,
         read: false,
         type: 'ASSIGNMENT',
+        isClearanceApproval: true, // Triggers immediate local UI and browser popup/notification
         requestId: requestId,
         createdAt: serverTimestamp(),
       });
+
+      // Send real/simulated FCM push notification to director's phone/screen
+      if (directorFcmToken) {
+        try {
+          await fetch('/api/send-fcm-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              targetUserId: directorId,
+              title: dirTitle,
+              body: dirMessage,
+              requestId: requestId,
+              fcmToken: directorFcmToken,
+            }),
+          });
+        } catch (e) {
+          console.error("FCM dispatch failed for Director:", e);
+        }
+      }
+
+      // Write SMS simulated log for Director
+      if (directorPhone) {
+        const dirSmsLogId = `sms_dir_${Date.now()}_${directorId}`;
+        try {
+          await setDoc(doc(db, 'sim_sms_logs', dirSmsLogId), {
+            id: dirSmsLogId,
+            recipientId: directorId,
+            recipientName: directorNameVal,
+            recipientPhone: directorPhone,
+            role: 'DEPT_DIRECTOR',
+            message: dirMessage,
+            status: 'SENT',
+            sentAt: serverTimestamp(),
+            requestId: requestId,
+            requestType: activeTab
+          });
+        } catch (err) {
+          console.error("Failed to write Director sim_sms_logs:", err);
+        }
+      }
 
       setIsAssignModalOpen(false);
       setSelectedRequest(null);
