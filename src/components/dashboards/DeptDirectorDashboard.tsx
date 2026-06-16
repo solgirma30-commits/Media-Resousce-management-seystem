@@ -20,7 +20,9 @@ import {
   Car,
   Users,
   Pencil,
-  ShieldCheck
+  ShieldCheck,
+  Smartphone,
+  Send
 } from 'lucide-react';
 import { 
   collection, 
@@ -88,6 +90,12 @@ export function DeptDirectorDashboard() {
   const [directorComments, setDirectorComments] = useState('');
   const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Phone/SMS logs state for Simulated SMS Popup & Phone Simulator Panel
+  const [smsLogs, setSmsLogs] = useState<any[]>([]);
+  const [unreadSmsCount, setUnreadSmsCount] = useState(0);
+  const [isSmsPhoneOpen, setIsSmsPhoneOpen] = useState(false);
+  const [lastSmsNotification, setLastSmsNotification] = useState<any | null>(null);
 
   // General Form states
   const [priority, setPriority] = useState('MEDIUM');
@@ -272,6 +280,90 @@ export function DeptDirectorDashboard() {
       unsubscribeFleet();
     };
   }, [profile, activeTab]);
+
+  // Real-time SIM SMS logs subscription for simulated on-phone alerts
+  useEffect(() => {
+    if (!profile?.uid) return;
+
+    const qSms = query(
+      collection(db, 'sim_sms_logs'),
+      where('recipientId', '==', profile.uid),
+      limit(20)
+    );
+
+    const unsubscribeSms = onSnapshot(qSms, (snapshot) => {
+      const logs: any[] = [];
+      snapshot.forEach((docSnap) => {
+        logs.push({ id: docSnap.id, ...docSnap.data() });
+      });
+
+      // Sort descending by sentAt (fallback to ID timestamp)
+      logs.sort((a, b) => {
+        const timeA = a.sentAt?.seconds || 0;
+        const timeB = b.sentAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setSmsLogs(logs.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+
+      const readIds = JSON.parse(localStorage.getItem(`read_sms_${profile.uid}`) || '[]');
+      const unreadCount = logs.filter((log: any) => !readIds.includes(log.id)).length;
+      setUnreadSmsCount(unreadCount);
+
+      // Trigger user-friendly sound and modal banner notification for new unread SMS
+      if (logs.length > 0) {
+        const latest = logs[0];
+        if (!readIds.includes(latest.id)) {
+          setLastSmsNotification(latest);
+          
+          try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+          } catch (e) {
+            // Browser blocked audio auto-play fallback
+          }
+        }
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'sim_sms_logs');
+    });
+
+    return () => unsubscribeSms();
+  }, [profile?.uid]);
+
+  const markSmsAsRead = () => {
+    if (!profile?.uid || smsLogs.length === 0) return;
+    const allIds = smsLogs.map((log: any) => log.id);
+    localStorage.setItem(`read_sms_${profile.uid}`, JSON.stringify(allIds));
+    setUnreadSmsCount(0);
+    setLastSmsNotification(null);
+  };
+
+  const handleOpenSmsTask = (requestId: string) => {
+    const allRequests = [
+      ...requests,
+      ...cameraRequests,
+      ...vehicleRequests,
+      ...itemRequests,
+      ...deviceRequests,
+      ...guestRequests
+    ];
+    const matched = allRequests.find((r: any) => r.id === requestId);
+    if (matched) {
+      setSelectedRequest(matched);
+      setIsSmsPhoneOpen(false);
+    } else {
+      toast.error(t("Request details not found or archived"));
+    }
+  };
 
   const currentList = useMemo(() => {
     const getRawList = () => {
@@ -630,6 +722,42 @@ export function DeptDirectorDashboard() {
             createdAt: serverTimestamp(),
           });
         });
+
+        // Add self-notification & background FCM for Director requestor
+        const selfNotifId = `notif_confirm_${Date.now()}_${profile.uid}`;
+        const selfTitle = `[SUBMITTED] ${requestTypeLabel}: ${displayName}`;
+        const selfMessage = `Your ${requestTypeLabel.toLowerCase()} request "${displayName}" has been successfully submitted and is under review.`;
+        
+        notificationPromises.push(
+          setDoc(doc(db, 'notifications', selfNotifId), {
+            userId: profile.uid,
+            title: selfTitle,
+            message: selfMessage,
+            read: false,
+            role: 'DEPT_DIRECTOR',
+            type: 'SUBMISSION_CONFIRMATION',
+            requestId: realRequestId,
+            createdAt: serverTimestamp(),
+          })
+        );
+
+        if (profile.fcmToken) {
+          try {
+            await fetch('/api/send-fcm-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                targetUserId: profile.uid,
+                title: selfTitle,
+                body: selfMessage,
+                requestId: realRequestId,
+                fcmToken: profile.fcmToken,
+              }),
+            });
+          } catch (fcmErr) {
+            console.error("FCM confirmation failed for director:", fcmErr);
+          }
+        }
 
         await Promise.all(notificationPromises);
       }
@@ -2080,6 +2208,155 @@ export function DeptDirectorDashboard() {
           }}
         />
 
+      </AnimatePresence>
+
+      {/* SIM Phone Simulator Floating toggle */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3 pointer-events-none">
+        
+        {/* Unread message persistent chip alert */}
+        <AnimatePresence>
+          {lastSmsNotification && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="pointer-events-auto bg-slate-950/95 border border-amber-500/30 rounded-2xl p-4 shadow-2xl max-w-xs flex gap-3 text-slate-100 backdrop-blur-md"
+            >
+              <div className="bg-amber-500/20 text-amber-400 p-2.5 rounded-xl self-start">
+                <Smartphone className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">Incoming SIM SMS</span>
+                  <button onClick={() => setLastSmsNotification(null)} className="text-slate-500 hover:text-slate-300">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-xs font-semibold leading-relaxed mt-1 line-clamp-2 text-slate-100">{lastSmsNotification.message}</p>
+                <button
+                  onClick={() => {
+                    setIsSmsPhoneOpen(true);
+                    markSmsAsRead();
+                  }}
+                  className="mt-2 text-[10px] font-black uppercase tracking-wider text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  View Simulator Mobile
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Toggle Button */}
+        <button
+          onClick={() => {
+            setIsSmsPhoneOpen(!isSmsPhoneOpen);
+            if (!isSmsPhoneOpen) {
+              markSmsAsRead();
+            }
+          }}
+          className="pointer-events-auto w-12 h-12 rounded-full bg-slate-950 border border-slate-850 text-amber-400 flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all relative cursor-pointer"
+          title="Toggle PWA Mobile Simulator"
+        >
+          <Smartphone className="w-5 h-5" />
+          {unreadSmsCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-slate-950 text-[10px] font-black flex items-center justify-center rounded-full animate-bounce">
+              {unreadSmsCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Phone Simulator Panel */}
+      <AnimatePresence>
+        {isSmsPhoneOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm pointer-events-auto">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }}
+              className="relative w-80 h-[560px] bg-slate-950 border-[6px] border-slate-800 rounded-[44px] shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden text-slate-100"
+            >
+              {/* Phone Notch */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-800 rounded-b-2xl z-40 flex items-center justify-center gap-1.5 px-3">
+                <span className="w-2.5 h-2.5 bg-slate-900 rounded-full border border-slate-800/40"></span>
+                <span className="w-10 h-1 bg-slate-950 rounded-full"></span>
+              </div>
+
+              {/* Status Bar */}
+              <div className="flex justify-between items-center px-6 pt-7 pb-2 text-[9px] font-bold text-slate-400 font-mono z-30 bg-slate-900">
+                <span>08:52 FMC</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-emerald-500">📶 5G</span>
+                  <span>🔋 99%</span>
+                </div>
+              </div>
+
+              {/* Close Simulator X */}
+              <button 
+                onClick={() => setIsSmsPhoneOpen(false)}
+                className="absolute top-10 right-4 p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full z-40 transition-colors"
+                title="Exit simulator"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Screen Contents */}
+              <div className="flex-1 flex flex-col bg-slate-900/40 overflow-y-auto px-4 py-4 space-y-4 pt-6">
+                <div className="text-center pb-2 border-b border-slate-800/60">
+                  <p className="text-[10px] font-black tracking-widest text-[#6366f1] uppercase">FMC TEXT MESSAGES</p>
+                  <p className="text-[9px] font-mono text-slate-500 mt-0.5">Carrier SIM: 091XXXXXXX (Active)</p>
+                </div>
+
+                {smsLogs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center flex-1 text-center py-12 px-4">
+                    <div className="bg-slate-800/30 p-3 rounded-full mb-3 text-slate-600">
+                      <MessageSquare className="w-6 h-6" />
+                    </div>
+                    <p className="text-[11px] font-black uppercase text-slate-400 tracking-wider">No Texts Dispatched</p>
+                    <p className="text-[10px] text-slate-500 mt-1 max-w-[180px]">When dispatchers configure task assignments, SIM SMS alerts will feed here live</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3.5">
+                    {smsLogs.map((log, idx) => {
+                      const timeStr = log.sentAt?.seconds 
+                        ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
+                        : format(new Date(), 'h:mm a');
+                      return (
+                        <div key={`sms-log-${log.id || 'none'}-${idx}`} className="flex flex-col space-y-1">
+                          <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">
+                            <span>💬 DISPATCH COMMAND</span>
+                            <span>{timeStr}</span>
+                          </div>
+                          <div className="bg-slate-800/80 border border-slate-700/50 rounded-2xl rounded-tl-sm p-3.5 shadow-md">
+                            <p className="text-[11px] text-slate-100 font-medium leading-relaxed font-sans">{log.message}</p>
+                            
+                            <div className="mt-3 pt-2.5 border-t border-slate-700/40 flex justify-between items-center gap-2">
+                              <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">SIM DISPATCHED</span>
+                              {log.requestId && (
+                                <button
+                                  onClick={() => handleOpenSmsTask(log.requestId)}
+                                  className="text-[9px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-1 rounded transition-colors"
+                                >
+                                  Open Link
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Phone Home Indicator bar */}
+              <div className="bg-slate-900 px-6 py-4 flex items-center justify-center text-center">
+                <button onClick={() => setIsSmsPhoneOpen(false)} className="w-28 h-1 bg-slate-700 rounded-full hover:bg-slate-500 transition-colors pointer-events-auto"></button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );

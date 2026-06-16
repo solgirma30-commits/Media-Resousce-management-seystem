@@ -49,6 +49,7 @@ import {
   doc,
   serverTimestamp,
   getDocs,
+  getDoc,
   setDoc,
   deleteDoc,
   limit
@@ -233,32 +234,6 @@ export function TechnicianDashboard() {
       if (logs.length > 0) {
         const latest = logs[0];
         if (!readIds.includes(latest.id)) {
-          
-          // Role-based/Relevance restriction:
-          // Make sure this message only pops up for the requester or assigned person.
-          if (latest.requestId) {
-             const request = allRegistryTasksRef.current.find(t => t.id === latest.requestId);
-             if (request) {
-                const isAssigned = 
-                      request.assignedTechnicianId === profile?.uid ||
-                      request.assignedDriverId === profile?.uid ||
-                      (request.assignedTechnicianIds && request.assignedTechnicianIds.includes(profile?.uid)) ||
-                      (request.assignedDriverIds && request.assignedDriverIds.includes(profile?.uid)) ||
-                      (request.assignedTechnicians && request.assignedTechnicians.some((t: any) => t.id === profile?.uid)) ||
-                      (request.assignedDrivers && request.assignedDrivers.some((d: any) => d.id === profile?.uid));
-                const isRequester = request.requesterId === profile?.uid || request.directorId === profile?.uid;
-
-                if (!isAssigned && !isRequester) {
-                  return; // Do not show popup
-                }
-
-                // Explicitly disable popups for Camera and Driver portals as requested
-                if (profile?.role === 'CAMERAMAN' || profile?.role === 'DRIVER') {
-                  return;
-                }
-             }
-          }
-
           setLastSmsNotification(latest);
           
           try {
@@ -465,39 +440,120 @@ export function TechnicianDashboard() {
 
       await updateDoc(doc(db, colName, requestId), update);
       
-      // Create notification for admins and director
+      // Determine appropriate titles and messages for Director/Requestor notifications
+      let notifTitle = '';
+      let notifMessage = '';
+      let shouldNotifyDirector = false;
+
+      const shortId = requestId.slice(-6).toUpperCase();
+      const friendlyType = colName === 'vehicle_requests' ? 'vehicle mission' : 
+                           colName === 'camera_requests' ? 'camera coverage' : 'service request';
+
+      if (status === 'ACCEPTED') {
+        shouldNotifyDirector = true;
+        notifTitle = `[ACCEPTED] Task Update: #${shortId}`;
+        notifMessage = `${profile?.displayName || 'Staff'} has accepted your ${friendlyType}: "${selectedWork.workName || selectedWork.eventTitle || selectedWork.tripName || 'Untitled task'}".`;
+      } else if (status === 'IN_PROGRESS') {
+        shouldNotifyDirector = true;
+        notifTitle = `[IN PROGRESS] Task Update: #${shortId}`;
+        notifMessage = `${profile?.displayName || 'Staff'} has started work on your ${friendlyType}: "${selectedWork.workName || selectedWork.eventTitle || selectedWork.tripName || 'Untitled task'}".`;
+      } else if (status === 'COMPLETED') {
+        shouldNotifyDirector = true;
+        notifTitle = `[COMPLETED] Task Update: #${shortId}`;
+        notifMessage = `Your ${friendlyType} "${selectedWork.workName || selectedWork.eventTitle || selectedWork.tripName || 'Untitled task'}" has been marked as COMPLETED by ${profile?.displayName || 'Staff'}.`;
+      }
+
+      const postPromises: Promise<any>[] = [];
+
+      // 1) Handle Admin notifications (Only for COMPLETED status)
       if (status === 'COMPLETED') {
-        const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'ADMIN')));
-        const adminPromises = adminsSnapshot.docs.map(adminDoc => {
-          const notificationId = `notif_${Date.now()}_${adminDoc.id}`;
-          return setDoc(doc(db, 'notifications', notificationId), {
-            userId: adminDoc.id,
-            title: colName === 'vehicle_requests' ? 'Trip Completed' : 
-                   colName === 'camera_requests' ? 'Coverage Finished' : 'Repairs Completed',
-            message: `${profile?.displayName} has completed work on ${colName.replace('_', ' ')} #${requestId.slice(-6).toUpperCase()}`,
-            read: false,
-            type: 'COMPLETION',
-            requestId: requestId,
-            createdAt: serverTimestamp(),
+        try {
+          const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'ADMIN')));
+          adminsSnapshot.docs.forEach(adminDoc => {
+            const notificationId = `notif_${Date.now()}_admin_${adminDoc.id}`;
+            postPromises.push(
+              setDoc(doc(db, 'notifications', notificationId), {
+                userId: adminDoc.id,
+                title: colName === 'vehicle_requests' ? 'Trip Completed' : 
+                       colName === 'camera_requests' ? 'Coverage Finished' : 'Repairs Completed',
+                message: `${profile?.displayName} has completed work on ${colName.replace('_', ' ')} #${shortId}`,
+                read: false,
+                type: 'COMPLETION',
+                requestId: requestId,
+                createdAt: serverTimestamp(),
+              })
+            );
           });
-        });
-
-        // Notify the specific director who placed the request
-        if (selectedWork.directorId) {
-          const dirNotifId = `notif_${Date.now()}_dir_${selectedWork.directorId}`;
-          const dirPromise = setDoc(doc(db, 'notifications', dirNotifId), {
-            userId: selectedWork.directorId,
-            title: 'Operation Finalized',
-            message: `Your request #${requestId.slice(-6).toUpperCase()} has been completed by ${profile?.displayName}.`,
-            read: false,
-            type: 'COMPLETION',
-            requestId: requestId,
-            createdAt: serverTimestamp(),
-          });
-          adminPromises.push(dirPromise);
+        } catch (adminErr) {
+          console.error("Admin notification dispatch failed:", adminErr);
         }
+      }
 
-        await Promise.all(adminPromises);
+      // 2) Handle Director/Requestor notifications & FCM & SIM SMS
+      if (shouldNotifyDirector && selectedWork.directorId) {
+        const dirNotifId = `notif_${Date.now()}_dir_${status}_${selectedWork.directorId}`;
+        postPromises.push(
+          setDoc(doc(db, 'notifications', dirNotifId), {
+            userId: selectedWork.directorId,
+            title: notifTitle,
+            message: notifMessage,
+            read: false,
+            type: status,
+            requestId: requestId,
+            createdAt: serverTimestamp(),
+          })
+        );
+
+        // Fetch director user info to send FCM push alert and simulated SMS
+        try {
+          const directorSnap = await getDoc(doc(db, 'users', selectedWork.directorId));
+          if (directorSnap.exists()) {
+            const dirData = directorSnap.data();
+            const directorFcmToken = dirData?.fcmToken || '';
+            const directorPhone = dirData?.phoneNumber || '';
+            const directorNameVal = dirData?.displayName || '';
+
+            // Send standard background FCM push notification
+            if (directorFcmToken) {
+              const fetchPromise = fetch('/api/send-fcm-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  targetUserId: selectedWork.directorId,
+                  title: notifTitle,
+                  body: notifMessage,
+                  requestId: requestId,
+                  fcmToken: directorFcmToken,
+                }),
+              }).catch(e => console.error("FCM call failed:", e));
+            }
+
+            // Write Sim SMS Log so the requestor receives local alerts simulator style
+            if (directorPhone) {
+              const dirSmsLogId = `sms_dir_upd_${Date.now()}_${selectedWork.directorId}`;
+              postPromises.push(
+                setDoc(doc(db, 'sim_sms_logs', dirSmsLogId), {
+                  id: dirSmsLogId,
+                  recipientId: selectedWork.directorId,
+                  recipientName: directorNameVal,
+                  recipientPhone: directorPhone,
+                  role: 'DEPT_DIRECTOR',
+                  message: `[ALERT] ${notifMessage}`,
+                  status: 'SENT',
+                  sentAt: serverTimestamp(),
+                  requestId: requestId,
+                  requestType: colName
+                })
+              );
+            }
+          }
+        } catch (dirErr) {
+          console.error("Failed to fetch director details or dispatch updates:", dirErr);
+        }
+      }
+
+      if (postPromises.length > 0) {
+        await Promise.all(postPromises);
       }
 
       const toastMsg = status === 'COMPLETED' ? 'Operation Finished & Reported' : `Status: ${status.replace('_', ' ')}`;

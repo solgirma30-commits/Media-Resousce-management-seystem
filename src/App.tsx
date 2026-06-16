@@ -43,6 +43,7 @@ interface UserProfile {
   role: UserRole;
   department?: string;
   phoneNumber?: string;
+  fcmToken?: string;
 }
 
 interface AuthContextType {
