@@ -306,21 +306,37 @@ export function DeptDirectorDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    handleActualSubmit();
+    try {
+      await handleActualSubmit();
+    } catch (err: any) {
+      console.error("Submission failed:", err);
+      let displayMsg = err?.message || String(err);
+      try {
+        const parsed = JSON.parse(displayMsg);
+        if (parsed.error) {
+          displayMsg = parsed.error;
+        }
+      } catch (parseErr) {
+        // Fallback to original string
+      }
+      toast.error(`Request submission failed: ${displayMsg}`);
+    }
   };
 
   const handleActualSubmit = async () => {
 
     if (!profile) return;
 
-    const cleanPhone = phoneNumber.trim();
-    if (!cleanPhone.startsWith('+')) {
-      toast.error('Direct Phone must start with + and include country code (e.g., +251...)');
-      return;
-    }
-    if (/[a-zA-Z?*]/.test(cleanPhone)) {
-      toast.error('Direct Phone cannot contain letters or placeholder indices (e.g., XXXX)');
-      return;
+    if (activeTab === 'SERVICE') {
+      const cleanPhone = phoneNumber.trim();
+      if (!cleanPhone.startsWith('+')) {
+        toast.error('Direct Phone must start with + and include country code (e.g., +251...)');
+        return;
+      }
+      if (/[a-zA-Z?*]/.test(cleanPhone)) {
+        toast.error('Direct Phone cannot contain letters or placeholder indices (e.g., XXXX)');
+        return;
+      }
     }
 
     try {
@@ -447,6 +463,7 @@ export function DeptDirectorDashboard() {
             destination,
             tripName: workName,
             purpose: vehiclePurpose,
+            vehicleType: 'Standard',
             passengers,
             requesterName: vehicleHostName || profile.displayName,
             hostName: vehicleHostName || profile.displayName,
