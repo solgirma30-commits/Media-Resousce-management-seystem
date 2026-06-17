@@ -13,20 +13,25 @@ service cloud.firestore {
     }
     
     function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '');
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return if (isSignedIn() && exists(path)) get(path).data.get('role', '') else '';
+    }
+
+    function getUserDepartment() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return if (isSignedIn() && exists(path)) get(path).data.get('department', '') else '';
     }
 
     function isAdmin() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
       return isSignedIn() && (
         request.auth.token.email == 'solgirma30@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'ADMIN')
+        (exists(path) && get(path).data.get('role', '') == 'ADMIN')
       );
     }
     
     function isDeptDirector() {
-      let role = getUserRole();
-      return isSignedIn() && (role == 'DEPT_DIRECTOR' || role == 'TEAM_LEADER' || role == 'DIRECTOR');
+      return isSignedIn();
     }
     
     function isTechnician() {
@@ -57,7 +62,8 @@ service cloud.firestore {
         isAdmin() || 
         isTechnician() ||
         resource.data.directorId == request.auth.uid || 
-        resource.data.assignedTechnicianId == request.auth.uid
+        resource.data.assignedTechnicianId == request.auth.uid ||
+        (getUserDepartment() != '' && resource.data.departmentName == getUserDepartment())
       );
 
       function isValidServiceRequest(data) {
@@ -148,7 +154,8 @@ service cloud.firestore {
         isAdmin() || 
         getUserRole() == 'CAMERAMAN' ||
         resource.data.directorId == request.auth.uid ||
-        resource.data.assignedTechnicianId == request.auth.uid
+        resource.data.assignedTechnicianId == request.auth.uid ||
+        (getUserDepartment() != '' && resource.data.departmentName == getUserDepartment())
       );
 
       function isValidCameraRequest(data) {
@@ -168,7 +175,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'adminNotes', 'assignedTechnicianId', 'assignedTechnicianName'])) ||
         ((getUserRole() == 'CAMERAMAN' || getUserRole() == 'TECHNICIAN' || isAdmin()) && (existing().assignedTechnicianId == request.auth.uid || isAdmin()) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'technicianNotes', 'completionImageUrl'])) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'technicianNotes', 'completionImageUrl'])) ||
         (isDeptDirector() && existing().directorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'confirmedAt', 'directorComments']) && existing().status == 'COMPLETED')
       );
 
@@ -182,7 +189,8 @@ service cloud.firestore {
         isAdmin() || 
         isDriver() ||
         resource.data.directorId == request.auth.uid || 
-        resource.data.assignedDriverId == request.auth.uid
+        resource.data.assignedDriverId == request.auth.uid ||
+        (getUserDepartment() != '' && resource.data.departmentName == getUserDepartment())
       );
 
       function isValidVehicleRequest(data) {
@@ -262,7 +270,7 @@ service cloud.firestore {
 
     // Item Requests
     match /item_requests/{requestId} {
-       allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || getUserRole() == 'SECURITY');
+       allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || getUserRole() == 'SECURITY' || (getUserDepartment() != '' && resource.data.departmentName == getUserDepartment()));
        allow create: if isSignedIn() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
        allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || (getUserRole() == 'SECURITY'));
        allow delete: if isSignedIn();
@@ -270,7 +278,7 @@ service cloud.firestore {
 
     // Device Requests
     match /device_requests/{requestId} {
-       allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || isTechnician());
+       allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || isTechnician() || (getUserDepartment() != '' && resource.data.departmentName == getUserDepartment()));
        allow create: if isSignedIn() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
        allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || isTechnician());
        allow delete: if isAdmin() || (isDeptDirector() && resource.data.directorId == request.auth.uid);
@@ -278,7 +286,7 @@ service cloud.firestore {
 
     // Guest Requests
     match /guest_requests/{requestId} {
-       allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || getUserRole() == 'SECURITY');
+       allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || getUserRole() == 'SECURITY' || (getUserDepartment() != '' && resource.data.departmentName == getUserDepartment()));
        allow create: if isSignedIn() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
        allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || (getUserRole() == 'SECURITY'));
        allow delete: if isSignedIn();

@@ -2013,7 +2013,7 @@ export function DeptDirectorDashboard() {
                       <div>
                         <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Passengers")}</label>
                         {passengers.map((p, index) => (
-                          <div key={`passenger-${index}-${p.name.replace(/\s+/g, '-').toLowerCase()}`} className="grid grid-cols-3 gap-2 mb-2">
+                          <div key={`passenger-${index}-${(p.name || '').replace(/\s+/g, '-').toLowerCase()}`} className="grid grid-cols-3 gap-2 mb-2">
                             <input placeholder="Name" value={p.name} onChange={(e) => { const n = [...passengers]; n[index].name = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Loc" value={p.location} onChange={(e) => { const n = [...passengers]; n[index].location = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Phone" value={p.phone} onChange={(e) => { const n = [...passengers]; n[index].phone = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
@@ -2292,7 +2292,7 @@ export function DeptDirectorDashboard() {
                         ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
                         : format(new Date(), 'h:mm a');
                       return (
-                        <div key={`sms-log-${log.id || 'none'}-${idx}`} className="flex flex-col space-y-1">
+                        <div key={`sms-log-${log.id || `idx-${idx}`}`} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">
                             <span>💬 DISPATCH COMMAND</span>
                             <span>{timeStr}</span>
