@@ -693,7 +693,7 @@ export function AdminDashboard() {
         // Create in-app notification for technician
         const techNotificationId = `notif_tech_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${currentTech.id}`;
         const techTitle = `[NEW TASK] You are assigned for task`;
-        const techMessage = `Dear ${currentTech.displayName}, you are assigned for task: ${displayName}.`;
+        const techMessage = `You are assigned for service "${displayName}".`;
 
         await setDoc(doc(db, 'notifications', techNotificationId), {
           userId: currentTech.id,
@@ -811,13 +811,8 @@ export function AdminDashboard() {
 
         // Create notification for director
         const dirNotificationId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
-        let dirTitle = `[APPROVED & ASSIGNED] Request: ${displayName}`;
-        let dirMessage = `Your request "${displayName}" has been approved and assigned to ${activeTab === 'VEHICLE' ? 'Driver' : activeTab === 'CAMERA' ? 'Cameraman' : 'Technician'} [${names}].`;
-
-        if (activeTab === 'SERVICE' || activeTab === 'CAMERA' || activeTab === 'VEHICLE') {
-          dirTitle = `[ASSIGNED] Request Status`;
-          dirMessage = `${names} is assigned for your task ${displayName}`;
-        }
+        let dirTitle = `[ASSIGNED] Request Status`;
+        let dirMessage = `Your request for your service "${displayName}" is approved and ${names} is assigned for your request.`;
 
         await setDoc(doc(db, 'notifications', dirNotificationId), {
           userId: directorId,
