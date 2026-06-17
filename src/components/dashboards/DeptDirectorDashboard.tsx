@@ -1160,7 +1160,7 @@ export function DeptDirectorDashboard() {
                     </tr>
                     {(deptRequests as any[]).map((request, idx) => (
                       <tr 
-                        key={`${dept}-${request.id || 'req'}-${idx}`} 
+                        key={`dept-req-${dept}-${request.id || 'req'}`} 
                         className={cn(
                            "group transition-colors",
                            isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"

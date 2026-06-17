@@ -25,7 +25,8 @@ service cloud.firestore {
     }
     
     function isDeptDirector() {
-      return isSignedIn() && getUserRole() == 'DEPT_DIRECTOR';
+      let role = getUserRole();
+      return isSignedIn() && (role == 'DEPT_DIRECTOR' || role == 'TEAM_LEADER' || role == 'DIRECTOR');
     }
     
     function isTechnician() {

@@ -852,7 +852,7 @@ export function TechnicianDashboard() {
             <tbody className="divide-y divide-dark-border/40">
               {allRegistryTasks.map((work, idx) => (
                 <tr 
-                  key={`tech-work-row-${work.collectionName}-${work.id || 'none'}-${idx}`}
+                  key={`tech-work-row-${work.collectionName}-${work.id || 'none'}`}
                   onClick={() => setSelectedWork(work)}
                   className={cn(
                     "group transition-all cursor-pointer hover:bg-dark-main/30",

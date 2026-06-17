@@ -1394,7 +1394,7 @@ export function AdminDashboard() {
                        </tr>
                      ) : uniqueActiveRequests.map((request, idx) => (
                      <tr 
-                       key={`admin-req-${request.collectionName || 'none'}-${request.id || idx}-${idx}`} 
+                       key={`admin-req-${request.collectionName || 'none'}-${request.id || 'none'}`} 
                        onClick={() => isSelectMode ? toggleSelect(request.id) : setSelectedRequest(request)}
                        className={cn(
                          "transition-colors group cursor-pointer",
