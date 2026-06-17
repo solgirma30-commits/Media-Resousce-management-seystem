@@ -75,7 +75,7 @@ service cloud.firestore {
                data.status in ['NEW', 'APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED', 'REOPENED'];
       }
 
-      allow create: if isDeptDirector() && 
+      allow create: if isSignedIn() && 
                     isValidId(requestId) &&
                     isValidServiceRequest(incoming()) &&
                     incoming().directorId == request.auth.uid &&
@@ -158,7 +158,7 @@ service cloud.firestore {
                data.status in ['NEW', 'APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED'];
       }
 
-      allow create: if isDeptDirector() && 
+      allow create: if isSignedIn() && 
                     isValidId(requestId) && 
                     isValidCameraRequest(incoming()) && 
                     incoming().directorId == request.auth.uid &&
@@ -192,7 +192,7 @@ service cloud.firestore {
                data.status in ['NEW', 'APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED'];
       }
 
-      allow create: if isDeptDirector() && 
+      allow create: if isSignedIn() && 
                     isValidId(requestId) && 
                     isValidVehicleRequest(incoming()) && 
                     incoming().directorId == request.auth.uid &&
@@ -263,7 +263,7 @@ service cloud.firestore {
     // Item Requests
     match /item_requests/{requestId} {
        allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || getUserRole() == 'SECURITY');
-       allow create: if isDeptDirector() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
+       allow create: if isSignedIn() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
        allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || (getUserRole() == 'SECURITY'));
        allow delete: if isSignedIn();
     }
@@ -271,7 +271,7 @@ service cloud.firestore {
     // Device Requests
     match /device_requests/{requestId} {
        allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || isTechnician());
-       allow create: if isDeptDirector() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
+       allow create: if isSignedIn() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
        allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || isTechnician());
        allow delete: if isAdmin() || (isDeptDirector() && resource.data.directorId == request.auth.uid);
     }
@@ -279,7 +279,7 @@ service cloud.firestore {
     // Guest Requests
     match /guest_requests/{requestId} {
        allow get, list: if isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || getUserRole() == 'SECURITY');
-       allow create: if isDeptDirector() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
+       allow create: if isSignedIn() && incoming().directorId == request.auth.uid && incoming().status == 'NEW' && incoming().createdAt == request.time;
        allow update: if isSignedIn() && (isAdmin() || (isDeptDirector() && existing().directorId == request.auth.uid) || (getUserRole() == 'SECURITY'));
        allow delete: if isSignedIn();
     }

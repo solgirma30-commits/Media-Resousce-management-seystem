@@ -638,7 +638,9 @@ export function DeptDirectorDashboard() {
         }
       } // End of creation block
 
-      toast.success(isEditing ? 'Record synchronized' : 'Request submitted for processing');
+      if (isEditing) {
+        toast.success('Record synchronized');
+      }
       setIsModalOpen(false);
       setIsEditing(false);
       setEditingId(null);
@@ -724,40 +726,7 @@ export function DeptDirectorDashboard() {
         });
 
         // Add self-notification & background FCM for Director requestor
-        const selfNotifId = `notif_confirm_${Date.now()}_${profile.uid}`;
-        const selfTitle = `[SUBMITTED] ${requestTypeLabel}: ${displayName}`;
-        const selfMessage = `Your ${requestTypeLabel.toLowerCase()} request "${displayName}" has been successfully submitted and is under review.`;
-        
-        notificationPromises.push(
-          setDoc(doc(db, 'notifications', selfNotifId), {
-            userId: profile.uid,
-            title: selfTitle,
-            message: selfMessage,
-            read: false,
-            role: 'DEPT_DIRECTOR',
-            type: 'SUBMISSION_CONFIRMATION',
-            requestId: realRequestId,
-            createdAt: serverTimestamp(),
-          })
-        );
-
-        if (profile.fcmToken) {
-          try {
-            await fetch('/api/send-fcm-notification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                targetUserId: profile.uid,
-                title: selfTitle,
-                body: selfMessage,
-                requestId: realRequestId,
-                fcmToken: profile.fcmToken,
-              }),
-            });
-          } catch (fcmErr) {
-            console.error("FCM confirmation failed for director:", fcmErr);
-          }
-        }
+        // (Self-notification removed per user request)
 
         await Promise.all(notificationPromises);
       }

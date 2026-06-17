@@ -280,8 +280,8 @@ export function SecurityDashboard() {
             <Activity className="w-3 h-3" /> {t('Director Notepad Broadcasts')}
           </h3>
           <div className="space-y-2">
-            {teamUpdates.map((msg, idx) => (
-              <div key={`sec-team-msg-${msg.id || idx}-${idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
+            {teamUpdates.map((msg) => (
+              <div key={`sec-team-msg-${msg.id}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">
@@ -319,8 +319,8 @@ export function SecurityDashboard() {
               ) : pendingExits.length === 0 ? (
                 <div className="p-12 text-center text-dark-text-subtle italic font-serif">{t('No items in exit queue')}</div>
               ) : (
-                pendingExits.map((req, idx) => (
-                  <div key={`pending-exit-${req.id || 'none'}-${idx}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
+                pendingExits.map((req) => (
+                  <div key={`pending-exit-${req.id}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
                     <div className="flex items-center gap-5">
                       <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-pink-600 group-hover:scale-110 transition-transform">
                         <Tag className="w-6 h-6" />
@@ -365,8 +365,8 @@ export function SecurityDashboard() {
               {pendingGuests.length === 0 ? (
                 <div className="p-12 text-center text-dark-text-subtle italic font-serif">{t('No guest entries')}</div>
               ) : (
-                pendingGuests.map((req, idx) => (
-                  <div key={`pending-guest-${req.id || 'none'}-${idx}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
+                pendingGuests.map((req) => (
+                  <div key={`pending-guest-${req.id}`} className="p-6 hover:bg-dark-main/40 transition-all group flex items-center justify-between">
                     <div className="flex items-center gap-5">
                       <div className="w-12 h-12 rounded-xl bg-dark-sidebar border border-dark-border flex items-center justify-center text-pink-600 group-hover:scale-110 transition-transform">
                         <Users className="w-6 h-6" />
@@ -408,8 +408,8 @@ export function SecurityDashboard() {
                {loggedGuests.length === 0 ? (
                  <div className="p-10 text-center text-dark-text-subtle text-xs italic">Operational guest registry clear</div>
                ) : (
-                  loggedGuests.map((req, idx) => (
-                    <div key={`logged-guest-${req.id || 'none'}-${idx}`} className="p-5 flex items-center justify-between bg-dark-main/20">
+                  loggedGuests.map((req) => (
+                    <div key={`logged-guest-${req.id}`} className="p-5 flex items-center justify-between bg-dark-main/20">
                        <div className="flex items-center gap-4">
                          <div className="w-8 h-8 rounded-lg flex items-center justify-center border bg-emerald-500/10 border-emerald-500/20 text-emerald-700">
                            <CheckCircle2 className="w-4 h-4" />
@@ -483,8 +483,8 @@ export function SecurityDashboard() {
                {loggedExits.length === 0 ? (
                  <div className="p-10 text-center text-dark-text-subtle text-xs italic">Operational registry clear</div>
                ) : (
-                  loggedExits.map((req, idx) => (
-                    <div key={`logged-exit-${req.id || idx}-${idx}`} className={cn("p-5 flex items-center justify-between group transition-all", isSelectMode ? "bg-dark-main/40" : "bg-dark-main/20")}>
+                  loggedExits.map((req) => (
+                    <div key={`logged-exit-${req.id}`} className={cn("p-5 flex items-center justify-between group transition-all", isSelectMode ? "bg-dark-main/40" : "bg-dark-main/20")}>
                        <div className="flex items-center gap-4">
                          {isSelectMode && (
                              <input 

@@ -736,8 +736,8 @@ export function TechnicianDashboard() {
             <Activity className="w-3 h-3" /> Director Notepad Broadcasts
           </h3>
           <div className="space-y-2">
-                {teamUpdates.map((msg, idx) => (
-              <div key={`tech-msg-card-${msg.id || 'none'}-${idx}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
+                {teamUpdates.map((msg) => (
+              <div key={`tech-msg-card-${msg.id}`} className="bg-slate-100 p-2.5 rounded text-sm text-black border border-slate-300 flex justify-between items-start group">
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">
@@ -852,7 +852,7 @@ export function TechnicianDashboard() {
             <tbody className="divide-y divide-dark-border/40">
               {allRegistryTasks.map((work, idx) => (
                 <tr 
-                  key={`tech-work-row-${work.collectionName}-${work.id || 'none'}`}
+                  key={`tech-work-row-${work.collectionName}-${work.id}`}
                   onClick={() => setSelectedWork(work)}
                   className={cn(
                     "group transition-all cursor-pointer hover:bg-dark-main/30",
@@ -1452,12 +1452,12 @@ export function TechnicianDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-3.5">
-                    {smsLogs.map((log, idx) => {
+                    {smsLogs.map((log) => {
                       const timeStr = log.sentAt?.seconds 
                         ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
                         : format(new Date(), 'h:mm a');
                       return (
-                        <div key={`sms-log-${log.id || 'none'}-${idx}`} className="flex flex-col space-y-1">
+                        <div key={`sms-log-${log.id}`} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">
                             <span>💬 DISPATCH COMMAND</span>
                             <span>{timeStr}</span>

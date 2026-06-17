@@ -689,6 +689,23 @@ export function AdminDashboard() {
 
       await updateDoc(doc(db, colName, requestId), updateData);
 
+      // Create notification for director
+      if (directorId) {
+        const dirNotifId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
+        const dirTitle = `[APPROVED] Request Assigned`;
+        const dirMessage = `Your request for "${displayName}" is approved and ${names} is assigned for your request.`;
+        
+        await setDoc(doc(db, 'notifications', dirNotifId), {
+          userId: directorId,
+          title: dirTitle,
+          message: dirMessage,
+          read: false,
+          type: 'APPROVAL_ASSIGNMENT',
+          requestId: requestId,
+          createdAt: serverTimestamp(),
+        });
+      }
+
       for (const currentTech of selectedTechs) {
         // Create in-app notification for technician
         const techNotificationId = `notif_tech_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${currentTech.id}`;
@@ -811,8 +828,8 @@ export function AdminDashboard() {
 
         // Create notification for director
         const dirNotificationId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
-        let dirTitle = `[ASSIGNED] Request Status`;
-        let dirMessage = `Your request for your service "${displayName}" is approved and ${names} is assigned for your request.`;
+        const dirTitle = `[ASSIGNED] Request Status`;
+        const dirMessage = `Your request for your service "${displayName}" is approved and ${names} is assigned for your request.`;
 
         await setDoc(doc(db, 'notifications', dirNotificationId), {
           userId: directorId,
@@ -1557,8 +1574,8 @@ export function AdminDashboard() {
                orderCount: [...requests, ...cameraRequests, ...vehicleRequests].filter(r => r.assignedTechnicianId === tech.id || r.assignedDriverId === tech.id).length
              }))
              .sort((a, b) => b.orderCount - a.orderCount)
-             .map((tech, idx) => (
-              <div key={`workload-tech-${tech.id || idx}-${idx}`} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
+             .map((tech) => (
+              <div key={`workload-tech-${tech.id}`} className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors">
                 <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-slate-950 border border-dark-border uppercase">
                   {tech.displayName.split(' ').map((n: string) => n[0]).join('')}
                 </div>
@@ -2327,7 +2344,7 @@ export function AdminDashboard() {
                            const isSelected = selectedAssignIds.includes(tech.id);
                            return (
                              <div 
-                               key={`${tech.id || idx}-${idx}`} 
+                               key={`${tech.id}`} 
                                className={cn(
                                  "flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar/40 transition-all group",
                                  isSelected && "border-indigo-500/50 bg-indigo-500/[0.02]"
@@ -2541,10 +2558,10 @@ export function AdminDashboard() {
 
                 <div className="p-8 overflow-y-auto scrollbar-hide">
                   <div className="grid grid-cols-1 gap-4">
-                     {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech, idx) => {
+                     {[...technicians, ...drivers, ...cameramen].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((tech) => {
                        const isEditingThis = editingTech?.id === tech.id;
                        return (
-                         <div key={`tech-registry-card-${tech.id || idx}-${idx}`} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
+                         <div key={`tech-registry-card-${tech.id}`} className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all">
                            {isEditingThis ? (
                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
                                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
