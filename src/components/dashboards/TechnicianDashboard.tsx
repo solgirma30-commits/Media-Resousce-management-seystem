@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -86,6 +86,7 @@ export function TechnicianDashboard() {
   const [unreadSmsCount, setUnreadSmsCount] = useState(0);
   const [isSmsPhoneOpen, setIsSmsPhoneOpen] = useState(false);
   const [lastSmsNotification, setLastSmsNotification] = useState<any | null>(null);
+  const notifiedAssignments = useRef<Set<string>>(new Set());
   
   // Role-based portal configuration
   const portalConfig = React.useMemo(() => {
@@ -306,7 +307,7 @@ export function TechnicianDashboard() {
       
       if (!isFirstLoad) {
         snapshot.docChanges().forEach(change => {
-          if (change.type === 'added') {
+          if (change.type === 'added' || change.type === 'modified') {
             const data = change.doc.data() as any;
             const isAssignedToMe = data[portalConfig.idField] === profile.uid ||
                                    data.assignedTechnicianIds?.includes(profile.uid) ||
@@ -315,14 +316,16 @@ export function TechnicianDashboard() {
                                    data.assignedDrivers?.some((d: any) => d.id === profile.uid);
                                    
             if (data.status === 'ASSIGNED' && isAssignedToMe) {
-              const displayName = path === 'camera_requests' ? (data.eventTitle || data.purpose) : 
-                                  path === 'vehicle_requests' ? (data.tripName || data.destination) : 
-                                  (data.workName || data.description);
-              console.log(`[TechnicianDashboard] New assigned task detected for me: ${data.status}`);
-              notificationService.notify(`NEW ASSIGNMENT: ${displayName}`, {
-                body: "A new assignment is ready in your queue.",
-                icon: '/pwa-512x512.png'
-              });
+              const requestId = change.doc.id;
+              if (!notifiedAssignments.current.has(requestId)) {
+                notifiedAssignments.current.add(requestId);
+                const shortId = requestId.slice(-6).toUpperCase();
+                console.log(`[TechnicianDashboard] New assignment detected for me: ${shortId}`);
+                notificationService.notify(`NEW ASSIGNMENT: Service No ${shortId}`, {
+                  body: `You are assigned for service no ${shortId}. Check your portal.`,
+                  icon: '/pwa-512x512.png'
+                });
+              }
             }
           }
         });
@@ -852,7 +855,7 @@ export function TechnicianDashboard() {
             <tbody className="divide-y divide-dark-border/40">
               {allRegistryTasks.map((work, idx) => (
                 <tr 
-                  key={`tech-work-row-${work.collectionName}-${work.id}`}
+                  key={`tech-work-row-${work.collectionName}-${work.id}-${idx}`}
                   onClick={() => setSelectedWork(work)}
                   className={cn(
                     "group transition-all cursor-pointer hover:bg-dark-main/30",

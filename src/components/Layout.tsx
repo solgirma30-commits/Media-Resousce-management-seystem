@@ -97,8 +97,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
             // so we don't suppress it on portal switches, page reloads, or device wake actions
             const secondsAgo = newNotif.createdAt?.seconds 
               ? (Date.now() / 1000) - newNotif.createdAt.seconds 
-              : 0;
-            const isVeryRecent = secondsAgo > 0 && secondsAgo < 900;
+              : null;
+            const isVeryRecent = secondsAgo === null || (secondsAgo > -300 && secondsAgo < 900);
 
             if (isFirstLoad && !isVeryRecent) {
               return;
