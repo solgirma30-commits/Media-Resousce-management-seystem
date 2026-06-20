@@ -854,6 +854,11 @@ export function AdminDashboard() {
       }
 
       await updateDoc(doc(db, colName, requestId), updateData);
+      
+      const userMap = new Map<string, { fcmToken?: string }>();
+      for (const t of allUsers) {
+        userMap.set(t.id, { fcmToken: t.fcmToken });
+      }
 
       // Create notification for director/requestor
       const requestorId = req?.userId;
@@ -875,6 +880,22 @@ export function AdminDashboard() {
           requestId: requestId,
           createdAt: serverTimestamp(),
         });
+        
+        // FCM notification for requestor/director
+        const userDetails = userMap.get(targetUserId);
+        if (userDetails?.fcmToken) {
+           fetch("/api/send-fcm-notification", {
+             method: "POST",
+             headers: { "Content-Type": "application/json" },
+             body: JSON.stringify({
+               targetUserId: targetUserId,
+               title,
+               body: message,
+               requestId: requestId,
+               fcmToken: userDetails.fcmToken,
+             }),
+           }).catch(e => console.error("FCM approval/assignment notification failed:", e));
+        }
       }
 
       const shortId = requestId.slice(-6).toUpperCase();
