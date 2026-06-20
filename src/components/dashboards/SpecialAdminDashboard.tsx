@@ -1,0 +1,901 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  User, 
+  Mail, 
+  Calendar, 
+  Search, 
+  Shield, 
+  Filter, 
+  Clock, 
+  Users, 
+  ArrowUpDown, 
+  Trash2, 
+  Edit2, 
+  X, 
+  Copy, 
+  Check, 
+  LogOut, 
+  Globe, 
+  HardDrive, 
+  Key, 
+  AlertTriangle,
+  UserCheck,
+  Building2,
+  Phone
+} from 'lucide-react';
+import { collection, query, limit, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { useAuth, UserRole } from '../../App';
+import { useLanguage } from '../../lib/LanguageContext';
+import { toast } from 'react-hot-toast';
+
+interface FirestoreUser {
+  id: string; // Document ID is uid
+  uid?: string;
+  email: string | null;
+  displayName: string | null;
+  role: UserRole | string;
+  department?: string | null;
+  phoneNumber?: string | null;
+  createdAt?: any;
+  updatedAt?: any;
+  photoURL?: string | null;
+  approved?: boolean;
+  isPlaceholder?: boolean;
+}
+
+export function SpecialAdminDashboard() {
+  const { user: authUser, logout, switchRole } = useAuth();
+  const { t } = useLanguage();
+
+  const [users, setUsers] = useState<FirestoreUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('ALL');
+  const [sortBy, setSortBy] = useState<'createdAt_desc' | 'createdAt_asc' | 'name_asc'>('createdAt_desc');
+  const [selectedUser, setSelectedUser] = useState<FirestoreUser | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  
+  // Role Edit states
+  const [isEditingRole, setIsEditingRole] = useState(false);
+  const [tempRole, setTempRole] = useState<string>('');
+  const [isSavingRole, setIsSavingRole] = useState(false);
+
+  // Deletion guard
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
+
+  // Placeholders Purge states
+  const [isPurging, setIsPurging] = useState(false);
+  const [isConfirmingPurge, setIsConfirmingPurge] = useState(false);
+
+  const handlePurgePlaceholders = async () => {
+    setIsPurging(true);
+    let successCount = 0;
+    try {
+      const placeholders = users.filter(u => u.isPlaceholder === true || u.id.startsWith('seeded_'));
+      if (placeholders.length === 0) {
+        toast.error('No unauthenticated placeholder identities found');
+        return;
+      }
+
+      const promises = placeholders.map(async (u) => {
+        try {
+          await deleteDoc(doc(db, 'users', u.id));
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to delete user ${u.id}:`, error);
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success(`Successfully purged ${successCount} placeholder identities from registry`);
+      setIsConfirmingPurge(false);
+    } catch (error: any) {
+      console.error("Purge error:", error);
+      toast.error(`Purge failed: ${error.message}`);
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
+  // Fetch users list in real time
+  useEffect(() => {
+    const userPath = "users";
+    const q = query(collection(db, userPath), limit(500));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedUsers: FirestoreUser[] = snapshot.docs.map((d) => ({
+          id: d.id,
+          uid: d.id,
+          ...d.data()
+        } as FirestoreUser));
+        
+        setUsers(fetchedUsers);
+        setLoading(false);
+      },
+      (error) => {
+        setLoading(false);
+        handleFirestoreError(error, OperationType.LIST, userPath);
+        toast.error('Failed to retrieve system registries');
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleCopyId = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    toast.success('System ID copied to clipboard');
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return t('db_no_date', 'System Default (Seeded)');
+    
+    // Firestore Timestamp check
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+      return timestamp.toDate().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+    // Seconds standard seconds check
+    if (timestamp.seconds) {
+      return new Date(timestamp.seconds * 1000).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+    // Simple js date check
+    const d = new Date(timestamp);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+    return t('db_no_date', 'System Default (Seeded)');
+  };
+
+  // User details modal save handler
+  const handleUpdateRole = async () => {
+    if (!selectedUser) return;
+    setIsSavingRole(true);
+    try {
+      const userRef = doc(db, 'users', selectedUser.id);
+      await updateDoc(userRef, {
+        role: tempRole,
+        updatedAt: new Date()
+      });
+      toast.success(`Role upgraded to ${tempRole} successfully`);
+      setSelectedUser(prev => prev ? { ...prev, role: tempRole } : null);
+      setIsEditingRole(false);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to update system access level');
+    } finally {
+      setIsSavingRole(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    if (deleteInput !== 'DELETE') {
+      toast.error('Type DELETE to authorize user deletion');
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'users', selectedUser.id));
+      toast.success('System credentials revoked');
+      setSelectedUser(null);
+      setIsConfirmingDelete(false);
+      setDeleteInput('');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Permissions restriction: Unable to clean directory credentials');
+    }
+  };
+
+  // Sorting and Filtering pipeline
+  const filteredUsers = users.filter(usr => {
+    const term = searchQuery.toLowerCase().trim();
+    const nameMatch = (usr.displayName || '').toLowerCase().includes(term);
+    const emailMatch = (usr.email || '').toLowerCase().includes(term);
+    const uidMatch = usr.id.toLowerCase().includes(term);
+    const matchesSearch = !term || nameMatch || emailMatch || uidMatch;
+
+    const matchesRole = roleFilter === 'ALL' || usr.role === roleFilter;
+
+    return matchesSearch && matchesRole;
+  }).sort((a, b) => {
+    if (sortBy === 'createdAt_desc') {
+      const dateA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const dateB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return dateB - dateA;
+    }
+    if (sortBy === 'createdAt_asc') {
+      const dateA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const dateB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return dateA - dateB;
+    }
+    if (sortBy === 'name_asc') {
+      const nameA = a.displayName || a.email || '';
+      const nameB = b.displayName || b.email || '';
+      return nameA.localeCompare(nameB);
+    }
+    return 0;
+  });
+
+  // Calculate high quality stats widgets
+  const totalUserCount = users.length;
+  const placeholderCount = users.filter(u => u.isPlaceholder === true || u.id.startsWith('seeded_')).length;
+  const adminCount = users.filter(u => u.role === UserRole.ADMIN).length;
+  const directorCount = users.filter(u => u.role === UserRole.DEPT_DIRECTOR).length;
+  const technicianCount = users.filter(u => 
+    u.role === UserRole.TECHNICIAN || u.role === UserRole.DRIVER || u.role === UserRole.CAMERAMAN
+  ).length;
+  const securityCount = users.filter(u => u.role === UserRole.SECURITY).length;
+
+  const roleStyles: { [key: string]: { pill: string; label: string } } = {
+    [UserRole.ADMIN]: { pill: 'bg-indigo-50 border border-indigo-200 text-indigo-700', label: t('role_admin', 'FMC ADMIN') },
+    [UserRole.DEPT_DIRECTOR]: { pill: 'bg-blue-50 border border-blue-200 text-blue-700', label: t('role_director', 'DEPT DIRECTOR') },
+    [UserRole.TECHNICIAN]: { pill: 'bg-emerald-50 border border-emerald-200 text-emerald-700', label: t('role_technician', 'ENGINEER') },
+    [UserRole.DRIVER]: { pill: 'bg-teal-50 border border-teal-200 text-teal-700', label: t('role_driver', 'LOGISTICS DRIVER') },
+    [UserRole.CAMERAMAN]: { pill: 'bg-purple-50 border border-purple-200 text-purple-700', label: t('role_camera', 'CAMERA OPERATOR') },
+    [UserRole.SECURITY]: { pill: 'bg-pink-50 border border-pink-200 text-pink-700', label: t('role_security', 'SECURITY FORCE') },
+    [UserRole.ALL_IN_ONE]: { pill: 'bg-amber-50 border border-amber-200 text-amber-700', label: t('role_all_in_one', 'ALL IN ONE PORTAL') },
+    [UserRole.SYSTEM_ADMIN]: { pill: 'bg-rose-50 border border-rose-200 text-rose-700', label: t('role_system_admin', 'SYSTEM ADMIN') },
+  };
+
+  const getRoleStyle = (role: string) => {
+    return roleStyles[role] || { pill: 'bg-slate-100 border border-slate-200 text-slate-700', label: role };
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
+      {/* Dynamic Header Block with Brand */}
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-white/80 border-b border-slate-200/80 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-black rounded-xl text-white shadow-md">
+              <Shield className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase select-none block">
+                Fana Media Corporation
+              </span>
+              <h1 className="text-lg font-black tracking-tight text-black flex items-center gap-2">
+                GLOBAL REGISTRY DIRECTORY
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <span className="text-xs font-semibold px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full flex items-center gap-1.5 select-none">
+              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping" />
+              SYSTEM OVERLORD Authorized
+            </span>
+            <button 
+              id="switch-portal-btn"
+              onClick={() => switchRole()}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-600 transition-all hover:bg-slate-50 active:scale-[0.98] cursor-pointer"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+              {t('switch_portal', 'Switch Portal')}
+            </button>
+            <button 
+              onClick={() => logout()}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-600 transition-all hover:bg-slate-50 active:scale-[0.98] cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              {t('logout', 'Sign Out')}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-6 mt-8 space-y-8">
+        
+        {/* visual statistics widgets */}
+        <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm col-span-2 md:col-span-1 flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total Registers</span>
+              <Users className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="mt-4">
+              <p className="text-3xl font-black text-black tracking-tight leading-none">
+                {loading ? '...' : totalUserCount}
+              </p>
+              <span className="text-[9px] font-medium text-slate-500 block mt-1">Full Database Scope</span>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Administrators</span>
+              <Shield className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div className="mt-4">
+              <p className="text-3xl font-black text-indigo-600 tracking-tight leading-none">
+                {loading ? '...' : adminCount}
+              </p>
+              <span className="text-[9px] font-medium text-slate-500 block mt-1">Global Oversight</span>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Directors</span>
+              <Building2 className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="mt-4">
+              <p className="text-3xl font-black text-blue-600 tracking-tight leading-none">
+                {loading ? '...' : directorCount}
+              </p>
+              <span className="text-[9px] font-medium text-slate-500 block mt-1">Active Departments</span>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Engineers & Field</span>
+              <HardDrive className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="mt-4">
+              <p className="text-3xl font-black text-emerald-600 tracking-tight leading-none">
+                {loading ? '...' : technicianCount}
+              </p>
+              <span className="text-[9px] font-medium text-slate-500 block mt-1">Drivers & Crew</span>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Security Guard</span>
+              <UserCheck className="w-4 h-4 text-pink-400" />
+            </div>
+            <div className="mt-4">
+              <p className="text-3xl font-black text-pink-600 tracking-tight leading-none">
+                {loading ? '...' : securityCount}
+              </p>
+              <span className="text-[9px] font-medium text-slate-500 block mt-1">Sectors Controlled</span>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* Placeholder Purge Alert Board */}
+        {placeholderCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 text-amber-700 rounded-xl mt-0.5 md:mt-0 shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-amber-800">
+                  Unauthenticated Placeholder Identities Detected
+                </h3>
+                <p className="text-[10px] text-amber-700 mt-1">
+                  There are <strong className="font-extrabold">{placeholderCount}</strong> mock/placeholder identity registries in the system that were seeded by default and are not registered with an actual email or Google account.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end md:self-auto shrink-0 animate-fade-in">
+              {isConfirmingPurge ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black uppercase text-amber-800">Are you sure?</span>
+                  <button
+                    onClick={() => setIsConfirmingPurge(false)}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-[9px] font-bold text-slate-500 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePurgePlaceholders}
+                    disabled={isPurging}
+                    className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow transition-all cursor-pointer"
+                  >
+                    {isPurging ? 'Purging...' : 'Yes, Purge Registry!'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsConfirmingPurge(true)}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  Purge Placeholder Profiles
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Search, Filter Deck */}
+        <section className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Query name, email, or digital UID catalog..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold placeholder-slate-400 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded-full"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="bg-transparent border-none text-xs font-bold text-slate-600 focus:outline-none cursor-pointer"
+                >
+                  <option value="ALL">ALL ROLES</option>
+                  <option value={UserRole.ADMIN}>ADMINISTRATOR</option>
+                  <option value={UserRole.DEPT_DIRECTOR}>DEPARTMENT DIRECTOR</option>
+                  <option value={UserRole.TECHNICIAN}>TECHNICIAN / ENGINEER</option>
+                  <option value={UserRole.DRIVER}>LOGISTICS DRIVER</option>
+                  <option value={UserRole.CAMERAMAN}>CAMERA OPERATOR</option>
+                  <option value={UserRole.SECURITY}>SECURITY TEAM</option>
+                  <option value={UserRole.ALL_IN_ONE}>ALL PORTALS ACCESS</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="bg-transparent border-none text-xs font-bold text-slate-600 focus:outline-none cursor-pointer"
+                >
+                  <option value="createdAt_desc">NEWEST REGISTERED</option>
+                  <option value="createdAt_asc">OLDEST REGISTERED</option>
+                  <option value="name_asc">ALPHABETICAL (A-Z)</option>
+                </select>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        {/* Database Users Grid Table Layout */}
+        <section className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+          {loading ? (
+            <div className="p-20 text-center flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin" />
+              <p className="text-slate-500 text-xs font-bold tracking-wider uppercase">Loading Secure FMC Archives...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="p-20 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
+              <Globe className="w-8 h-8 text-slate-300 stroke-[1.5]" />
+              <p className="text-xs font-bold tracking-tight text-slate-700">No Registry Records Found</p>
+              <p className="text-[10px] text-slate-400">Refine filters or check query strings</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                    <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-400 tracking-wider">Identities</th>
+                    <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-400 tracking-wider">Digital email address</th>
+                    <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-400 tracking-wider">Account creation timestamp</th>
+                    <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-400 tracking-wider">System uid badge</th>
+                    <th className="py-4 px-6 text-right text-[10px] font-black uppercase text-slate-400 tracking-wider">Oversight</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredUsers.map((usr) => {
+                    const cleanInitials = (usr.displayName || usr.email || 'U').substring(0, 2).toUpperCase();
+                    const { pill, label } = getRoleStyle(usr.role);
+
+                    // Choose colors based on uid hash
+                    const colorVariants = ['bg-indigo-500', 'bg-blue-500', 'bg-rose-500', 'bg-emerald-500', 'bg-purple-500'];
+                    const hash = usr.id.charCodeAt(0) % colorVariants.length;
+                    const avatarBg = colorVariants[hash];
+
+                    return (
+                      <motion.tr 
+                        key={usr.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="hover:bg-slate-50/70 transition-all cursor-pointer group"
+                        onClick={() => {
+                          setSelectedUser(usr);
+                          setIsEditingRole(false);
+                          setTempRole(usr.role);
+                        }}
+                      >
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full ${avatarBg} text-white font-black text-xs flex items-center justify-center tracking-tighter select-none`}>
+                              {cleanInitials}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-black leading-snug group-hover:text-indigo-600 transition-colors">
+                                {usr.displayName || '(No Profile Identity)'}
+                              </p>
+                              <div className="flex flex-wrap gap-1.5 mt-1 items-center">
+                                <span className={`inline-block text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${pill}`}>
+                                  {label}
+                                </span>
+                                {usr.id === 'VSnotQzmWMfmqbeB144IJ2xhciq2' || usr.role === UserRole.SYSTEM_ADMIN || usr.approved === true || usr.isPlaceholder === true ? (
+                                  <span className="inline-block text-[8px] font-black px-2 py-0.5 rounded bg-emerald-50 border border-emerald-100 text-emerald-700 uppercase tracking-wider">
+                                    APPROVED
+                                  </span>
+                                ) : (
+                                  <span className="inline-block text-[8px] font-black px-2 py-0.5 rounded bg-amber-50 border border-amber-100 text-amber-600 uppercase tracking-wider animate-pulse">
+                                    PENDING
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium font-sans">
+                            <Mail className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{usr.email || '(No Email Linked)'}</span>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{formatDate(usr.createdAt)}</span>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-6">
+                          <button
+                            onClick={(e) => handleCopyId(usr.id, e)}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 group-hover:bg-indigo-50 border border-slate-200 group-hover:border-indigo-100 rounded text-[10px] font-mono text-slate-500 group-hover:text-indigo-600 transition-colors cursor-pointer select-none"
+                          >
+                            <Key className="w-3 h-3 flex-shrink-0" />
+                            <span>{usr.id.substring(0, 8)}...</span>
+                            {copiedId === usr.id ? (
+                              <Check className="w-3 h-3 text-emerald-600 animate-scale-in" />
+                            ) : (
+                              <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            )}
+                          </button>
+                        </td>
+
+                        <td className="py-4 px-6 text-right">
+                          <span className="text-[10px] text-indigo-600 font-black tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-all mr-2">
+                            Inspect
+                          </span>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </main>
+
+      {/* User Details Slide Over Drawer Modal */}
+      <AnimatePresence>
+        {selectedUser && (
+          <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.4 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setSelectedUser(null); setIsConfirmingDelete(false); }}
+              className="absolute inset-0 bg-black backdrop-blur-xs"
+            />
+
+            {/* Content Drawer */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col z-12 border-l border-slate-200"
+            >
+              {/* Drawer Header */}
+              <div className="px-6 py-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <HardDrive className="w-4 h-4 text-slate-500 animate-pulse" />
+                  <span className="text-xs font-black uppercase text-slate-500 tracking-widest">Registry Inspect</span>
+                </div>
+                <button
+                  onClick={() => { setSelectedUser(null); setIsConfirmingDelete(false); }}
+                  className="p-1 px-2.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-black transition-all cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Drawer Scrollable Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+                
+                {/* Micro Avatar Profile Card */}
+                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center text-center">
+                  <div className="w-14 h-14 bg-black text-white font-black text-lg rounded-full flex items-center justify-center select-none shadow-md">
+                    {(selectedUser.displayName || selectedUser.email || 'U').substring(0, 2).toUpperCase()}
+                  </div>
+                  <h3 className="text-sm font-black text-black tracking-tight mt-3">
+                    {selectedUser.displayName || '(No Verification Identity)'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium truncate max-w-xs">{selectedUser.email}</p>
+                  
+                  <div className="mt-3">
+                    <span className={`inline-block text-[9px] font-black px-3 py-1 bg-white rounded-full ${getRoleStyle(selectedUser.role).pill}`}>
+                      {getRoleStyle(selectedUser.role).label}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Identity Metadata List */}
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 select-none">Catalog Details</h4>
+                  
+                  <div className="grid grid-cols-3 gap-y-3 gap-x-2 text-xs">
+                    <span className="text-slate-400 font-bold self-center">System UID</span>
+                    <div className="col-span-2 flex items-center gap-1">
+                      <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded truncate select-all">{selectedUser.id}</span>
+                      <button 
+                        onClick={(e) => handleCopyId(selectedUser.id, e)} 
+                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-black cursor-pointer"
+                        title="Copy System UID"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <span className="text-slate-400 font-bold self-center">{t('setup_phone', 'Phone Number')}</span>
+                    <span className="col-span-2 font-semibold text-black flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-slate-400" />
+                      {selectedUser.phoneNumber || '(No Contact Number Linked)'}
+                    </span>
+
+                    <span className="text-slate-400 font-bold self-center">{t('setup_department', 'Department')}</span>
+                    <span className="col-span-2 font-semibold text-black capitalize">
+                      {selectedUser.department || '(No Department Link)'}
+                    </span>
+
+                    <span className="text-slate-400 font-bold self-center">Created At</span>
+                    <span className="col-span-2 font-semibold text-black flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      {formatDate(selectedUser.createdAt)}
+                    </span>
+
+                    <span className="text-slate-400 font-bold self-center">Last Modified</span>
+                    <span className="col-span-2 font-semibold text-black flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      {formatDate(selectedUser.updatedAt)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Access Confirmation Controls */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-black select-none">Access Confirmation</h4>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Determine if this user can connect to FMC workstation ecosystems</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 select-none font-sans">
+                      <div className={`w-2 h-2 rounded-full ${
+                        (selectedUser.approved === true || selectedUser.id === 'VSnotQzmWMfmqbeB144IJ2xhciq2' || selectedUser.role === UserRole.SYSTEM_ADMIN || selectedUser.isPlaceholder === true)
+                          ? 'bg-emerald-500 animate-pulse'
+                          : 'bg-amber-500 animate-pulse'
+                      }`} />
+                      {(selectedUser.approved === true || selectedUser.id === 'VSnotQzmWMfmqbeB144IJ2xhciq2' || selectedUser.role === UserRole.SYSTEM_ADMIN || selectedUser.isPlaceholder === true)
+                        ? 'Authorized for Workstation'
+                        : 'Awaiting confirmation'
+                      }
+                    </span>
+
+                    {selectedUser.id !== 'VSnotQzmWMfmqbeB144IJ2xhciq2' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const isCurrentApproved = !!(selectedUser.approved === true || selectedUser.role === UserRole.SYSTEM_ADMIN || selectedUser.isPlaceholder === true);
+                            const newStatus = !isCurrentApproved;
+                            const userRef = doc(db, 'users', selectedUser.id);
+                            await updateDoc(userRef, {
+                              approved: newStatus,
+                              updatedAt: new Date()
+                            });
+                            toast.success(newStatus ? 'User successfully confirmed & approved' : 'User access suspended');
+                            setSelectedUser(prev => prev ? { ...prev, approved: newStatus } : null);
+                          } catch (err) {
+                            console.error(err);
+                            toast.error('Failed to update access confirmation');
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          (selectedUser.approved === true || selectedUser.role === UserRole.SYSTEM_ADMIN || selectedUser.isPlaceholder === true)
+                            ? 'bg-amber-500/10 border border-amber-500/20 text-amber-700 hover:bg-amber-500/20' 
+                            : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20'
+                        }`}
+                      >
+                        {(selectedUser.approved === true || selectedUser.role === UserRole.SYSTEM_ADMIN || selectedUser.isPlaceholder === true) ? 'SUSPEND ACCESS' : 'APPROVE USER'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Database Authority Controls */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-black select-none">Security Access Level</h4>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Edit credentials in target workspace</p>
+                    </div>
+                    {!isEditingRole && (
+                      <button
+                        onClick={() => { setIsEditingRole(true); setTempRole(selectedUser.role); }}
+                        className="px-2.5 py-1 bg-white border border-slate-300 hover:border-black rounded-lg text-[10px] font-bold text-slate-700 transition-colors cursor-pointer"
+                      >
+                        Change Role
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditingRole ? (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.values(UserRole).map((r) => (
+                          <button
+                            key={r}
+                            onClick={() => setTempRole(r)}
+                            className={`px-3 py-2 text-[10px] text-left font-black tracking-wide rounded-xl border transition-all ${
+                              tempRole === r
+                                ? 'bg-black border-black text-white shadow'
+                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                            }`}
+                          >
+                            {getRoleStyle(r).label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2 justify-end pt-1">
+                        <button
+                          onClick={() => setIsEditingRole(false)}
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-[10px] font-bold text-slate-500"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleUpdateRole}
+                          disabled={isSavingRole}
+                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] font-bold shadow hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {isSavingRole ? 'Syncing...' : 'Save Changes'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="px-3 py-2 bg-white rounded-xl border border-slate-100 flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-indigo-500" />
+                      <span className="text-xs font-semibold text-slate-800 uppercase tracking-widest">
+                        {getRoleStyle(selectedUser.role).label}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Advanced Force Trash Deletion Field */}
+                <div className="border border-red-100 bg-red-50/20 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <h5 className="text-[10px] font-black uppercase text-red-700 tracking-wider">Dangerous Territory</h5>
+                      <p className="text-[9px] text-red-600">Completely purge this registry catalog index from systems.</p>
+                    </div>
+                  </div>
+
+                  {isConfirmingDelete ? (
+                    <div className="space-y-3 pt-1 animate-fade-in">
+                      <p className="text-[9px] font-bold text-slate-700 uppercase tracking-wide">
+                        Safety confirm: write DELETE in capital letters to confirm:
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="Type 'DELETE'..."
+                        value={deleteInput}
+                        onChange={(e) => setDeleteInput(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-red-200 rounded-xl text-xs font-bold text-red-600 focus:outline-none focus:ring-1 focus:ring-red-500"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => { setIsConfirmingDelete(false); setDeleteInput(''); }}
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-[10px] font-bold text-slate-500"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleDeleteUser}
+                          disabled={deleteInput !== 'DELETE'}
+                          className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-bold shadow hover:bg-red-700 disabled:opacity-40"
+                        >
+                          I'm Sure, PERMANENTLY PURGE!
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsConfirmingDelete(true)}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-red-100/50 hover:bg-red-100 border border-red-200Hover text-red-700 hover:text-red-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete User Credentials
+                    </button>
+                  )}
+                </div>
+
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

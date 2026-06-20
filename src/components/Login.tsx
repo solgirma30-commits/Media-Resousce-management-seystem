@@ -1,15 +1,47 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Cpu, Globe } from 'lucide-react';
+import { Cpu, Globe, Mail, Lock, LogIn, UserPlus } from 'lucide-react';
 import { useAuth } from '../App';
 import { useLanguage } from '../lib/LanguageContext';
+import { toast } from 'react-hot-toast';
 
 export function Login() {
-  const { signIn, signingIn } = useAuth();
+  const { signIn, signInWithEmail, signUpWithEmail, signingIn } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+  
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [localLoading, setLocalLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast.error(t('login_fill_fields', 'Please fill in all fields'));
+      return;
+    }
+    if (mode === 'signup' && password !== confirmPassword) {
+      toast.error(t('login_password_mismatch', 'Passwords do not match'));
+      return;
+    }
+
+    setLocalLoading(true);
+    try {
+      if (mode === 'signin') {
+        await signInWithEmail(email.trim(), password);
+      } else {
+        await signUpWithEmail(email.trim(), password);
+      }
+    } catch (err) {
+      // Error notifications are already handled and triggered in signInWithEmail / signUpWithEmail
+    } finally {
+      setLocalLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white relative overflow-hidden font-sans text-black">
+    <div className="min-h-screen flex items-center justify-center bg-white relative overflow-hidden font-sans text-black py-12 px-4 sm:px-6 lg:px-8">
       {/* Dynamic Floating Language Switcher */}
       <div className="absolute top-6 right-6 z-50 flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-full px-3 py-1.5 text-xs text-slate-600">
         <Globe className="w-3.5 h-3.5 text-slate-500" />
@@ -38,15 +70,15 @@ export function Login() {
       <motion.div 
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-sm p-10 bg-white rounded-2xl shadow-2xl border border-slate-100 relative overflow-hidden flex flex-col items-center text-center"
+        className="w-full max-w-md p-8 md:p-10 bg-white rounded-2xl shadow-2xl border border-slate-100 relative overflow-hidden flex flex-col items-center"
       >
         <motion.div
            initial={{ opacity: 0, y: -20 }}
            animate={{ opacity: 1, y: 0 }}
-           className="mb-6 flex justify-center"
+           className="mb-4 flex justify-center"
         >
            {/* High-Fidelity Custom Vector SVG Fana Media Corporation Logo */}
-           <svg viewBox="0 0 280 220" className="w-56 h-auto" xmlns="http://www.w3.org/2000/svg" id="fmc-vector-logo">
+           <svg viewBox="0 0 280 220" className="w-48 h-auto" xmlns="http://www.w3.org/2000/svg" id="fmc-vector-logo">
              <defs>
                <linearGradient id="sun-grad" x1="0%" y1="0%" x2="100%" y2="100%">
                  <stop offset="0%" stopColor="#fbbf24" />
@@ -174,20 +206,130 @@ export function Login() {
            </svg>
         </motion.div>
 
+        {/* Auth Mode Tabs */}
+        <div className="w-full flex border-b border-slate-100 mb-6">
+          <button
+            onClick={() => { setMode('signin'); setPassword(''); setConfirmPassword(''); }}
+            className={`flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${
+              mode === 'signin' 
+                ? 'border-black text-black' 
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            {t('login_tab_signin', 'Sign In')}
+          </button>
+          <button
+            onClick={() => { setMode('signup'); setPassword(''); setConfirmPassword(''); }}
+            className={`flex-1 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all ${
+              mode === 'signup' 
+                ? 'border-black text-black' 
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            {t('login_tab_signup', 'Register')}
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="w-full space-y-4 mb-5">
+          <div className="text-left animate-fade-in">
+            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+              {t('login_email', 'Email Address')}
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@fanamc.com"
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-black placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="text-left">
+            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+              {t('login_password', 'Password')}
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-black placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
+              />
+            </div>
+          </div>
+
+          {mode === 'signup' && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="text-left"
+            >
+              <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                {t('login_confirm_password', 'Confirm Password')}
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-black placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
+                />
+              </div>
+            </motion.div>
+          )}
+
+          <button
+            type="submit"
+            disabled={signingIn || localLoading}
+            className="w-full mt-2 flex items-center justify-center gap-3 bg-black text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-md hover:bg-slate-900 active:scale-[0.98] uppercase tracking-wide text-xs group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {localLoading ? (
+              <div className="w-4 h-4 flex-shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : mode === 'signin' ? (
+              <LogIn className="w-4 h-4 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            ) : (
+              <UserPlus className="w-4 h-4 flex-shrink-0 group-hover:scale-105 transition-transform" />
+            )}
+            {localLoading
+              ? t('login_processing', 'Processing...')
+              : mode === 'signin'
+              ? t('login_tab_signin', 'Sign In')
+              : t('login_tab_signup', 'Register')}
+          </button>
+        </form>
+
+        <div className="w-full flex items-center gap-3 mb-5">
+          <div className="h-[1px] bg-slate-100 flex-1" />
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 select-none">
+            {t('login_or', 'Or')}
+          </span>
+          <div className="h-[1px] bg-slate-100 flex-1" />
+        </div>
+
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full space-y-6"
+          className="w-full"
         >
           <button
             onClick={signIn}
-            disabled={signingIn}
-            className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:bg-blue-700 hover:shadow-blue-600/30 active:scale-[0.98] uppercase tracking-wide text-xs group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={signingIn || localLoading}
+            className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg hover:bg-blue-700 hover:shadow-blue-600/30 active:scale-[0.98] uppercase tracking-wide text-xs group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {signingIn ? (
-              <div className="w-5 h-5 flex-shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 flex-shrink-0 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
-              <Cpu className="w-5 h-5 flex-shrink-0 group-hover:rotate-12 transition-transform" />
+              <Cpu className="w-4 h-4 flex-shrink-0 group-hover:rotate-12 transition-transform" />
             )}
             {signingIn ? t('login_signing_in', 'Authenticating...') : t('login_authenticate_google', 'Authenticate with Google')}
           </button>
@@ -196,3 +338,4 @@ export function Login() {
     </div>
   );
 }
+

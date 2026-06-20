@@ -10,12 +10,15 @@ import {
   GoogleAuthProvider, 
   signOut,
   User as FirebaseUser,
-  AuthError
+  AuthError,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { 
   doc, 
   onSnapshot,
-  getDocFromServer
+  getDocFromServer,
+  setDoc
 } from 'firebase/firestore';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth, db } from './lib/firebase';
@@ -23,6 +26,8 @@ import { Layout } from './components/Layout';
 import { Login } from './components/Login';
 import { RoleSetup } from './components/RoleSetup';
 import { Dashboard } from './components/Dashboard';
+import { SpecialAdminDashboard } from './components/dashboards/SpecialAdminDashboard';
+import { PendingApproval } from './components/PendingApproval';
 import { LanguageProvider } from './lib/LanguageContext';
 import { AlertTriangle, Database, ExternalLink, RefreshCw } from 'lucide-react';
 
@@ -33,7 +38,8 @@ export enum UserRole {
   DRIVER = 'DRIVER',
   CAMERAMAN = 'CAMERAMAN',
   SECURITY = 'SECURITY',
-  ALL_IN_ONE = 'ALL_IN_ONE'
+  ALL_IN_ONE = 'ALL_IN_ONE',
+  SYSTEM_ADMIN = 'SYSTEM_ADMIN'
 }
 
 interface UserProfile {
@@ -44,6 +50,7 @@ interface UserProfile {
   department?: string;
   phoneNumber?: string;
   fcmToken?: string;
+  approved?: boolean;
 }
 
 interface AuthContextType {
@@ -53,8 +60,12 @@ interface AuthContextType {
   loading: boolean;
   signingIn: boolean;
   signIn: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   switchRole: () => void;
+  selectedPortalRole?: UserRole | null;
+  setSelectedPortalRole?: (role: UserRole | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -72,6 +83,19 @@ export default function App() {
   const [signingIn, setSigningIn] = useState(false);
   const [isSelectingRole, setIsSelectingRole] = useState(false);
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+  const [selectedPortalRole, setSelectedPortalRoleState] = useState<UserRole | null>(() => {
+    const saved = localStorage.getItem('fmc_selected_portal_role');
+    return saved ? (saved as UserRole) : null;
+  });
+
+  const setSelectedPortalRole = useCallback((role: UserRole | null) => {
+    setSelectedPortalRoleState(role);
+    if (role) {
+      localStorage.setItem('fmc_selected_portal_role', role);
+    } else {
+      localStorage.removeItem('fmc_selected_portal_role');
+    }
+  }, []);
 
   useEffect(() => {
     const handleQuota = () => {
@@ -141,6 +165,57 @@ export default function App() {
     }
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    if (signingIn) return;
+    setSigningIn(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      toast.success('Signed in successfully');
+    } catch (error: any) {
+      const authError = error as AuthError;
+      if (authError.code === 'auth/user-not-found' || authError.code === 'auth/wrong-password' || authError.code === 'auth/invalid-credential') {
+        toast.error('Invalid email or password');
+        console.warn("Expected Auth Error (sign-in): Invalid credentials");
+      } else if (authError.code === 'auth/invalid-email') {
+        toast.error('Please enter a valid email address');
+        console.warn("Expected Auth Error (sign-in): Invalid email format");
+      } else {
+        console.error("Email sign-in error:", error);
+        toast.error(`Sign-in failed: ${authError.message}`);
+      }
+      throw error;
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    if (signingIn) return;
+    setSigningIn(true);
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      toast.success('Account created successfully');
+    } catch (error: any) {
+      const authError = error as AuthError;
+      if (authError.code === 'auth/email-already-in-use') {
+        toast.error('This email is already registered');
+        console.warn("Expected Auth Error (sign-up): Email already in use");
+      } else if (authError.code === 'auth/weak-password') {
+        toast.error('Password should be at least 6 characters');
+        console.warn("Expected Auth Error (sign-up): Weak password");
+      } else if (authError.code === 'auth/invalid-email') {
+        toast.error('Please enter a valid email address');
+        console.warn("Expected Auth Error (sign-up): Invalid email format");
+      } else {
+        console.error("Email sign-up error:", error);
+        toast.error(`Sign-up failed: ${authError.message}`);
+      }
+      throw error;
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
   const logoutRef = useRef(logout);
   useEffect(() => {
     logoutRef.current = logout;
@@ -162,6 +237,26 @@ export default function App() {
         unsubscribeProfile = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             setProfile({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
+          } else if (user.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') {
+            const adminProfile: UserProfile = {
+              uid: user.uid,
+              displayName: 'Principal Supervisor',
+              email: user.email || 'admin@fanamc.com',
+              role: UserRole.SYSTEM_ADMIN,
+              phoneNumber: '+251911000000',
+              department: 'Management',
+              approved: true,
+            };
+            setProfile(adminProfile);
+            setDoc(docRef, {
+              uid: user.uid,
+              displayName: 'Principal Supervisor',
+              email: user.email || 'admin@fanamc.com',
+              role: 'SYSTEM_ADMIN',
+              phoneNumber: '+251911000000',
+              department: 'Management',
+              approved: true,
+            }, { merge: true }).catch(err => console.error("Error creating superadmin profile:", err));
           } else {
             setProfile(null);
           }
@@ -191,7 +286,11 @@ export default function App() {
   }, []);
 
   const switchRole = () => {
-    setIsSelectingRole(true);
+    if (user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2' || profile?.role === UserRole.SYSTEM_ADMIN) {
+      setIsSelectingRole(true);
+    } else {
+      toast.error('Only the System Administrator is authorized to re-assign user roles.');
+    }
   };
 
   const authValue = useMemo(() => ({ 
@@ -201,9 +300,13 @@ export default function App() {
     loading, 
     signingIn, 
     signIn, 
+    signInWithEmail,
+    signUpWithEmail,
     logout, 
-    switchRole 
-  }), [user, profile, loading, signingIn, signIn, logout, switchRole]);
+    switchRole,
+    selectedPortalRole,
+    setSelectedPortalRole
+  }), [user, profile, loading, signingIn, signIn, signInWithEmail, signUpWithEmail, logout, switchRole, selectedPortalRole, setSelectedPortalRole]);
 
   if (loading) {
     return (
@@ -311,8 +414,12 @@ export default function App() {
         {/* Connection warning removed from UI to avoid clutter, will remain in background state */}
         {!user ? (
           <Login />
-        ) : (!profile || isSelectingRole) ? (
+        ) : ((!profile && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') || isSelectingRole) ? (
           <RoleSetup onComplete={() => setIsSelectingRole(false)} />
+        ) : (profile && !profile.approved && !profile.isPlaceholder && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
+          <PendingApproval />
+        ) : (profile?.role === UserRole.SYSTEM_ADMIN && user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
+          <SpecialAdminDashboard />
         ) : (
           <Layout>
             <Dashboard />

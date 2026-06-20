@@ -12,49 +12,113 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isRole(role) {
+      return isSignedIn() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function isSystemAdmin() {
+      return isSignedIn() && (
+        request.auth.uid == 'VSnotQzmWMfmqbeB144IJ2xhciq2' ||
+        isRole('SYSTEM_ADMIN')
+      );
+    }
+    
+    function isAdmin() {
+      return isRole('ADMIN') || isSystemAdmin();
+    }
+    
+    function isDeptDirector() {
+      return isRole('DEPT_DIRECTOR');
+    }
+    
+    function isTechnician() {
+      return isRole('TECHNICIAN') || isRole('DRIVER') || isRole('CAMERAMAN') || isRole('SECURITY');
+    }
+
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() 
+        && request.auth.uid == userId 
+        && request.resource.data.role != 'ADMIN' 
+        && request.resource.data.role != 'SYSTEM_ADMIN'
+        && !request.resource.data.keys().hasAny(['isVip']);
+      allow update: if isSignedIn() 
+        && (
+          isAdmin() || 
+          (request.auth.uid == userId 
+           && (request.resource.data.role == resource.data.role || isAdmin())
+           && !request.resource.data.keys().hasAny(['isVip'])
+          )
+        );
+      allow delete: if isAdmin();
     }
 
-    match /service_requests/{requestId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /camera_requests/{requestId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /vehicle_requests/{requestId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /item_requests/{requestId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /device_requests/{requestId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /guest_requests/{requestId} {
+    match /department_updates/{updateId} {
       allow read, write: if isSignedIn();
     }
 
     match /fleet/{fleetId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /sim_sms_logs/{logId} {
-      allow read, write: if isSignedIn();
+      allow create: if isSignedIn();
+      allow read, update, delete: if isSignedIn() && (isAdmin() || resource.data.recipientId == request.auth.uid);
     }
 
     match /notifications/{notificationId} {
-      allow read, write: if isSignedIn();
+      allow create: if isSignedIn();
+      allow read, update, delete: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
     }
-    
-    // Catch-all rules for nested collections
+
+    match /{collection}/{requestId} {
+      allow read: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests', 'guest_requests'] 
+        && isSignedIn() 
+        && (isAdmin() || isTechnician() || (isDeptDirector() && resource.data.directorId == request.auth.uid));
+      
+      allow create: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests', 'guest_requests']
+        && isDeptDirector() 
+        && request.resource.data.directorId == request.auth.uid 
+        && request.resource.data.status == 'NEW'
+        && (!request.resource.data.keys().hasAny(['isVip']))
+        && (!request.resource.data.keys().hasAll(['requestId']) || request.resource.data.requestId.size() < 128);
+        
+      allow update: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests', 'guest_requests']
+        && isSignedIn() && (
+          // Admin can do anything
+          isAdmin() 
+          ||
+          // Assigned technician can update status to ACCEPTED, IN_PROGRESS, COMPLETED
+          (isTechnician() 
+           && resource.data.assignedTechnicianId == request.auth.uid
+           && request.resource.data.status in ['ACCEPTED', 'IN_PROGRESS', 'COMPLETED']
+           && request.resource.data.assignedTechnicianId == resource.data.assignedTechnicianId
+           && request.resource.data.directorId == resource.data.directorId
+           && (!request.resource.data.keys().hasAny(['isVip']))
+          )
+          ||
+          // Director can status update to CONFIRMED or REOPENED
+          (isDeptDirector() 
+           && resource.data.directorId == request.auth.uid
+           && (
+             (resource.data.status == 'NEW' && request.resource.data.status == 'NEW') 
+             || (request.resource.data.status in ['NEW', 'COMPLETED'] && request.resource.data.status in ['CONFIRMED', 'CLOSED', 'REOPENED', 'NEW'])
+           )
+           && request.resource.data.directorId == resource.data.directorId
+           && (!request.resource.data.keys().hasAny(['isVip']))
+          )
+        );
+        
+      allow delete: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests', 'guest_requests']
+        && isAdmin() && resource.data.status != 'IN_PROGRESS';
+    }
+
+    // Default deny for everything else
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if false;
     }
   }
 }

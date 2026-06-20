@@ -31,7 +31,7 @@ import { useLanguage } from "../lib/LanguageContext";
 import { useFcmToken } from "../hooks/useFcmToken";
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { profile, logout, switchRole } = useAuth();
+  const { profile, logout, switchRole, selectedPortalRole, setSelectedPortalRole } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -208,8 +208,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     },
   ];
 
+  const activeRole = profile?.role;
+
   const filteredNav = navItems.filter(
-    (item) => profile && item.roles.includes(profile.role),
+    (item) => activeRole && item.roles.includes(activeRole),
   );
 
   return (
@@ -418,30 +420,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {profile?.displayName}
               </p>
               <p className="text-[9px] text-slate-900 font-black truncate uppercase tracking-tight">
-                {profile?.role === UserRole.ADMIN
+                {activeRole === UserRole.ADMIN
                   ? t('fmc_admin', 'FMC COMMAND CENTER')
-                  : profile?.role === UserRole.DEPT_DIRECTOR
+                  : activeRole === UserRole.DEPT_DIRECTOR
                     ? t('fmc_request', 'FMC DEPT OPS')
-                    : profile?.role === UserRole.TECHNICIAN
+                    : activeRole === UserRole.TECHNICIAN
                       ? t('fmc_engineers', 'FMC ENGINEERS')
-                      : profile?.role === UserRole.DRIVER
+                      : activeRole === UserRole.DRIVER
                         ? t('fmc_drivers', 'FMC DRIVERS')
-                        : profile?.role === UserRole.CAMERAMAN
+                        : activeRole === UserRole.CAMERAMAN
                           ? t('fmc_cameramen', 'FMC CAMERA OPERATORS')
-                          : profile?.role === UserRole.SECURITY
+                          : activeRole === UserRole.SECURITY
                             ? t('fmc_security', 'FMC SECURITY')
-                            : "AGENT"}
+                            : activeRole === UserRole.SYSTEM_ADMIN
+                              ? t('fmc_system_admin', 'SYSTEM ADMIN')
+                              : activeRole === UserRole.ALL_IN_ONE
+                                ? t('all_in_one', 'ALL IN ONE PORTAL')
+                                : "AGENT"}
               </p>
             </div>
           </div>
-          <button
-            id="switch-portal-btn"
-            onClick={switchRole}
-            className="w-full flex items-center gap-3 py-1 mb-4 text-dark-text-subtle hover:text-dark-accent transition-all font-medium text-[0.75rem] text-left cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            {t('switch_portal', 'Switch Portal')}
-          </button>
+          {(profile?.role === UserRole.SYSTEM_ADMIN || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
+            <button
+              id="switch-portal-btn"
+              onClick={switchRole}
+              className="w-full flex items-center gap-3 py-1 mb-4 text-dark-text-subtle hover:text-dark-accent transition-all font-medium text-[0.75rem] text-left cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              {t('switch_portal', 'Switch Portal')}
+            </button>
+          )}
           <button
             id="logout-btn"
             onClick={logout}
@@ -565,31 +573,38 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
                 <div>
                   <p className="font-bold text-slate-900">{profile?.displayName}</p>
-                  <p className="text-sm text-dark-text-subtle">
-                    {profile?.role === UserRole.ADMIN
+                  <p className="text-sm text-dark-text-subtle font-black uppercase tracking-tight">
+                    {activeRole === UserRole.ADMIN
                       ? t('fmc_admin', 'FMC COMMAND CENTER')
-                      : profile?.role === UserRole.DEPT_DIRECTOR
+                      : activeRole === UserRole.DEPT_DIRECTOR
                         ? t('fmc_request', 'FMC DEPT OPS')
-                        : profile?.role === UserRole.TECHNICIAN
+                        : activeRole === UserRole.TECHNICIAN
                           ? t('fmc_engineers', 'FMC ENGINEERS')
-                          : profile?.role === UserRole.DRIVER
+                          : activeRole === UserRole.DRIVER
                             ? t('fmc_drivers', 'FMC DRIVERS')
-                            : profile?.role === UserRole.CAMERAMAN
+                            : activeRole === UserRole.CAMERAMAN
                               ? t('fmc_cameramen', 'FMC CAMERA OPERATORS')
-                              : profile?.role === UserRole.SECURITY
+                              : activeRole === UserRole.SECURITY
                                 ? t('fmc_security', 'FMC SECURITY')
-                                : "AGENT"}
+                                : activeRole === UserRole.SYSTEM_ADMIN
+                                  ? t('fmc_system_admin', 'SYSTEM ADMIN')
+                                  : activeRole === UserRole.ALL_IN_ONE
+                                    ? t('all_in_one', 'ALL IN ONE PORTAL')
+                                    : "AGENT"}
                   </p>
                 </div>
               </div>
-              <button
-                id="mobile-switch-portal-btn"
-                onClick={switchRole}
-                className="w-full flex items-center justify-center gap-3 py-4 mb-4 rounded-2xl bg-dark-card text-dark-accent font-bold border border-dark-border cursor-pointer select-none"
-              >
-                <ArrowLeft className="w-6 h-6" />
-                {t('switch_portal', 'Switch Portal')}
-              </button>
+
+              {(profile?.role === UserRole.SYSTEM_ADMIN || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
+                <button
+                  id="mobile-switch-portal-btn"
+                  onClick={switchRole}
+                  className="w-full flex items-center justify-center gap-3 py-4 mb-4 rounded-2xl bg-dark-card text-dark-accent font-bold border border-dark-border cursor-pointer select-none"
+                >
+                  <ArrowLeft className="w-6 h-6" />
+                  {t('switch_portal', 'Switch Portal')}
+                </button>
+              )}
               <button
                 onClick={logout}
                 className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-dark-card text-red-400 font-bold border border-dark-border cursor-pointer select-none"
@@ -606,16 +621,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-10 overflow-x-hidden">
         {/* Portal Navigation Header */}
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-dark-border">
-          <button
-            id="portal-back-btn"
-            onClick={switchRole}
-            className="group flex items-center gap-3 text-dark-text-subtle hover:text-dark-accent transition-all text-xs font-black uppercase tracking-[0.2em]"
-          >
-            <div className="w-8 h-8 rounded-full bg-dark-card border border-dark-border flex items-center justify-center group-hover:border-dark-accent group-hover:bg-dark-accent/10 transition-all">
-              <ArrowLeft className="w-4 h-4" />
+          {(profile?.role === UserRole.SYSTEM_ADMIN || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
+            <button
+              id="portal-back-btn"
+              onClick={switchRole}
+              className="group flex items-center gap-3 text-dark-text-subtle hover:text-dark-accent transition-all text-xs font-black uppercase tracking-[0.2em]"
+            >
+              <div className="w-8 h-8 rounded-full bg-dark-card border border-dark-border flex items-center justify-center group-hover:border-dark-accent group-hover:bg-dark-accent/10 transition-all">
+                <ArrowLeft className="w-4 h-4" />
+              </div>
+              {t('portal_selection', 'Portal Selection')}
+            </button>
+
+          ) : (
+            <div className="flex items-center gap-3 select-none">
+              <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-150 flex items-center justify-center text-dark-accent shadow-sm">
+                <Users className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+              </div>
+              <div>
+                <span className="text-[9px] text-dark-text-subtle font-black uppercase tracking-widest block leading-none">
+                  {t('active_session_badge', 'SECURED ACTIVE WORKSTATION')}
+                </span>
+                <span className="text-xs font-black text-slate-800 font-sans mt-1 block leading-none">
+                  {profile?.displayName || useAuth().user?.displayName || "ACTIVED AGENT"}
+                </span>
+              </div>
             </div>
-            {t('portal_selection', 'Portal Selection')}
-          </button>
+          )}
           <div className="text-right hidden sm:block">
             <span className="text-[10px] text-dark-text-subtle font-black uppercase tracking-widest block mb-1">
               {t('system_context', 'SYSTEM CONTEXT')}
@@ -623,19 +655,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-2 justify-end">
               <div className="w-2 h-2 rounded-full bg-dark-accent animate-pulse"></div>
               <span className="text-xs font-bold text-slate-900 uppercase tracking-tight">
-                {profile?.role === UserRole.ADMIN
+                {activeRole === UserRole.ADMIN
                   ? t('fmc_admin', 'FMC COMMAND CENTER')
-                  : profile?.role === UserRole.DEPT_DIRECTOR
+                  : activeRole === UserRole.DEPT_DIRECTOR
                     ? t('fmc_request', 'FMC DEPT OPS')
-                    : profile?.role === UserRole.TECHNICIAN
+                    : activeRole === UserRole.TECHNICIAN
                       ? t('fmc_engineers', 'FMC ENGINEERS')
-                      : profile?.role === UserRole.DRIVER
+                      : activeRole === UserRole.DRIVER
                         ? t('fmc_drivers', 'FMC DRIVERS')
-                        : profile?.role === UserRole.CAMERAMAN
+                        : activeRole === UserRole.CAMERAMAN
                           ? t('fmc_cameramen', 'FMC CAMERA OPERATORS')
-                          : profile?.role === UserRole.SECURITY
+                          : activeRole === UserRole.SECURITY
                             ? t('fmc_security', 'FMC SECURITY')
-                            : "AGENT"}{" "}
+                            : activeRole === UserRole.SYSTEM_ADMIN
+                              ? t('fmc_system_admin', 'SYSTEM ADMIN')
+                              : activeRole === UserRole.ALL_IN_ONE
+                                ? t('all_in_one', 'ALL IN ONE PORTAL')
+                                : "AGENT"}{" "}
                 {t('portal', 'PORTAL')}
               </span>
             </div>

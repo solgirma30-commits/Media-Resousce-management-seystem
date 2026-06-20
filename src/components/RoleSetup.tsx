@@ -81,6 +81,18 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
       bg: 'bg-orange-500/10',
       border: 'border-orange-500/20',
     },
+
+    ...(user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2' ? [
+      {
+        id: UserRole.SYSTEM_ADMIN,
+        title: 'SYSTEM ADMIN',
+        description: 'Global registry directory, records search & safety oversight.',
+        icon: Shield,
+        color: 'text-rose-400',
+        bg: 'bg-rose-500/10',
+        border: 'border-rose-500/20',
+      }
+    ] : []),
   ];
 
   const handleComplete = async () => {
@@ -118,6 +130,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
         role: selectedRole,
         department: department || null,
         updatedAt: serverTimestamp(),
+        approved: existingProfile ? (existingProfile.approved || false) : false,
       };
 
       if (!existingProfile) {
