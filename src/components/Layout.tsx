@@ -12,6 +12,7 @@ import {
   TowerControl as Control,
   ArrowLeft,
   Globe,
+  Shield,
 } from "lucide-react";
 import {
   collection,
@@ -29,11 +30,13 @@ import { cn } from "../lib/utils";
 import { notificationService } from "../services/notificationService";
 import { useLanguage } from "../lib/LanguageContext";
 import { useFcmToken } from "../hooks/useFcmToken";
+import { MfaEnrollmentModal } from "./MfaEnrollmentModal";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { profile, logout, switchRole, selectedPortalRole, setSelectedPortalRole } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMfaOpen, setIsMfaOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const { token, permission, requestNotificationPermission } = useFcmToken();
@@ -451,6 +454,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </button>
           )}
           <button
+            id="mfa-settings-btn"
+            onClick={() => setIsMfaOpen(true)}
+            className="w-full flex items-center gap-3 py-1 mb-2 text-dark-text-subtle hover:text-dark-accent transition-all font-medium text-[0.75rem] text-left cursor-pointer"
+          >
+            <Shield className="w-3.5 h-3.5 text-[#3b82f6]" />
+            <span>{t('mfa_settings_sidebar', 'Account Security (MFA)')}</span>
+          </button>
+          <button
             id="logout-btn"
             onClick={logout}
             className="w-full flex items-center gap-3 py-1 text-dark-text-subtle hover:text-red-400 transition-all font-medium text-[0.75rem] text-left cursor-pointer"
@@ -606,6 +617,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </button>
               )}
               <button
+                id="mobile-mfa-settings-btn"
+                onClick={() => {
+                  setIsMfaOpen(true);
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-3 py-4 mb-2 rounded-2xl bg-dark-card text-indigo-400 font-bold border border-dark-border cursor-pointer select-none"
+              >
+                <Shield className="w-6 h-6 text-[#3b82f6]" />
+                <span>{t('mfa_settings_sidebar', 'Account Security (MFA)')}</span>
+              </button>
+              <button
                 onClick={logout}
                 className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-dark-card text-red-400 font-bold border border-dark-border cursor-pointer select-none"
               >
@@ -734,6 +756,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isMfaOpen && (
+          <MfaEnrollmentModal onClose={() => setIsMfaOpen(false)} />
         )}
       </AnimatePresence>
     </div>

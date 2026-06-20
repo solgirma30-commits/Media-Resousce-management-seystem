@@ -29,6 +29,7 @@ import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth, UserRole } from '../../App';
 import { useLanguage } from '../../lib/LanguageContext';
 import { toast } from 'react-hot-toast';
+import { MfaEnrollmentModal } from '../MfaEnrollmentModal';
 
 interface FirestoreUser {
   id: string; // Document ID is uid
@@ -43,6 +44,8 @@ interface FirestoreUser {
   photoURL?: string | null;
   approved?: boolean;
   isPlaceholder?: boolean;
+  mfaEnabled?: boolean;
+  mfaSecret?: string;
 }
 
 export function SpecialAdminDashboard() {
@@ -50,6 +53,7 @@ export function SpecialAdminDashboard() {
   const { t } = useLanguage();
 
   const [users, setUsers] = useState<FirestoreUser[]>([]);
+  const [isMfaOpen, setIsMfaOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
@@ -290,6 +294,14 @@ export function SpecialAdminDashboard() {
               <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping" />
               SYSTEM OVERLORD Authorized
             </span>
+            <button 
+              id="mfa-settings-btn"
+              onClick={() => setIsMfaOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100/85 rounded-xl text-xs font-bold text-indigo-705 transition-all cursor-pointer"
+            >
+              <Shield className="w-3.5 h-3.5 " />
+              <span>Cybersecurity (MFA)</span>
+            </button>
             <button 
               id="switch-portal-btn"
               onClick={() => switchRole()}
@@ -580,6 +592,15 @@ export function SpecialAdminDashboard() {
                                 ) : (
                                   <span className="inline-block text-[8px] font-black px-2 py-0.5 rounded bg-amber-50 border border-amber-100 text-amber-600 uppercase tracking-wider animate-pulse">
                                     PENDING
+                                  </span>
+                                )}
+                                {usr.mfaEnabled === true ? (
+                                  <span className="inline-block text-[8px] font-black px-2 py-0.5 rounded bg-blue-50 border border-blue-100 text-indigo-700 uppercase tracking-wider">
+                                    MFA ACTIVE
+                                  </span>
+                                ) : (
+                                  <span className="inline-block text-[8px] font-black px-2 py-0.5 rounded bg-slate-50 border border-slate-100 text-slate-400 uppercase tracking-wider">
+                                    NO MFA
                                   </span>
                                 )}
                               </div>
@@ -894,6 +915,12 @@ export function SpecialAdminDashboard() {
 
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isMfaOpen && (
+          <MfaEnrollmentModal onClose={() => setIsMfaOpen(false)} />
         )}
       </AnimatePresence>
     </div>

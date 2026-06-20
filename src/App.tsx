@@ -30,6 +30,7 @@ import { SpecialAdminDashboard } from './components/dashboards/SpecialAdminDashb
 import { PendingApproval } from './components/PendingApproval';
 import { LanguageProvider } from './lib/LanguageContext';
 import { AlertTriangle, Database, ExternalLink, RefreshCw } from 'lucide-react';
+import { MfaChallenge } from './components/MfaChallenge';
 
 export enum UserRole {
   ADMIN = 'ADMIN',
@@ -51,6 +52,8 @@ interface UserProfile {
   phoneNumber?: string;
   fcmToken?: string;
   approved?: boolean;
+  mfaEnabled?: boolean;
+  mfaSecret?: string;
 }
 
 interface AuthContextType {
@@ -83,6 +86,9 @@ export default function App() {
   const [signingIn, setSigningIn] = useState(false);
   const [isSelectingRole, setIsSelectingRole] = useState(false);
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+  const [mfaPassed, setMfaPassed] = useState<boolean>(() => {
+    return sessionStorage.getItem('fmc_mfa_passed') === 'true';
+  });
   const [selectedPortalRole, setSelectedPortalRoleState] = useState<UserRole | null>(() => {
     const saved = localStorage.getItem('fmc_selected_portal_role');
     return saved ? (saved as UserRole) : null;
@@ -275,6 +281,8 @@ export default function App() {
         });
       } else {
         setProfile(null);
+        setMfaPassed(false);
+        sessionStorage.removeItem('fmc_mfa_passed');
         setLoading(false);
       }
     });
@@ -414,6 +422,16 @@ export default function App() {
         {/* Connection warning removed from UI to avoid clutter, will remain in background state */}
         {!user ? (
           <Login />
+        ) : (profile?.mfaEnabled && !mfaPassed) ? (
+          <MfaChallenge
+            displayName={profile.displayName || user.displayName || user.email}
+            mfaSecret={profile.mfaSecret || ''}
+            onSuccess={() => {
+              setMfaPassed(true);
+              sessionStorage.setItem('fmc_mfa_passed', 'true');
+            }}
+            onLogout={logout}
+          />
         ) : ((!profile && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') || isSelectingRole) ? (
           <RoleSetup onComplete={() => setIsSelectingRole(false)} />
         ) : (profile && !profile.approved && !profile.isPlaceholder && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
