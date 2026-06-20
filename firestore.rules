@@ -40,15 +40,20 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() 
-        && request.auth.uid == userId 
-        && request.resource.data.role != 'ADMIN' 
-        && request.resource.data.role != 'SYSTEM_ADMIN'
-        && !request.resource.data.keys().hasAny(['isVip']);
+        && (
+          isAdmin() ||
+          (request.auth.uid == userId 
+           && request.resource.data.role != 'SYSTEM_ADMIN'
+           && (request.resource.data.approved == false || !('approved' in request.resource.data))
+           && !request.resource.data.keys().hasAny(['isVip'])
+          )
+        );
       allow update: if isSignedIn() 
         && (
           isAdmin() || 
           (request.auth.uid == userId 
-           && (request.resource.data.role == resource.data.role || isAdmin())
+           && (request.resource.data.approved == resource.data.approved || !('approved' in resource.data))
+           && request.resource.data.role != 'SYSTEM_ADMIN'
            && !request.resource.data.keys().hasAny(['isVip'])
           )
         );
