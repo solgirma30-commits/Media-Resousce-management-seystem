@@ -278,14 +278,15 @@ async function startServer() {
       console.log(`[SMS Gateway] Processing: "${to}" -> "${formattedTo}" (Final Digits: ${clean.length})`);
       
       // Basic validation: Ethiopian E.164 numbers should be exactly 12 digits (+ and 12 digits)
-      if (clean.length !== 12 && clean.startsWith('251')) {
-        console.warn(`[SMS Gateway] Warning: Potential invalid number length (${clean.length}). Expected 12 digits for Ethiopia (+251 9... or +251 7...).`);
+      if (clean.length !== 12 && !clean.startsWith('1') && !clean.startsWith('251')) {
+         console.warn(`[SMS Gateway] Warning: Potential invalid number length (${clean.length}).`);
       }
 
       if (!twilioClient) {
         twilioClient = twilio(accountSid, authToken);
       }
       
+      console.log(`[SMS Gateway] Sending to ${formattedTo} from ${from}`);
       const result = await twilioClient.messages.create({
         body: message,
         to: formattedTo,

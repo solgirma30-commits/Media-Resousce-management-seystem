@@ -10,7 +10,7 @@ export function generateTOTPCode(secret: string, step = 30): string {
   // Calculate current epoch slot (changes every 30s)
   const epoch = Math.floor(Date.now() / 1000 / step);
   
-  // Create a repeatable polynomial hash from secret + epoch
+  // Create a repeatable polynomial hash from secret + epoc
   let hash = 0;
   const combinedStr = `${secret}_fmc_totp_${epoch}`;
   

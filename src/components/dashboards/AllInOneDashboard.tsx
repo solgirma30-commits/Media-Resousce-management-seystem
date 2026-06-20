@@ -478,7 +478,7 @@ export function AllInOneDashboard() {
                 <tbody className="divide-y divide-dark-border/40">
                   {portalTasks.map((task, idx) => (
                     <tr 
-                      key={`${task.collectionName}-${task.id}`}
+                      key={`${task.collectionName}-${task.id}-${idx}`}
                       className={cn(
                         "group transition-all hover:bg-dark-main/30 animate-in fade-in slide-in-from-bottom-2 duration-300",
                         selectedIds.has(task.id) ? "bg-dark-accent/5" : ""

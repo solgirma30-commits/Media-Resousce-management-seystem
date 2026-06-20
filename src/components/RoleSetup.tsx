@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Shield, UserRound, Wrench, ArrowRight, Truck, Camera, Globe } from 'lucide-react';
+import { Shield, UserRound, Wrench, ArrowRight, Truck, Camera, Globe, Eye, EyeOff } from 'lucide-react';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth, UserRole } from '../App';
@@ -16,6 +16,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
   const [phoneNumber, setPhoneNumber] = useState(existingProfile?.phoneNumber || '');
   const [department, setDepartment] = useState(existingProfile?.department || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const roles = [
     {
@@ -252,13 +253,22 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
             </div>
             <div>
               <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t('role_contact_password', 'Password / Contact Number')}</label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm font-mono"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="w-full px-5 py-4 rounded-lg bg-dark-main border border-dark-border text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all placeholder:text-dark-text-subtle text-sm font-mono pr-12"
+                />
+                <button
+                  type="button"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-text-subtle hover:text-black"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>

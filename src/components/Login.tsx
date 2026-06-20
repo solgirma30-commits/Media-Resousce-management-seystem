@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Cpu, Globe, Mail, Lock, LogIn, UserPlus } from 'lucide-react';
+import { Cpu, Globe, Mail, Lock, LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../App';
 import { useLanguage } from '../lib/LanguageContext';
 import { toast } from 'react-hot-toast';
@@ -14,6 +14,8 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,13 +257,20 @@ export function Login() {
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-black placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
+                className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-black placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
               />
+              <button
+                type="button"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
@@ -277,13 +286,20 @@ export function Login() {
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-black placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
+                  className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-black placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-all"
                 />
+                <button
+                  type="button"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </motion.div>
           )}

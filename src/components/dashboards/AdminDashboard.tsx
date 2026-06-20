@@ -34,7 +34,10 @@ import {
   TowerControl,
   Maximize2,
   Minimize2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { LogOut, } from "lucide-react";
 import {
   collection,
   query,
@@ -156,6 +159,7 @@ export function AdminDashboard() {
     new Set(),
   );
   const [unlockPassword, setUnlockPassword] = useState("");
+  const [showUnlockPassword, setShowUnlockPassword] = useState(false);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{
     type: "APPROVE" | "ASSIGN";
@@ -696,11 +700,14 @@ export function AdminDashboard() {
               createdAt: serverTimestamp(),
             });
 
-            // 2. Dispatch real/simulated FCM Push Notification so a popup alert lands on their mobile phone even if closed
+            // 2. Dispatch real/simulated FCM Push Notification for both target and director
             const uDetails = userMap.get(targetUserId);
+            const dDetails = directorId ? userMap.get(directorId) : null;
+            
+            const notifyPromises = [];                
             if (uDetails?.fcmToken) {
-              try {
-                await fetch("/api/send-fcm-notification", {
+              notifyPromises.push(
+                fetch("/api/send-fcm-notification", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -710,11 +717,25 @@ export function AdminDashboard() {
                     requestId,
                     fcmToken: uDetails.fcmToken,
                   }),
-                });
-              } catch (fcmErr) {
-                console.error("FCM background popup failed:", fcmErr);
-              }
+                }).catch(e => console.error("FCM target notification failed:", e))
+              );
             }
+            if (dDetails?.fcmToken && dDetails.uid !== targetUserId) {
+              notifyPromises.push(
+                fetch("/api/send-fcm-notification", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    targetUserId: dDetails.uid,
+                    title,
+                    body: message,
+                    requestId,
+                    fcmToken: dDetails.fcmToken,
+                  }),
+                }).catch(e => console.error("FCM director notification failed:", e))
+              );
+            }
+            await Promise.all(notifyPromises);
           },
         );
         await Promise.all(clearancePromises);
@@ -834,16 +855,21 @@ export function AdminDashboard() {
 
       await updateDoc(doc(db, colName, requestId), updateData);
 
-      // Create notification for director
-      if (directorId) {
-        const dirNotifId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
-        const dirTitle = `[APPROVED] Request Assigned`;
-        const dirMessage = `Your request for "${displayName}" is approved and ${names} is assigned for your request.`;
+      // Create notification for director/requestor
+      const requestorId = req?.userId;
+      const audienceIds = new Set<string>();
+      if (directorId) audienceIds.add(directorId);
+      if (requestorId) audienceIds.add(requestorId);
+      
+      for (const targetUserId of audienceIds) {
+        const notifId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${targetUserId}`;
+        const title = `[APPROVED] Request Assigned`;
+        const message = `Your request for "${displayName}" is approved and ${names} is assigned for your request.`;
 
-        await setDoc(doc(db, "notifications", dirNotifId), {
-          userId: directorId,
-          title: dirTitle,
-          message: dirMessage,
+        await setDoc(doc(db, "notifications", notifId), {
+          userId: targetUserId,
+          title: title,
+          message: message,
           read: false,
           type: "APPROVAL_ASSIGNMENT",
           requestId: requestId,
@@ -3705,14 +3731,21 @@ export function AdminDashboard() {
                   <div className="relative">
                     <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-text-subtle" />
                     <input
-                      type="password"
+                      type={showUnlockPassword ? "text" : "password"}
                       value={unlockPassword}
                       onChange={(e) => setUnlockPassword(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
                       placeholder="••••"
                       autoFocus
-                      className="w-full bg-dark-main border border-dark-border rounded-xl pl-12 pr-4 py-4 text-white focus:ring-2 focus:ring-amber-500/20 outline-none transition-all placeholder:text-dark-text-muted text-center tracking-[0.5em] text-2xl font-black"
+                      className="w-full bg-dark-main border border-dark-border rounded-xl pl-12 pr-12 py-4 text-white focus:ring-2 focus:ring-amber-500/20 outline-none transition-all placeholder:text-dark-text-muted text-center tracking-[0.5em] text-2xl font-black"
                     />
+                    <button
+                      type="button"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-text-subtle hover:text-white"
+                      onClick={() => setShowUnlockPassword(!showUnlockPassword)}
+                    >
+                      {showUnlockPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 pt-4">
