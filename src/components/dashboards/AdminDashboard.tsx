@@ -861,9 +861,8 @@ export function AdminDashboard() {
       }
 
       // Create notification for director/requestor
-      const requestorId = req?.userId;
+      const requestorId = req?.userId || req?.directorId || directorId;
       const audienceIds = new Set<string>();
-      if (directorId) audienceIds.add(directorId);
       if (requestorId) audienceIds.add(requestorId);
       
       for (const targetUserId of audienceIds) {

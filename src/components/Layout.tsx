@@ -36,6 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [activePopup, setActivePopup] = useState<{ id: string; title: string; message: string } | null>(null);
   const { token, permission, requestNotificationPermission } = useFcmToken();
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>("default");
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
@@ -111,6 +112,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 url: newNotif.requestId ? `/services?id=${newNotif.requestId}` : '/'
               }
             });
+
+            // Set the on-screen overlay modal for highly visible real-time alert pop-ups
+            if (isVeryRecent) {
+              setActivePopup({
+                id: notifId,
+                title: newNotif.title,
+                message: newNotif.message,
+              });
+            }
           }
         });
 
@@ -734,6 +744,61 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Real-time Interactive On-Screen Popup Notification Modal */}
+      <AnimatePresence>
+        {activePopup && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              transition={{ type: "spring", duration: 0.4 }}
+              className="bg-white rounded-3xl border border-indigo-100 p-6 max-w-md w-full shadow-2xl relative overflow-hidden text-slate-800"
+            >
+              {/* Vibrant Accent Strip */}
+              <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 via-indigo-600 to-indigo-500 animate-gradient" />
+              
+              <div className="flex items-start gap-4">
+                <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl shrink-0 mt-1 animate-pulse border border-indigo-100">
+                  <Bell className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div className="space-y-2 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                      {activePopup.title}
+                    </h3>
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700 leading-relaxed">
+                    {activePopup.message}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    ⚡ Safe Dispatch Live Screen alert
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  onClick={async () => {
+                    // Mark as read in Firestore to keep the notifications list sync clean
+                    try {
+                      await updateDoc(doc(db, "notifications", activePopup.id), { read: true });
+                    } catch (e) {
+                      console.error("Failed to mark popup notification as read:", e);
+                    }
+                    setActivePopup(null);
+                  }}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-900/20 active:scale-95 cursor-pointer"
+                >
+                  OK, DISMISS
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

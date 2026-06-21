@@ -18,11 +18,15 @@ import {
   doc, 
   onSnapshot,
   getDocFromServer,
-  setDoc
+  setDoc,
+  collection,
+  query,
+  where
 } from 'firebase/firestore';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth, db } from './lib/firebase';
 import { Layout } from './components/Layout';
+import { notificationService } from './services/notificationService';
 import { Login } from './components/Login';
 import { RoleSetup } from './components/RoleSetup';
 import { Dashboard } from './components/Dashboard';
@@ -285,6 +289,121 @@ export default function App() {
       if (unsubscribeProfile) unsubscribeProfile();
     };
   }, []);
+
+  // Real-time notification listener for status changes and browser push alerts
+  const appNotifiedIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user) return;
+
+    const notifiedIds = appNotifiedIds.current;
+    let isFirstLoad = true;
+
+    // We listen to the root notifications collection where userId matches the current user
+    const qRoot = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('read', '==', false)
+    );
+
+    const handleSnapshotDocs = (change: any) => {
+      if (change.type === 'added') {
+        const notifId = change.doc.id;
+        const newNotif = change.doc.data();
+
+        if (notifiedIds.has(notifId)) return;
+        notifiedIds.add(notifId);
+
+        const secondsAgo = newNotif.createdAt?.seconds 
+          ? (Date.now() / 1000) - newNotif.createdAt.seconds 
+          : null;
+        // Created within the last 5 minutes
+        const isVeryRecent = secondsAgo === null || (secondsAgo > -300 && secondsAgo < 300);
+
+        if (isFirstLoad && !isVeryRecent) return;
+
+        // Check if status changed or request update
+        const titleText = newNotif.title || '';
+        const msgText = newNotif.message || '';
+        const notifType = newNotif.type || '';
+
+        // Match status change indicators, assignments, completions, or special types
+        const isStatusChange = 
+          notifType === 'status_change' || 
+          notifType === 'COMPLETION' || 
+          ['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'REJECTED', 'APPROVED'].includes(notifType) ||
+          titleText.toLowerCase().includes('status') ||
+          titleText.toLowerCase().includes('update') ||
+          titleText.toLowerCase().includes('accepted') ||
+          titleText.toLowerCase().includes('progress') ||
+          titleText.toLowerCase().includes('completed') ||
+          msgText.toLowerCase().includes('status') ||
+          msgText.toLowerCase().includes('marked as') ||
+          msgText.toLowerCase().includes('updated');
+
+        if (isStatusChange) {
+          notificationService.notify(titleText, {
+            body: msgText,
+            tag: `status-change-${notifId}`,
+          });
+        }
+      }
+    };
+
+    // Subscribing to the root notifications collection
+    const unsubscribeRoot = onSnapshot(
+      qRoot,
+      (snapshot) => {
+        snapshot.docChanges().forEach(handleSnapshotDocs);
+        isFirstLoad = false;
+      },
+      (error) => {
+        console.error("App notification listener error:", error);
+      }
+    );
+
+    // Also support sub-collection under user profile to be fully matching the 'notifications' sub-collection description
+    const qSub = collection(db, 'users', user.uid, 'notifications');
+    let isFirstLoadSub = true;
+    const unsubscribeSub = onSnapshot(
+      qSub,
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const notifId = change.doc.id;
+            const newNotif = change.doc.data();
+
+            if (notifiedIds.has(notifId)) return;
+            notifiedIds.add(notifId);
+
+            const secondsAgo = newNotif.createdAt?.seconds 
+              ? (Date.now() / 1000) - newNotif.createdAt.seconds 
+              : null;
+            const isVeryRecent = secondsAgo === null || (secondsAgo > -300 && secondsAgo < 300);
+
+            if (isFirstLoadSub && !isVeryRecent) return;
+
+            const titleText = newNotif.title || '';
+            const msgText = newNotif.message || '';
+            
+            notificationService.notify(titleText, {
+              body: msgText,
+              tag: `sub-status-change-${notifId}`,
+            });
+          }
+        });
+        isFirstLoadSub = false;
+      },
+      (error) => {
+        // Silently skip if subcollection does not exist or lacks permission
+        console.log("App subcollection notification listener skipped", error);
+      }
+    );
+
+    return () => {
+      unsubscribeRoot();
+      unsubscribeSub();
+    };
+  }, [user]);
 
   const switchRole = () => {
     if (user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2' || profile?.role === UserRole.SYSTEM_ADMIN) {
