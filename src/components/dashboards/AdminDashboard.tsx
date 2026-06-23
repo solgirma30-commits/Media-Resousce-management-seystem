@@ -38,6 +38,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { LogOut, } from "lucide-react";
+import { UserProfile } from "../../App";
 import {
   collection,
   query,
@@ -649,10 +650,7 @@ export function AdminDashboard() {
       }
 
       const deptName = req?.departmentName || req?.department || "";
-      const userMap = new Map<
-        string,
-        { fcmToken?: string; displayName?: string }
-      >();
+      const userMap = new Map<string, Partial<UserProfile>>();
 
       if (directorId && !userMap.has(directorId)) {
         try {
@@ -855,7 +853,7 @@ export function AdminDashboard() {
 
       await updateDoc(doc(db, colName, requestId), updateData);
       
-      const userMap = new Map<string, { fcmToken?: string }>();
+      const userMap = new Map<string, Partial<UserProfile>>();
       for (const t of allUsers) {
         userMap.set(t.id, { fcmToken: t.fcmToken });
       }

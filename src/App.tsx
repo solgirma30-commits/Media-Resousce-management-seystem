@@ -47,11 +47,12 @@ export enum UserRole {
   SYSTEM_ADMIN = 'SYSTEM_ADMIN'
 }
 
-interface UserProfile {
+export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
   role: UserRole;
+  roles?: UserRole[]; // Added roles array for multiple portal access
   department?: string;
   phoneNumber?: string;
   fcmToken?: string;

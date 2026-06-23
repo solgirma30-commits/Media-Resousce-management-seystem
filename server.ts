@@ -5,6 +5,7 @@ import twilio from "twilio";
 import fs from "fs";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 dotenv.config();
 
@@ -40,6 +41,23 @@ function getAdminDb() {
   return adminDbInstance;
 }
 
+function getAdminApp() {
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    let projectId = process.env.GOOGLE_CLOUD_PROJECT || "gen-lang-client-0274556355";
+    try {
+        if (fs.existsSync(configPath)) {
+            const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+            if (firebaseConfig.projectId) projectId = firebaseConfig.projectId;
+        }
+    } catch (e) {
+        console.error("Failed to read firebase-applet-config.json", e);
+    }
+    if (getApps().length === 0) {
+        return initializeApp({ projectId });
+    }
+    return getApps()[0];
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -52,6 +70,21 @@ async function startServer() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", environment: process.env.NODE_ENV || "development" });
+  });
+
+  app.get("/api/firebase-users", async (req, res) => {
+    try {
+      const auth = getAuth(getAdminApp());
+      const listUsersResult = await auth.listUsers();
+      res.json(listUsersResult.users);
+    } catch (error: any) {
+      if (!(error.code === 'auth/internal-error' && error.message.includes('Identity Toolkit API'))) {
+          console.error("Error listing users:", error);
+      }
+      // Return empty array to allow frontend to continue functioning without Auth API
+      res.setHeader('Content-Type', 'application/json');
+      res.json([]);
+    }
   });
 
   app.post("/api/dispatch-personnel", async (req, res) => {

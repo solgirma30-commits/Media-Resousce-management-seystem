@@ -218,7 +218,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     },
   ];
 
-  const activeRole = profile?.role;
+  const activeRole = selectedPortalRole || profile?.role;
 
   const filteredNav = navItems.filter(
     (item) => activeRole && item.roles.includes(activeRole),

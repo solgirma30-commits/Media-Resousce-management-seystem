@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, 
@@ -42,6 +42,7 @@ interface FirestoreUser {
   email: string | null;
   displayName: string | null;
   role: UserRole | string;
+  roles?: UserRole[] | string[]; // Added roles array
   department?: string | null;
   phoneNumber?: string | null;
   createdAt?: any;
@@ -65,7 +66,7 @@ export function SpecialAdminDashboard() {
   
   // Role Edit states
   const [isEditingRole, setIsEditingRole] = useState(false);
-  const [tempRole, setTempRole] = useState<string>('');
+  const [tempRoles, setTempRoles] = useState<string[]>([]);
   const [isSavingRole, setIsSavingRole] = useState(false);
 
   // Phone Edit states
@@ -150,23 +151,63 @@ export function SpecialAdminDashboard() {
 
     const unsubscribe = onSnapshot(
       q,
-      (snapshot) => {
-        const fetchedUsers: FirestoreUser[] = snapshot.docs.map((d) => ({
+      async (snapshot) => {
+        const firestoreUsers = snapshot.docs.map((d) => ({
           id: d.id,
           uid: d.id,
           ...d.data()
         } as FirestoreUser));
         
+        // Fetch users from Auth API
+        let authUsers: FirestoreUser[] = [];
+        try {
+          const res = await fetch('/api/firebase-users');
+          if (res.ok) {
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+              const data = await res.json();
+              if (Array.isArray(data)) {
+                authUsers = data.map((d: any) => ({
+                  id: d.uid,
+                  uid: d.uid,
+                  email: d.email || null,
+                  displayName: d.displayName || null,
+                  role: 'GUEST',
+                  approved: false,
+                  isPlaceholder: false
+                } as FirestoreUser));
+              }
+            } else {
+              console.error("Auth API response is not JSON");
+            }
+          } else {
+            console.error("Auth API fetch failed with status", res.status);
+          }
+        } catch (e) {
+          console.error("Auth API fetch failed", e);
+        }
+
+        // Merge collections: prioritize firestoreUser (for roles/approval status), fallback to authUser
+        const mergedUsers = [...authUsers];
+        firestoreUsers.forEach(fUser => {
+            const index = mergedUsers.findIndex(aUser => aUser.id === fUser.id);
+            if(index !== -1) {
+                mergedUsers[index] = fUser;
+            } else {
+                mergedUsers.push(fUser);
+            }
+        });
+
         const latency = Math.round(performance.now() - startTime);
         setDbInitialLoadTime(latency);
-        setSessionReads(prev => prev + snapshot.docs.length);
+        setSessionReads(snapshot.docs.length);
         
         addTelemetryLog(
-          `Directory synced successfully. Synced ${fetchedUsers.length} user record packages in ${latency}ms.`,
+          `Directory synced successfully. Synced ${mergedUsers.length} total user records in ${latency}ms.`,
           'success'
         );
         
-        setUsers(fetchedUsers);
+        setUsers(mergedUsers);
         setLoading(false);
       },
       (error) => {
@@ -194,7 +235,7 @@ export function SpecialAdminDashboard() {
     const diagnosticTimer = setInterval(() => {
       // Intentionally simulate active server checkups to showcase live health
       setApiPing(prev => {
-        const diff = Math.floor(Math.random() * 11) - 5; // -5 to +5
+        const diff = Math.floor(Math.random() * 2) - 1; // -1 to +1
         const next = prev + diff;
         return next > 90 ? 90 : next < 25 ? 25 : next;
       });
@@ -267,17 +308,18 @@ export function SpecialAdminDashboard() {
   const handleUpdateRole = async () => {
     if (!selectedUser) return;
     setIsSavingRole(true);
-    addTelemetryLog(`Initiating UPDATE on /users/${selectedUser.id} - shifting role to ${tempRole}`, 'info');
+    addTelemetryLog(`Initiating UPDATE on /users/${selectedUser.id} - shifting roles to [${tempRoles.join(', ')}]`, 'info');
     try {
       const userRef = doc(db, 'users', selectedUser.id);
       await updateDoc(userRef, {
-        role: tempRole,
+        role: tempRoles[0] || selectedUser.role, // Keep first as primary
+        roles: tempRoles,
         updatedAt: new Date()
       });
-      toast.success(`Role upgraded to ${tempRole} successfully`);
-      addTelemetryLog(`UPDATE committed successfully for /users/${selectedUser.id}. Role changed.`, 'success');
+      toast.success(`Roles updated for ${selectedUser.displayName}`);
+      addTelemetryLog(`UPDATE committed successfully for /users/${selectedUser.id}. Roles changed.`, 'success');
       setSessionWrites(prev => prev + 1);
-      setSelectedUser(prev => prev ? { ...prev, role: tempRole } : null);
+      setSelectedUser(prev => prev ? { ...prev, role: tempRoles[0] || prev.role, roles: tempRoles } : null);
       setIsEditingRole(false);
     } catch (err: any) {
       console.error(err);
@@ -336,44 +378,55 @@ export function SpecialAdminDashboard() {
   };
 
   // Sorting and Filtering pipeline
-  const filteredUsers = users.filter(usr => {
-    const term = searchQuery.toLowerCase().trim();
-    const nameMatch = (usr.displayName || '').toLowerCase().includes(term);
-    const emailMatch = (usr.email || '').toLowerCase().includes(term);
-    const uidMatch = usr.id.toLowerCase().includes(term);
-    const matchesSearch = !term || nameMatch || emailMatch || uidMatch;
+  const filteredUsers = useMemo(() => {
+    return users.filter(usr => {
+      // Exclude placeholder users
+      if (usr.isPlaceholder === true || usr.id.startsWith('seeded_')) return false;
 
-    const matchesRole = roleFilter === 'ALL' || usr.role === roleFilter;
+      const term = searchQuery.toLowerCase().trim();
+      const nameMatch = (usr.displayName || '').toLowerCase().includes(term);
+      const emailMatch = (usr.email || '').toLowerCase().includes(term);
+      const uidMatch = usr.id.toLowerCase().includes(term);
+      const matchesSearch = !term || nameMatch || emailMatch || uidMatch;
 
-    return matchesSearch && matchesRole;
-  }).sort((a, b) => {
-    if (sortBy === 'createdAt_desc') {
-      const dateA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const dateB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return dateB - dateA;
-    }
-    if (sortBy === 'createdAt_asc') {
-      const dateA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const dateB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return dateA - dateB;
-    }
-    if (sortBy === 'name_asc') {
-      const nameA = a.displayName || a.email || '';
-      const nameB = b.displayName || b.email || '';
-      return nameA.localeCompare(nameB);
-    }
-    return 0;
-  });
+      const matchesRole = roleFilter === 'ALL' || usr.role === roleFilter;
+
+      return matchesSearch && matchesRole;
+    }).sort((a, b) => {
+      if (sortBy === 'createdAt_desc') {
+        const dateA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const dateB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return dateB - dateA;
+      }
+      if (sortBy === 'createdAt_asc') {
+        const dateA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const dateB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return dateA - dateB;
+      }
+      if (sortBy === 'name_asc') {
+        const nameA = a.displayName || a.email || '';
+        const nameB = b.displayName || b.email || '';
+        return nameA.localeCompare(nameB);
+      }
+      return 0;
+    });
+  }, [users, searchQuery, roleFilter, sortBy]);
 
   // Calculate high quality stats widgets
-  const totalUserCount = users.length;
-  const placeholderCount = users.filter(u => u.isPlaceholder === true || u.id.startsWith('seeded_')).length;
-  const adminCount = users.filter(u => u.role === UserRole.ADMIN).length;
-  const directorCount = users.filter(u => u.role === UserRole.DEPT_DIRECTOR).length;
-  const technicianCount = users.filter(u => 
-    u.role === UserRole.TECHNICIAN || u.role === UserRole.DRIVER || u.role === UserRole.CAMERAMAN
-  ).length;
-  const securityCount = users.filter(u => u.role === UserRole.SECURITY).length;
+  const stats = useMemo(() => {
+    const totalUserCount = users.length;
+    const placeholderCount = users.filter(u => u.isPlaceholder === true || u.id.startsWith('seeded_')).length;
+    const adminCount = users.filter(u => u.role === UserRole.ADMIN).length;
+    const directorCount = users.filter(u => u.role === UserRole.DEPT_DIRECTOR).length;
+    const technicianCount = users.filter(u => 
+      u.role === UserRole.TECHNICIAN || u.role === UserRole.DRIVER || u.role === UserRole.CAMERAMAN
+    ).length;
+    const securityCount = users.filter(u => u.role === UserRole.SECURITY).length;
+    
+    return { totalUserCount, placeholderCount, adminCount, directorCount, technicianCount, securityCount };
+  }, [users]);
+  
+  const { totalUserCount, placeholderCount, adminCount, directorCount, technicianCount, securityCount } = stats;
 
   const roleStyles: { [key: string]: { pill: string; label: string } } = {
     [UserRole.ADMIN]: { pill: 'bg-indigo-50 border border-indigo-200 text-indigo-700', label: t('role_admin', 'FMC ADMIN') },
@@ -706,7 +759,7 @@ export function SpecialAdminDashboard() {
                         onClick={() => {
                           setSelectedUser(usr);
                           setIsEditingRole(false);
-                          setTempRole(usr.role);
+                          setTempRoles(usr.roles || [usr.role as string]);
                         }}
                       >
                         <td className="py-4 px-6">
@@ -963,10 +1016,10 @@ export function SpecialAdminDashboard() {
                     </div>
                     {!isEditingRole && (
                       <button
-                        onClick={() => { setIsEditingRole(true); setTempRole(selectedUser.role); }}
+                        onClick={() => { setIsEditingRole(true); setTempRoles(selectedUser.roles || [selectedUser.role as string]); }}
                         className="px-2.5 py-1 bg-white border border-slate-300 hover:border-black rounded-lg text-[10px] font-bold text-slate-700 transition-colors cursor-pointer"
                       >
-                        Change Role
+                        Change Roles
                       </button>
                     )}
                   </div>
@@ -977,9 +1030,9 @@ export function SpecialAdminDashboard() {
                         {Object.values(UserRole).map((r) => (
                           <button
                             key={r}
-                            onClick={() => setTempRole(r)}
+                            onClick={() => setTempRoles(prev => prev.includes(r) ? prev.filter(p => p !== r) : [...prev, r])}
                             className={`px-3 py-2 text-[10px] text-left font-black tracking-wide rounded-xl border transition-all ${
-                              tempRole === r
+                              tempRoles.includes(r)
                                 ? 'bg-black border-black text-white shadow'
                                 : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                             }`}
