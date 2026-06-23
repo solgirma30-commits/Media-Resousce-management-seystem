@@ -2,128 +2,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if the user is signed in
-    function isSignedIn() {
-      return request.auth != null;
+    // --- Global Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isAdmin() { 
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN'; 
     }
-    
-    // Helper to check if user is writing their own document
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     function isRole(role) {
-      return isSignedIn() 
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))                
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
     }
 
-    function isSystemAdmin() {
-      return isSignedIn() && (
-        request.auth.uid == 'VSnotQzmWMfmqbeB144IJ2xhciq2' ||
-        isRole('SYSTEM_ADMIN')
-      );
-    }
-    
-    function isAdmin() {
-      return isRole('ADMIN') || isSystemAdmin();
-    }
-    
-    function isDeptDirector() {
-      return isRole('DEPT_DIRECTOR');
-    }
-    
-    function isTechnician() {
-      return isRole('TECHNICIAN') || isRole('DRIVER') || isRole('CAMERAMAN') || isRole('SECURITY');
+    // --- Entity Validation Helpers ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) 
+          && data.uid is string && data.uid.size() <= 128
+          && data.email is string && data.email.size() <= 256
+          && data.role in ['ADMIN', 'DEPT_DIRECTOR', 'TECHNICIAN'];
     }
 
+    // --- Rules ---
+
+    // 1. Global Safety Net
+    match /{document=**} { allow read, write: if false; }
+
+    // Users
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() 
-        && (
-          isAdmin() ||
-          (request.auth.uid == userId 
-           && (request.resource.data.role != 'SYSTEM_ADMIN' || request.auth.uid == 'VSnotQzmWMfmqbeB144IJ2xhciq2')
-           && (request.resource.data.approved == false || !('approved' in request.resource.data))
-           && !request.resource.data.keys().hasAny(['isVip'])
-          )
-        );
-      allow update: if isSignedIn() 
-        && (
-          isAdmin() || 
-          (request.auth.uid == userId 
-           && (request.resource.data.approved == resource.data.approved || !('approved' in resource.data))
-           && (request.resource.data.role != 'SYSTEM_ADMIN' || request.auth.uid == 'VSnotQzmWMfmqbeB144IJ2xhciq2')
-           && !request.resource.data.keys().hasAny(['isVip'])
-          )
-        );
-      allow delete: if isAdmin();
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow update: if isSignedIn() && request.auth.uid == userId 
+                     && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phoneNumber'])
+                     && isValidUser(incoming());
+      // Admins handle user creation/deletion/role updates
+      allow create, delete: if isAdmin();
     }
 
-    match /department_updates/{updateId} {
-      allow read, write: if isSignedIn();
-    }
-
+    // Fleet
     match /fleet/{fleetId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
 
-    match /sim_sms_logs/{logId} {
-      allow create: if isSignedIn();
-      allow read, update, delete: if isSignedIn() && (isAdmin() || resource.data.recipientId == request.auth.uid);
-    }
-
-    match /notifications/{notificationId} {
-      allow create: if isSignedIn();
-      allow read, update, delete: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
-    }
-
+    // Requests (Abstract)
     match /{collection}/{requestId} {
-      allow read: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests', 'guest_requests'] 
-        && isSignedIn() 
-        && (isAdmin() || isTechnician() || (isDeptDirector() && resource.data.directorId == request.auth.uid));
+      allow get: if collection in ['service_requests', 'camera_requests', 'vehicle_requests']
+                && isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || resource.data.assignedTechnicianId == request.auth.uid);
+      allow list: if collection in ['service_requests', 'camera_requests', 'vehicle_requests']
+                 && isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || resource.data.assignedTechnicianId == request.auth.uid);
       
-      allow create: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests', 'guest_requests']
-        && isDeptDirector() 
-        && request.resource.data.directorId == request.auth.uid 
-        && request.resource.data.status == 'NEW'
-        && (!request.resource.data.keys().hasAny(['isVip']))
-        && (!request.resource.data.keys().hasAll(['requestId']) || request.resource.data.requestId.size() < 128);
-        
-      allow update: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests', 'guest_requests']
-        && isSignedIn() && (
-          // Admin can do anything
-          isAdmin() 
-          ||
-          // Assigned technician can update status to ACCEPTED, IN_PROGRESS, COMPLETED
-          (isTechnician() 
-           && resource.data.assignedTechnicianId == request.auth.uid
-           && request.resource.data.status in ['ACCEPTED', 'IN_PROGRESS', 'COMPLETED']
-           && request.resource.data.assignedTechnicianId == resource.data.assignedTechnicianId
-           && request.resource.data.directorId == resource.data.directorId
-           && (!request.resource.data.keys().hasAny(['isVip']))
-          )
-          ||
-          // Director can status update to CONFIRMED or REOPENED
-          (isDeptDirector() 
-           && resource.data.directorId == request.auth.uid
-           && (
-             (resource.data.status == 'NEW' && request.resource.data.status == 'NEW') 
-             || (request.resource.data.status in ['NEW', 'COMPLETED'] && request.resource.data.status in ['CONFIRMED', 'CLOSED', 'REOPENED', 'NEW'])
-           )
-           && request.resource.data.directorId == resource.data.directorId
-           && (!request.resource.data.keys().hasAny(['isVip']))
-          )
-        );
-        
-      allow delete: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'item_requests', 'device_requests', 'guest_requests']
-        && isAdmin() && resource.data.status != 'IN_PROGRESS';
+      allow create: if collection in ['service_requests', 'camera_requests', 'vehicle_requests']
+                   && isSignedIn() && isRole('DEPT_DIRECTOR')
+                   && incoming().directorId == request.auth.uid
+                   && incoming().status == 'NEW';
+      
+      allow update: if collection in ['service_requests', 'camera_requests', 'vehicle_requests']
+                   && isSignedIn() && (
+                      isAdmin() || (resource.data.assignedTechnicianId == request.auth.uid) || (resource.data.directorId == request.auth.uid)
+                   );
     }
-
-    // Default deny for everything else
-    match /{document=**} {
-      allow read, write: if false;
+    
+    // SMS Logs
+    match /sim_sms_logs/{logId} {
+      allow create: if false; // System only
+      allow get, list: if isSignedIn() && (isAdmin() || resource.data.recipientId == request.auth.uid);
     }
   }
 }

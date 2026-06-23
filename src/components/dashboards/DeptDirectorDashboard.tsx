@@ -3,13 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Clock, 
   CheckCircle2, 
-  AlertCircle, 
-  TrendingUp,
-  MoreVertical,
-  ChevronRight,
   Phone,
   MapPin,
   Tag,
@@ -18,11 +13,9 @@ import {
   Image as ImageIcon,
   Camera,
   Car,
-  Users,
   Pencil,
   ShieldCheck,
-  Smartphone,
-  Send
+  Smartphone
 } from 'lucide-react';
 import { 
   collection, 
@@ -35,7 +28,6 @@ import {
   doc,
   getDocs,
   setDoc,
-  deleteDoc,
   limit
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';

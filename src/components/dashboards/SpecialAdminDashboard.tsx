@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  User, 
   Mail, 
   Calendar, 
   Search, 
@@ -22,12 +21,7 @@ import {
   AlertTriangle,
   UserCheck,
   Building2,
-  Phone,
-  Activity,
-  Wifi,
-  Database,
-  Terminal,
-  RefreshCw
+  Phone
 } from 'lucide-react';
 import { collection, query, limit, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
@@ -53,7 +47,7 @@ interface FirestoreUser {
 }
 
 export function SpecialAdminDashboard() {
-  const { user: authUser, logout, switchRole } = useAuth();
+  const { logout, switchRole } = useAuth();
   const { t } = useLanguage();
 
   const [users, setUsers] = useState<FirestoreUser[]>([]);
@@ -88,19 +82,13 @@ export function SpecialAdminDashboard() {
   const [sessionWrites, setSessionWrites] = useState(0);
   const [sessionDeletes, setSessionDeletes] = useState(0);
   const [dbInitialLoadTime, setDbInitialLoadTime] = useState<number | null>(null);
-  const [telemetryLogs, setTelemetryLogs] = useState<Array<{ time: string; msg: string; type: string }>>([]);
   const [apiPing, setApiPing] = useState(42);
   const [sessionStartTime] = useState(() => Date.now());
   const [uptimeStr, setUptimeStr] = useState('00:00:00');
-  const [isAuditing, setIsAuditing] = useState(false);
-  const logContainerRef = useRef<HTMLDivElement>(null);
 
   const addTelemetryLog = (msg: string, type = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-    setTelemetryLogs(prev => [
-      { time, msg, type },
-      ...prev.slice(0, 99)
-    ]);
+    console.log(`[${type.toUpperCase()}] ${time}: ${msg}`);
   };
 
   const handlePurgePlaceholders = async () => {
@@ -752,7 +740,7 @@ export function SpecialAdminDashboard() {
 
                     return (
                       <motion.tr 
-                        key={usr.id}
+                        key={`${usr.id}-${usr.email}`}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="hover:bg-slate-50/70 transition-all cursor-pointer group"
@@ -1016,7 +1004,7 @@ export function SpecialAdminDashboard() {
                     </div>
                     {!isEditingRole && (
                       <button
-                        onClick={() => { setIsEditingRole(true); setTempRoles(selectedUser.roles || [selectedUser.role as string]); }}
+                        onClick={() => { if (selectedUser) { setIsEditingRole(true); setTempRoles(selectedUser.roles || [selectedUser.role as string]); } }}
                         className="px-2.5 py-1 bg-white border border-slate-300 hover:border-black rounded-lg text-[10px] font-bold text-slate-700 transition-colors cursor-pointer"
                       >
                         Change Roles
@@ -1027,9 +1015,9 @@ export function SpecialAdminDashboard() {
                   {isEditingRole ? (
                     <div className="space-y-3 animate-fade-in">
                       <div className="grid grid-cols-2 gap-2">
-                        {Object.values(UserRole).map((r) => (
+                        {Object.values(UserRole).map((r, i) => (
                           <button
-                            key={r}
+                            key={`${r}-${i}`}
                             onClick={() => setTempRoles(prev => prev.includes(r) ? prev.filter(p => p !== r) : [...prev, r])}
                             className={`px-3 py-2 text-[10px] text-left font-black tracking-wide rounded-xl border transition-all ${
                               tempRoles.includes(r)

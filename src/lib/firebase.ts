@@ -73,7 +73,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     try {
       (window as any).__firestoreQuotaExceeded = true;
       window.dispatchEvent(new CustomEvent('firestore-quota-exceeded', { detail: errInfo }));
-    } catch (e) {
+    } catch (_ignored) {
       // Ignored if window of browser context is unavailable
     }
     return; // Resolve/return gracefully rather than throwing an uncaught exception

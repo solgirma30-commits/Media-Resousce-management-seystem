@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export async function seedWorkforce() {
   const techniciansCount = 30;

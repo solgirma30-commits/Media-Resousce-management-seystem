@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Wifi, Database, HardDrive, ShieldCheck, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Wifi, Database, HardDrive, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 interface HealthStats {
   reads: number;
@@ -35,7 +35,6 @@ export function SystemHealthPanel({ stats }: { stats: HealthStats }) {
   // Determine system status and color based on ping, outages, or spikes
   const currentPing = isSimulatedSpike ? 680 : (isSimulatedOutage ? 9999 : stats.apiPing);
   const isHealthy = !isSimulatedOutage && currentPing < 500;
-  const statusColor = isHealthy ? 'emerald' : 'rose';
   const statusLabel = isSimulatedOutage 
     ? 'CRITICAL / SHIELD DEGRADED' 
     : (isSimulatedSpike ? 'WARNING / HIGH LATENCY' : 'HEALTHY / FULL ACTIVE SECURE');

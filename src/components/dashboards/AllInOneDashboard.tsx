@@ -2,22 +2,16 @@ import { useState, useEffect } from 'react';
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  ClipboardList, 
   MapPin, 
   Clock, 
-  CheckCircle2, 
-  AlertCircle,
   Truck,
   Camera,
-  User,
   Wrench,
-  X,
   Maximize2,
   Minimize2,
   ZoomIn,
   ZoomOut,
   Globe,
-  TrendingUp,
   Activity,
   Layers,
   Search,

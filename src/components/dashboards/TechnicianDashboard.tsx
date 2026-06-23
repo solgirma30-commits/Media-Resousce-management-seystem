@@ -20,25 +20,14 @@ import {
   Wrench,
   Camera,
   Trash2,
-  Archive,
-  BarChart3,
-  CheckCircle,
+  Tag,
+  ChevronRight,
   Activity,
-  Layers,
   Maximize2,
   Minimize2,
   ZoomIn,
-  ZoomOut,
-  Tag,
-  ChevronRight
+  ZoomOut
 } from 'lucide-react';
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Tooltip
-} from 'recharts';
 import { 
   collection, 
   query, 
@@ -63,7 +52,6 @@ import { notificationService } from '../../services/notificationService';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { RequestPasswordModal } from '../RequestPasswordModal';
-
 export function TechnicianDashboard() {
   useFcmToken();
   const { profile } = useAuth();
