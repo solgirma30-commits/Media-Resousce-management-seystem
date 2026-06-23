@@ -21,3 +21,9 @@ export interface UserProfile {
   fcmToken?: string;
   approved?: boolean;
 }
+
+export interface Item {
+  name: string;
+  serialNumber: string;
+  quantity: number;
+}

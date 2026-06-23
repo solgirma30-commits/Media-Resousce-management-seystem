@@ -38,6 +38,7 @@ import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
+import { Item } from '../../types';
 import { RequestPasswordModal } from '../RequestPasswordModal';
 
 export function DeptDirectorDashboard() {
@@ -120,11 +121,9 @@ export function DeptDirectorDashboard() {
   const [vehicleHostName, setVehicleHostName] = useState('');
 
   // Item Exit specific
-  const [itemName, setItemName] = useState('');
-  const [serialNumber, setSerialNumber] = useState('');
+  const [items, setItems] = useState<Item[]>([{ name: '', serialNumber: '', quantity: 1 }]);
   const [exitReason, setExitReason] = useState('');
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
-  const [itemQuantity, setItemQuantity] = useState(1);
   const [responsiblePerson, setResponsiblePerson] = useState('');
 
   // Other Device Request unique
@@ -465,7 +464,15 @@ export function DeptDirectorDashboard() {
           updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengers, departureDate: depDate, departureTime: depTime, returnTime: retTime, hostName: vehicleHostName || profile.displayName, requesterName: vehicleHostName || profile.displayName };
         } else if (activeTab === 'OTHER') {
           if (clearanceType === 'ITEM') {
-            updateData = { ...updateData, itemName, serialNumber, purpose: exitReason, expectedReturnDate, quantity: itemQuantity, responsiblePerson };
+            updateData = { 
+              ...updateData, 
+              itemName: items.map(i => i.name).join(', '),
+              items,
+              purpose: exitReason, 
+              expectedReturnDate, 
+              quantity: items.reduce((sum, item) => sum + item.quantity, 0), 
+              responsiblePerson 
+            };
           } else if (clearanceType === 'LABOR') {
             updateData = { 
               ...updateData, 
@@ -564,16 +571,16 @@ export function DeptDirectorDashboard() {
             if (clearanceType === 'ITEM') {
               const path = 'item_requests';
               const newRequest = {
-                requestId: itemName || `EX-${Date.now()}`,
+                requestId: items[0]?.name || `EX-${Date.now()}`,
                 directorId: profile.uid,
                 directorName: profile.displayName,
                 departmentName: profile.department || 'Unknown Dept',
-                itemName,
-                serialNumber,
+                itemName: items.map(i => i.name).join(', '),
+                items,
                 purpose: exitReason,
                 requesterName: profile.displayName,
                 expectedReturnDate,
-                quantity: itemQuantity,
+                quantity: items.reduce((sum, item) => sum + item.quantity, 0),
                 responsiblePerson,
                 status: 'NEW',
                 createdAt: serverTimestamp(),
@@ -683,7 +690,7 @@ export function DeptDirectorDashboard() {
         } else if (activeTab === 'OTHER') {
           if (clearanceType === 'ITEM') {
             requestTypeLabel = 'Exit Permit';
-            displayName = itemName;
+            displayName = items.map(i => i.name).join(', ');
           } else if (clearanceType === 'LABOR') {
             requestTypeLabel = 'Laborer Request';
             displayName = workName;
@@ -879,11 +886,9 @@ export function DeptDirectorDashboard() {
     setPriority('MEDIUM');
     setPhoneNumber(profile?.phoneNumber || '');
     setServiceRequester('');
-    setItemName('');
-    setSerialNumber('');
+    setItems([{ name: '', serialNumber: '', quantity: 1 }]);
     setExitReason('');
     setExpectedReturnDate('');
-    setItemQuantity(1);
     setResponsiblePerson('');
     setEventTitle('');
     setEventDate('');
@@ -934,11 +939,9 @@ export function DeptDirectorDashboard() {
     setPriority(request.priority || 'MEDIUM');
     setPhoneNumber(request.phoneNumber || profile?.phoneNumber || '');
     setServiceRequester(request.requesterName || '');
-    setItemName(request.itemName || '');
-    setSerialNumber(request.serialNumber || '');
+    setItems(request.items || [{ name: request.itemName || '', serialNumber: request.serialNumber || '', quantity: request.quantity || 1 }]);
     setExitReason(request.purpose || '');
     setExpectedReturnDate(request.expectedReturnDate || '');
-    setItemQuantity(request.quantity || 1);
     setResponsiblePerson(request.responsiblePerson || '');
     setEventTitle(request.eventTitle || '');
     setEventDate(request.date || '');
@@ -1173,11 +1176,26 @@ export function DeptDirectorDashboard() {
                               </span>
                             )}
                           </p>
-                          <p className="text-[10px] text-dark-text-subtle line-clamp-1 italic font-serif">
+                          <p className="text-[10px] text-dark-text-subtle italic font-serif">
                             {activeTab === 'SERVICE' ? request.description :
                              activeTab === 'CAMERA' ? request.purpose :
                              activeTab === 'VEHICLE' ? request.destination :
-                             (request.collectionName === 'item_requests' ? `S/N: ${request.serialNumber || 'N/A'} | Qty: ${request.quantity || 1} | Reason: ${request.purpose}` :
+                             (request.collectionName === 'item_requests' ? (
+                               <div className="space-y-1">
+                                 {request.items && Array.isArray(request.items) ? (
+                                   request.items.map((item: any, idx: number) => (
+                                      <div key={`${request.id}-${idx}`} className="flex gap-2">
+                                        <span className="font-bold text-black">{item.name}</span>
+                                        <span>(S/N: {item.serialNumber || 'N/A'})</span>
+                                        <span>Qty: {item.quantity || 1}</span>
+                                      </div>
+                                   ))
+                                 ) : (
+                                    <span>S/N: {request.serialNumber || 'N/A'} | Qty: {request.quantity || 1}</span>
+                                 )}
+                                 <div className="mt-1">Reason: {request.purpose}</div>
+                               </div>
+                             ) :
                               request.collectionName === 'guest_requests' ? `Guests: ${request.guestCount || 1} | Company: ${request.visitorCompany || 'N/A'} | Purpose: ${request.purpose}` :
                               `${request.deviceModel || 'General Service Request'} (${request.quantity || 1} Person[s])`)}
                           </p>
@@ -1642,72 +1660,97 @@ export function DeptDirectorDashboard() {
 
                     {clearanceType === 'ITEM' && (
                       <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Item Name / Model")}</label>
-                            <input
-                              required
-                              type="text"
-                              placeholder={t("e.g., Dell Laptop XPS 15")}
-                              value={itemName}
-                              onChange={(e) => setItemName(e.target.value)}
-                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Serial Number / Asset Tag")}</label>
-                            <input
-                              required
-                              type="text"
-                              placeholder={t("e.g., S/N 12345678")}
-                              value={serialNumber}
-                              onChange={(e) => setSerialNumber(e.target.value)}
-                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                            />
-                          </div>
+                        <div className="space-y-4">
+                          <label className="block text-[10px] font-black text-black uppercase tracking-widest">{t("Items")}</label>
+                          {items.map((item, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr,1fr,auto,auto] gap-3 items-end">
+                              <input
+                                required
+                                type="text"
+                                placeholder={t("Name / Model")}
+                                value={item.name}
+                                onChange={(e) => {
+                                  const newItems = [...items];
+                                  newItems[index].name = e.target.value;
+                                  setItems(newItems);
+                                }}
+                                className="px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                              />
+                               <input
+                                required
+                                type="text"
+                                placeholder={t("Serial Number")}
+                                value={item.serialNumber}
+                                onChange={(e) => {
+                                  const newItems = [...items];
+                                  newItems[index].serialNumber = e.target.value;
+                                  setItems(newItems);
+                                }}
+                                className="px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                              />
+                              <input
+                                required
+                                type="number"
+                                min="1"
+                                placeholder={t("Qty")}
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const newItems = [...items];
+                                  newItems[index].quantity = parseInt(e.target.value) || 1;
+                                  setItems(newItems);
+                                }}
+                                className="w-20 px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (items.length > 1) {
+                                    setItems(items.filter((_, i) => i !== index));
+                                  }
+                                }}
+                                className="p-3 bg-rose-500/10 text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white transition-all"
+                              >
+                                <X className="w-5 h-5" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setItems([...items, { name: '', serialNumber: '', quantity: 1 }])}
+                            className="flex items-center gap-2 text-xs font-black text-dark-accent hover:text-indigo-900 transition-all"
+                          >
+                            <Plus className="w-4 h-4" /> {t("Add Item")}
+                          </button>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                          <div>
-                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Quantity")}</label>
-                            <input
-                              required
-                              type="number"
-                              min="1"
-                              placeholder={t("e.g., 1")}
-                              value={itemQuantity}
-                              onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
-                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Responsible for Item")}</label>
-                            <input
-                              required
-                              type="text"
-                              placeholder={t("Name of person responsible")}
-                              value={responsiblePerson}
-                              onChange={(e) => setResponsiblePerson(e.target.value)}
-                              className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                            />
-                          </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Responsible for Item")}</label>
+                                <input
+                                  required
+                                  type="text"
+                                  placeholder={t("Name of person responsible")}
+                                  value={responsiblePerson}
+                                  onChange={(e) => setResponsiblePerson(e.target.value)}
+                                  className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Expected Return Date (Optional)")}</label>
+                                <input
+                                    type="date"
+                                    value={expectedReturnDate}
+                                    onChange={(e) => setExpectedReturnDate(e.target.value)}
+                                    className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                                />
+                            </div>
                         </div>
                         <div className="mb-6 mt-6">
-                          <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Expected Return Date (Optional)")}</label>
-                          <input
-                            type="date"
-                            value={expectedReturnDate}
-                            onChange={(e) => setExpectedReturnDate(e.target.value)}
-                            className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                          />
-                          <p className="text-[10px] text-dark-text-subtle mt-1 italic font-serif">{t("Leave blank if the item is not expected to return")}</p>
-                        </div>
-                        <div>
                           <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Reason for Exit")}</label>
                           <textarea
                             required
                             rows={3}
-                            placeholder={t("Explain why this item is leaving the premises...")}
+                            placeholder={t("Explain why these items are leaving the premises...")}
                             value={exitReason}
                             onChange={(e) => setExitReason(e.target.value)}
                             className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
