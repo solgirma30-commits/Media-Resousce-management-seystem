@@ -65,18 +65,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
     const q = query(
       collection(db, path),
       where("userId", "==", profile.uid),
-      where("read", "==", false),
-      limit(20)
+      limit(100)
     );
 
     let isFirstLoad = true;
     return onSnapshot(
       q,
       (snapshot) => {
-        const docs = snapshot.docs.map((doc) => ({
+        const allDocs = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
+        
+        // Filter read: false locally to avoid composite index
+        const docs = allDocs.filter((d: any) => d.read === false);
+        
         docs.sort((a: any, b: any) => {
           const timeA = a.createdAt?.seconds || 0;
           const timeB = b.createdAt?.seconds || 0;
@@ -128,7 +131,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         isFirstLoad = false;
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, path);
+        console.warn("Layout notification listener error:", error);
       },
     );
   }, [profile]);
@@ -190,6 +193,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         UserRole.DRIVER,
         UserRole.CAMERAMAN,
         UserRole.SECURITY,
+        UserRole.SUPERVISOR,
       ],
     },
     {
@@ -330,7 +334,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       ) : (
                         notifications.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((n, idx) => (
                           <div
-                            key={`notif-${n.id}`}
+                            key={`notif-${n.id}-${idx}`}
                             className="p-4 border-b border-dark-border last:border-0 hover:bg-dark-main/30"
                           >
                             <div className="flex items-start gap-3">
@@ -446,11 +450,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                               ? t('fmc_system_admin', 'SYSTEM ADMIN')
                               : activeRole === UserRole.ALL_IN_ONE
                                 ? t('all_in_one', 'ALL IN ONE PORTAL')
-                                : "AGENT"}
+                                : activeRole === UserRole.SUPERVISOR
+                                  ? t('fmc_supervisor', 'FMC SUPERVISOR')
+                                  : "AGENT"}
               </p>
             </div>
           </div>
-          {(profile?.role === UserRole.SYSTEM_ADMIN || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
+          {(profile?.role === UserRole.SYSTEM_ADMIN || profile?.role === UserRole.SUPERVISOR || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
             <button
               id="switch-portal-btn"
               onClick={switchRole}
@@ -600,12 +606,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                                   ? t('fmc_system_admin', 'SYSTEM ADMIN')
                                   : activeRole === UserRole.ALL_IN_ONE
                                     ? t('all_in_one', 'ALL IN ONE PORTAL')
-                                    : "AGENT"}
+                                    : activeRole === UserRole.SUPERVISOR
+                                      ? t('fmc_supervisor', 'FMC SUPERVISOR')
+                                      : "AGENT"}
                   </p>
                 </div>
               </div>
 
-              {(profile?.role === UserRole.SYSTEM_ADMIN || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
+              {(profile?.role === UserRole.SYSTEM_ADMIN || profile?.role === UserRole.SUPERVISOR || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
                 <button
                   id="mobile-switch-portal-btn"
                   onClick={switchRole}

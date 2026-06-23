@@ -7,7 +7,8 @@ export enum UserRole {
   CAMERAMAN = 'CAMERAMAN',
   SECURITY = 'SECURITY',
   ALL_IN_ONE = 'ALL_IN_ONE',
-  SYSTEM_ADMIN = 'SYSTEM_ADMIN'
+  SYSTEM_ADMIN = 'SYSTEM_ADMIN',
+  SUPERVISOR = 'SUPERVISOR'
 }
 
 export interface UserProfile {

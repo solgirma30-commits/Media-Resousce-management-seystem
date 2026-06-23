@@ -36,8 +36,9 @@ import {
   Minimize2,
   Eye,
   EyeOff,
+  Video
 } from "lucide-react";
-import { LogOut, } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { UserProfile } from "../../App";
 import {
   collection,
@@ -75,7 +76,7 @@ export function AdminDashboard() {
   const { profile, logout } = useAuth();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<
-    "SERVICE" | "CAMERA" | "VEHICLE" | "PROP_CASUALTY"
+    "SERVICE" | "CAMERA" | "VEHICLE" | "PROP_CASUALTY" | "STUDIO"
   >("SERVICE");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [clearanceType, setClearanceType] = useState<
@@ -88,6 +89,7 @@ export function AdminDashboard() {
   const [requests, setRequests] = useState<any[]>([]);
   const [cameraRequests, setCameraRequests] = useState<any[]>([]);
   const [vehicleRequests, setVehicleRequests] = useState<any[]>([]);
+  const [studioRequests, setStudioRequests] = useState<any[]>([]);
   const [itemRequests, setItemRequests] = useState<any[]>([]);
   const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
   const [guestRequests, setGuestRequests] = useState<any[]>([]);
@@ -102,6 +104,7 @@ export function AdminDashboard() {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedAssignIds, setSelectedAssignIds] = useState<string[]>([]);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [studioSubTab, setStudioSubTab] = useState<"ALL" | "TV" | "RADIO">("ALL");
   const [reportCategory, setReportCategory] = useState<
     "SERVICE" | "CAMERA" | "VEHICLE" | "PROP_CASUALTY" | null
   >(null);
@@ -114,6 +117,8 @@ export function AdminDashboard() {
         return cameraRequests;
       case "VEHICLE":
         return vehicleRequests;
+      case "STUDIO":
+        return studioRequests;
       case "PROP_CASUALTY":
         return [...itemRequests, ...deviceRequests, ...guestRequests];
       default:
@@ -121,6 +126,7 @@ export function AdminDashboard() {
           ...requests,
           ...cameraRequests,
           ...vehicleRequests,
+          ...studioRequests,
           ...itemRequests,
           ...deviceRequests,
         ];
@@ -172,6 +178,7 @@ export function AdminDashboard() {
     SERVICE: { label: "Maintenance Director", pin: "1010", icon: Wrench },
     CAMERA: { label: "Surveillance Director", pin: "2020", icon: Camera },
     VEHICLE: { label: "Logistics Director", pin: "3030", icon: Car },
+    STUDIO: { label: "Studio Director", pin: "7070", icon: Video },
     ITEM: { label: "Security Director", pin: "4040", icon: Tag },
     PROP_CASUALTY: {
       label: "Property Service Director",
@@ -272,6 +279,51 @@ export function AdminDashboard() {
       (error) => {
         setLoading(false);
         handleFirestoreError(error, OperationType.LIST, camPath);
+      },
+    );
+
+    let isFirstLoadStudio = true;
+    const stuPath = "studio_requests";
+    const qStu = query(collection(db, stuPath), limit(50));
+    const unsubscribeStu = onSnapshot(
+      qStu,
+      (snapshot) => {
+        const docs = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            type: "Studio",
+            collectionName: stuPath,
+            ...doc.data(),
+          }))
+          .filter((req: any) => !req.archived && !req.purgedByAdmin);
+
+        docs.sort((a: any, b: any) => {
+          const timeA = a.createdAt?.seconds || 0;
+          const timeB = b.createdAt?.seconds || 0;
+          return timeB - timeA;
+        });
+
+        setStudioRequests(docs);
+
+        if (!isFirstLoadStudio) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+              const data = change.doc.data() as any;
+              if (data.status === "NEW" && !data.archived) {
+                const displayName = data.eventName;
+                notificationService.notify(`NEW STUDIO: ${displayName}`, {
+                  body: `Department: ${data.departmentName}`,
+                  icon: "/pwa-512x512.png",
+                });
+              }
+            }
+          });
+        }
+        isFirstLoadStudio = false;
+      },
+      (error) => {
+        setLoading(false);
+        handleFirestoreError(error, OperationType.LIST, stuPath);
       },
     );
 
@@ -490,6 +542,7 @@ export function AdminDashboard() {
       unsubscribeReq();
       unsubscribeCam();
       unsubscribeVeh();
+      unsubscribeStu();
       unsubscribeItem();
       unsubscribeDev();
       unsubscribeGuest();
@@ -507,6 +560,7 @@ export function AdminDashboard() {
     if (activeTab === "SERVICE") return "service_requests";
     if (activeTab === "CAMERA") return "camera_requests";
     if (activeTab === "VEHICLE") return "vehicle_requests";
+    if (activeTab === "STUDIO") return "studio_requests";
     if (activeTab === "PROP_CASUALTY") {
       if (clearanceType === "ITEM") return "item_requests";
       if (clearanceType === "LABOR") return "device_requests";
@@ -519,6 +573,15 @@ export function AdminDashboard() {
     if (activeTab === "SERVICE") return requests;
     if (activeTab === "CAMERA") return cameraRequests;
     if (activeTab === "VEHICLE") return vehicleRequests;
+    if (activeTab === "STUDIO") {
+      if (studioSubTab === "TV") {
+        return studioRequests.filter((req) => req.studioCategory === "TV");
+      }
+      if (studioSubTab === "RADIO") {
+        return studioRequests.filter((req) => req.studioCategory === "RADIO");
+      }
+      return studioRequests;
+    }
     if (activeTab === "PROP_CASUALTY") {
       if (clearanceType === "ITEM") return itemRequests;
       if (clearanceType === "LABOR") return deviceRequests;
@@ -531,6 +594,7 @@ export function AdminDashboard() {
     if (activeTab === "SERVICE") return "SERVICE";
     if (activeTab === "CAMERA") return "CAMERA";
     if (activeTab === "VEHICLE") return "VEHICLE";
+    if (activeTab === "STUDIO") return "STUDIO";
     if (activeTab === "PROP_CASUALTY") return "PROP_CASUALTY";
     return activeTab as string;
   };
@@ -545,6 +609,7 @@ export function AdminDashboard() {
     SERVICE: "service_requests",
     CAMERA: "camera_requests",
     VEHICLE: "vehicle_requests",
+    STUDIO: "studio_requests",
     ITEM: "item_requests",
     OTHER: "device_requests",
     PROP_CASUALTY: "item_requests",
@@ -631,11 +696,13 @@ export function AdminDashboard() {
           ? req?.eventTitle || "Untitled Event"
           : activeTab === "VEHICLE"
             ? req?.tripName || "Untitled Trip"
-            : clearanceType === "ITEM"
-              ? req?.itemName || "Untitled Item"
-              : clearanceType === "GUEST"
-                ? req?.visitorNames || "Untitled Guest"
-                : req?.projectName || "Untitled Laborer Request";
+            : activeTab === "STUDIO"
+              ? req?.eventName || "Untitled Studio Request"
+              : clearanceType === "ITEM"
+                ? req?.itemName || "Untitled Item"
+                : clearanceType === "GUEST"
+                  ? req?.visitorNames || "Untitled Guest"
+                  : req?.projectName || "Untitled Laborer Request";
     const path = `${colName}/${requestId}`;
     try {
       await updateDoc(doc(db, colName, requestId), {
@@ -797,11 +864,13 @@ export function AdminDashboard() {
           ? req?.eventTitle || "Untitled Event"
           : activeTab === "VEHICLE"
             ? req?.tripName || "Untitled Trip"
-            : clearanceType === "ITEM"
-              ? req?.itemName || "Untitled Item"
-              : clearanceType === "GUEST"
-                ? req?.visitorNames || "Untitled Guest"
-                : req?.projectName || "Untitled Laborer Request";
+            : activeTab === "STUDIO"
+              ? req?.eventName || "Untitled Studio Request"
+              : clearanceType === "ITEM"
+                ? req?.itemName || "Untitled Item"
+                : clearanceType === "GUEST"
+                  ? req?.visitorNames || "Untitled Guest"
+                  : req?.projectName || "Untitled Laborer Request";
     const path = `${colName}/${requestId}`;
 
     const selectedTechs = Array.isArray(techOrTechs)
@@ -1633,6 +1702,16 @@ export function AdminDashboard() {
               }}
             />
             <TabButton
+              active={activeTab === "STUDIO"}
+              label={t("Studio Booking", "Studio")}
+              icon={Video}
+              onClick={() => {
+                setActiveTab("STUDIO");
+                setStudioSubTab("ALL");
+                setSelectedRequest(null);
+              }}
+            />
+            <TabButton
               active={activeTab === "PROP_CASUALTY"}
               label={t("Property Service", "Property Service")}
               icon={ClipboardList}
@@ -1642,6 +1721,43 @@ export function AdminDashboard() {
               }}
             />
           </div>
+          {activeTab === "STUDIO" && (
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={() => setStudioSubTab("ALL")}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors",
+                  studioSubTab === "ALL"
+                    ? "bg-dark-accent text-white"
+                    : "bg-dark-main text-dark-text-subtle",
+                )}
+              >
+                {t("All Bookings", "All Bookings")}
+              </button>
+              <button
+                onClick={() => setStudioSubTab("TV")}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors",
+                  studioSubTab === "TV"
+                    ? "bg-indigo-600 text-white border border-indigo-500/20"
+                    : "bg-dark-main text-dark-text-subtle",
+                )}
+              >
+                {t("TV Studio Approval", "TV Studio Approval")} ({studioRequests.filter(r => r.studioCategory === "TV").length})
+              </button>
+              <button
+                onClick={() => setStudioSubTab("RADIO")}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors",
+                  studioSubTab === "RADIO"
+                    ? "bg-orange-600 text-white border border-orange-500/20"
+                    : "bg-dark-main text-dark-text-subtle",
+                )}
+              >
+                {t("Radio Studio Approval", "Radio Studio Approval")} ({studioRequests.filter(r => r.studioCategory === "RADIO").length})
+              </button>
+            </div>
+          )}
           {activeTab === "PROP_CASUALTY" && (
             <div className="flex items-center gap-2 mt-2">
               <button
@@ -1819,7 +1935,7 @@ export function AdminDashboard() {
                   ) : (
                       uniqueActiveRequests.map((request, idx) => (
                         <tr
-                          key={`admin-req-${request.collectionName || "none"}-${request.id || "none"}-${idx}`}
+                        key={`admin-req-${request.collectionName || 'none'}-${request.id || 'req'}-${idx}`}
                         onClick={() =>
                           isSelectMode
                             ? toggleSelect(request.id)
@@ -1928,6 +2044,9 @@ export function AdminDashboard() {
                             {activeTab === "VEHICLE" && (
                               <Car className="w-3 h-3 text-blue-400" />
                             )}
+                            {activeTab === "STUDIO" && (
+                              <Video className="w-3 h-3 text-indigo-400" />
+                            )}
                             {activeTab === "ITEM" && (
                               <Tag className="w-3 h-3 text-pink-400" />
                             )}
@@ -1941,9 +2060,11 @@ export function AdminDashboard() {
                                   ? "Camera"
                                   : activeTab === "VEHICLE"
                                     ? "Vehicle"
-                                    : activeTab === "ITEM"
-                                      ? "Exit Permit"
-                                      : "Laborer"}
+                                    : activeTab === "STUDIO"
+                                      ? "Studio"
+                                      : activeTab === "ITEM"
+                                        ? "Exit Permit"
+                                        : "Laborer"}
                             </span>
                           </div>
                         </td>
@@ -1989,6 +2110,12 @@ export function AdminDashboard() {
                                   endTime: request.endTime || "",
                                   date: request.date || request.neededBy || "",
                                   projectName: request.projectName || "",
+                                  eventName: request.eventName || "",
+                                  studioCategory: request.studioCategory || "",
+                                  requestedPerson: request.requestedPerson || "",
+                                  guestCount: request.guestCount || 1,
+                                  cameraCount: request.cameraCount || "",
+                                  time: request.time || "",
                                 });
                                 setIsEditing(false);
                               }}
@@ -2079,9 +2206,9 @@ export function AdminDashboard() {
                   ).length,
                 }))
                 .sort((a, b) => b.orderCount - a.orderCount)
-                .map((tech) => (
+                .map((tech, idx) => (
                   <div
-                    key={`workload-tech-${tech.id}`}
+                            key={`workload-tech-${tech.id}-${idx}`}
                     className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors"
                   >
                     <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-slate-950 border border-dark-border uppercase">
@@ -2327,6 +2454,7 @@ export function AdminDashboard() {
                           editFormData.workName ||
                           editFormData.eventTitle ||
                           editFormData.tripName ||
+                          editFormData.eventName ||
                           editFormData.itemName ||
                           editFormData.deviceModel ||
                           ""
@@ -2342,6 +2470,8 @@ export function AdminDashboard() {
                             });
                           else if (activeTab === "VEHICLE")
                             setEditFormData({ ...editFormData, tripName: val });
+                          else if (activeTab === "STUDIO")
+                            setEditFormData({ ...editFormData, eventName: val });
                           else if (activeTab === "ITEM")
                             setEditFormData({ ...editFormData, itemName: val });
                           else
@@ -2401,6 +2531,95 @@ export function AdminDashboard() {
                             }
                             className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
                           />
+                        </div>
+                      )}
+                      {activeTab === "STUDIO" && (
+                        <div className="mt-3 grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">
+                              Studio Category
+                            </label>
+                            <select
+                              value={editFormData.studioCategory || ""}
+                              onChange={(e) =>
+                                setEditFormData({
+                                  ...editFormData,
+                                  studioCategory: e.target.value as 'TV' | 'RADIO',
+                                })
+                              }
+                              className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                            >
+                              <option value="">Select Category</option>
+                              <option value="TV">TV Studio</option>
+                              <option value="RADIO">Radio Studio</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">
+                              Requested Person
+                            </label>
+                            <input
+                              type="text"
+                              value={editFormData.requestedPerson || ""}
+                              onChange={(e) =>
+                                setEditFormData({
+                                  ...editFormData,
+                                  requestedPerson: e.target.value,
+                                })
+                              }
+                              className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">
+                              Time
+                            </label>
+                            <input
+                              type="time"
+                              value={editFormData.time || ""}
+                              onChange={(e) =>
+                                setEditFormData({
+                                  ...editFormData,
+                                  time: e.target.value,
+                                })
+                              }
+                              className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">
+                              Guest Count
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={editFormData.guestCount || 1}
+                              onChange={(e) =>
+                                setEditFormData({
+                                  ...editFormData,
+                                  guestCount: parseInt(e.target.value) || 1,
+                                })
+                              }
+                              className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 block pl-1">
+                              Camera Count
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={editFormData.cameraCount || ""}
+                              onChange={(e) =>
+                                setEditFormData({
+                                  ...editFormData,
+                                  cameraCount: parseInt(e.target.value) || 0,
+                                })
+                              }
+                              className="w-full bg-dark-main border border-dark-border rounded-xl px-4 py-2.5 text-xs text-black font-bold focus:border-dark-accent outline-none"
+                            />
+                          </div>
                         </div>
                       )}
                       {activeTab === "ITEM" && (
@@ -2553,6 +2772,62 @@ export function AdminDashboard() {
                         </div>
                       )}
                     </div>
+                  ) : activeTab === "STUDIO" ? (
+                    <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 space-y-4 font-sans">
+                      <div className="flex justify-between items-center border-b border-dark-border pb-2">
+                        <span className="text-xs font-black uppercase text-dark-text-subtle font-mono">
+                          Studio Category
+                        </span>
+                        <span className={cn(
+                          "text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-widest",
+                          selectedRequest.studioCategory === 'TV' ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : "bg-orange-500/10 text-orange-500 border-orange-500/20"
+                        )}>
+                          {selectedRequest.studioCategory ? `${selectedRequest.studioCategory} Studio` : "Studio Request"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-dark-border pb-2">
+                        <span className="text-xs font-black uppercase text-dark-text-subtle font-mono">
+                          Event Name
+                        </span>
+                        <span className="text-sm font-black text-slate-900">
+                          {selectedRequest.eventName || "Untitled Event"}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-xs font-sans text-black font-bold">
+                        <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                          <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">
+                            Requested Person
+                          </p>
+                          <p className="font-bold text-slate-900">
+                            {selectedRequest.requestedPerson || "Not Specified"}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                          <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">
+                            Event Date & Time
+                          </p>
+                          <p className="font-bold text-slate-900 font-mono text-[10px]">
+                            {selectedRequest.date || "No Date"} | {selectedRequest.time || "No Time"}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                          <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">
+                            Guests/Hosts
+                          </p>
+                          <p className="font-bold text-slate-900">
+                            {selectedRequest.guestCount || 1} Person(s)
+                          </p>
+                        </div>
+                        <div className="p-3 bg-dark-main border border-dark-border rounded-xl">
+                          <p className="text-[9px] font-black uppercase text-dark-text-subtle mb-1 font-mono">
+                            Field Camera
+                          </p>
+                          <p className="font-bold text-indigo-600">
+                            {selectedRequest.cameraCount ? `${selectedRequest.cameraCount} Requested` : "None"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   ) : activeTab === "OTHER" ||
                     selectedRequest.type === "Device" ? (
                     <div className="w-full bg-dark-main/50 border border-dark-border rounded-2xl p-6 space-y-4 animate-fadeIn font-sans">
@@ -2680,12 +2955,15 @@ export function AdminDashboard() {
                       {selectedRequest.workName ||
                         selectedRequest.eventTitle ||
                         selectedRequest.tripName ||
+                        selectedRequest.eventName ||
                         selectedRequest.itemName ||
                         selectedRequest.deviceModel ||
+                        selectedRequest.visitorNames ||
                         "Vector Operational Objective"}
                       <div className="mt-2 text-xs font-sans not-italic text-slate-700 opacity-80 border-t border-dark-border pt-2 mt-4">
                         {selectedRequest.description ||
                           selectedRequest.purpose ||
+                          selectedRequest.requestedPerson ||
                           selectedRequest.destination ||
                           "No secondary intelligence provided."}
 
@@ -2893,6 +3171,7 @@ export function AdminDashboard() {
                       {selectedRequest.status === "APPROVED" &&
                         selectedRequest.type !== "Exit Permit" &&
                         selectedRequest.type !== "Device" &&
+                        selectedRequest.type !== "Studio" &&
                         selectedRequest.type !== "Guest Entry" && (
                           <button
                             onClick={() => {
@@ -3194,7 +3473,7 @@ export function AdminDashboard() {
                         const isSelected = selectedAssignIds.includes(tech.id);
                         return (
                           <div
-                            key={`${tech.id}`}
+                            key={`personnel-${tech.id}-${idx}`}
                             className={cn(
                               "flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar/40 transition-all group",
                               isSelected &&

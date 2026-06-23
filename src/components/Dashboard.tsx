@@ -4,6 +4,7 @@ import { DeptDirectorDashboard } from './dashboards/DeptDirectorDashboard';
 import { TechnicianDashboard } from './dashboards/TechnicianDashboard';
 import { SecurityDashboard } from './dashboards/SecurityDashboard';
 import { AllInOneDashboard } from './dashboards/AllInOneDashboard';
+import { SupervisorDashboard } from './dashboards/SupervisorDashboard';
 
 export function Dashboard() {
   const { profile } = useAuth();
@@ -21,6 +22,8 @@ export function Dashboard() {
       return <TechnicianDashboard />;
     case UserRole.SECURITY:
       return <SecurityDashboard />;
+    case UserRole.SUPERVISOR:
+      return <SupervisorDashboard />;
     case UserRole.ALL_IN_ONE:
       return <AllInOneDashboard />;
     default:

@@ -74,6 +74,15 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
       border: 'border-pink-500/20',
     },
     {
+      id: UserRole.SUPERVISOR,
+      title: 'FMC SUPERVISOR',
+      description: 'Monitor approved studio bookings.',
+      icon: Eye,
+      color: 'text-teal-400',
+      bg: 'bg-teal-500/10',
+      border: 'border-teal-500/20',
+    },
+    {
       id: UserRole.ALL_IN_ONE,
       title: 'ALL IN ONE PORTAL',
       description: 'Unified global registry for all assets.',

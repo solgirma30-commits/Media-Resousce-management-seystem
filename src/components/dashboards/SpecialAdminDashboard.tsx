@@ -423,6 +423,7 @@ export function SpecialAdminDashboard() {
     [UserRole.DRIVER]: { pill: 'bg-teal-50 border border-teal-200 text-teal-700', label: t('role_driver', 'LOGISTICS DRIVER') },
     [UserRole.CAMERAMAN]: { pill: 'bg-purple-50 border border-purple-200 text-purple-700', label: t('role_camera', 'CAMERA OPERATOR') },
     [UserRole.SECURITY]: { pill: 'bg-pink-50 border border-pink-200 text-pink-700', label: t('role_security', 'SECURITY FORCE') },
+    [UserRole.SUPERVISOR]: { pill: 'bg-teal-50 border border-teal-200 text-teal-700', label: t('role_supervisor', 'SUPERVISOR') },
     [UserRole.ALL_IN_ONE]: { pill: 'bg-amber-50 border border-amber-200 text-amber-700', label: t('role_all_in_one', 'ALL IN ONE PORTAL') },
     [UserRole.SYSTEM_ADMIN]: { pill: 'bg-rose-50 border border-rose-200 text-rose-700', label: t('role_system_admin', 'SYSTEM ADMIN') },
   };
@@ -729,7 +730,7 @@ export function SpecialAdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredUsers.map((usr) => {
+                  {filteredUsers.map((usr, idx) => {
                     const cleanInitials = (usr.displayName || usr.email || 'U').substring(0, 2).toUpperCase();
                     const { pill, label } = getRoleStyle(usr.role);
 
@@ -740,7 +741,7 @@ export function SpecialAdminDashboard() {
 
                     return (
                       <motion.tr 
-                        key={`${usr.id}-${usr.email}`}
+                        key={`sys-user-${usr.id}-${idx}`}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="hover:bg-slate-50/70 transition-all cursor-pointer group"

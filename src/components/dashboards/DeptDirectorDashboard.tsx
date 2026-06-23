@@ -15,7 +15,8 @@ import {
   Car,
   Pencil,
   ShieldCheck,
-  Smartphone
+  Smartphone,
+  Video
 } from 'lucide-react';
 import { 
   collection, 
@@ -45,10 +46,11 @@ export function DeptDirectorDashboard() {
   useFcmToken();
   const { profile } = useAuth();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'OTHER'>('SERVICE');
+  const [activeTab, setActiveTab] = useState<'SERVICE' | 'CAMERA' | 'VEHICLE' | 'STUDIO' | 'OTHER'>('SERVICE');
   const [requests, setRequests] = useState<any[]>([]);
   const [cameraRequests, setCameraRequests] = useState<any[]>([]);
   const [vehicleRequests, setVehicleRequests] = useState<any[]>([]);
+  const [studioRequests, setStudioRequests] = useState<any[]>([]);
   const [itemRequests, setItemRequests] = useState<any[]>([]);
   const [deviceRequests, setDeviceRequests] = useState<any[]>([]);
   const [guestRequests, setGuestRequests] = useState<any[]>([]);
@@ -131,6 +133,15 @@ export function DeptDirectorDashboard() {
   const [requestQty, setRequestQty] = useState(1);
   const [needDate, setNeedDate] = useState('');
 
+  // Studio Request specific
+  const [studioRequestedPerson, setStudioRequestedPerson] = useState('');
+  const [studioEventName, setStudioEventName] = useState('');
+  const [studioGuestCount, setStudioGuestCount] = useState(1);
+  const [studioCameraCount, setStudioCameraCount] = useState<number | ''>('');
+  const [studioDate, setStudioDate] = useState('');
+  const [studioTime, setStudioTime] = useState('');
+  const [studioCategory, setStudioCategory] = useState<'TV' | 'RADIO' | ''>('');
+
   useEffect(() => {
     if (!profile) return;
 
@@ -191,6 +202,25 @@ export function DeptDirectorDashboard() {
     }, (error) => {
       setLoading(false);
       handleFirestoreError(error, OperationType.LIST, vrPath);
+    });
+
+    // Studio Requests
+    const stPath = 'studio_requests';
+    const stQ = query(
+      collection(db, stPath),
+      where('departmentName', '==', profile.department || 'Unknown'),
+      limit(50)
+    );
+    const unsubscribeST = onSnapshot(stQ, (snapshot) => {
+      setStudioRequests(
+        snapshot.docs
+          .map(doc => ({ id: doc.id, collectionName: stPath, ...doc.data() }))
+          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
+      );
+      if (activeTab === 'STUDIO') setLoading(false);
+    }, (error) => {
+      setLoading(false);
+      handleFirestoreError(error, OperationType.LIST, stPath);
     });
 
     // Item Exit Requests
@@ -265,6 +295,7 @@ export function DeptDirectorDashboard() {
       unsubscribeSR();
       unsubscribeCR();
       unsubscribeVR();
+      unsubscribeST();
       unsubscribeIR();
       unsubscribeDR();
       unsubscribeGR();
@@ -343,6 +374,7 @@ export function DeptDirectorDashboard() {
       ...requests,
       ...cameraRequests,
       ...vehicleRequests,
+      ...studioRequests,
       ...itemRequests,
       ...deviceRequests,
       ...guestRequests
@@ -369,12 +401,13 @@ export function DeptDirectorDashboard() {
         case 'SERVICE': return sortByCreatedDesc(requests);
         case 'CAMERA': return sortByCreatedDesc(cameraRequests);
         case 'VEHICLE': return sortByCreatedDesc(vehicleRequests);
+        case 'STUDIO': return sortByCreatedDesc(studioRequests);
         case 'OTHER': return sortByCreatedDesc([...itemRequests, ...deviceRequests, ...guestRequests]);
         default: return [];
       }
     };
     return getRawList().filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
-  }, [activeTab, requests, cameraRequests, vehicleRequests, itemRequests, deviceRequests, guestRequests]);
+  }, [activeTab, requests, cameraRequests, vehicleRequests, studioRequests, itemRequests, deviceRequests, guestRequests]);
 
   const groupedByDept = useMemo(() => {
     const groups: Record<string, any[]> = {};
@@ -408,6 +441,11 @@ export function DeptDirectorDashboard() {
   const handleActualSubmit = async () => {
 
     if (!profile) return;
+
+    if (activeTab === 'STUDIO' && !studioCategory) {
+      toast.error('Please select Studio Category (TV Studio or Radio Studio)');
+      return;
+    }
 
     if (activeTab === 'SERVICE') {
       const cleanPhone = phoneNumber.trim();
@@ -445,6 +483,7 @@ export function DeptDirectorDashboard() {
         const colName = activeTab === 'SERVICE' ? 'service_requests' : 
                         activeTab === 'CAMERA' ? 'camera_requests' : 
                         activeTab === 'VEHICLE' ? 'vehicle_requests' : 
+                        activeTab === 'STUDIO' ? 'studio_requests' :
                         (clearanceType === 'ITEM' ? 'item_requests' : clearanceType === 'LABOR' ? 'device_requests' : 'guest_requests');
         
         let updateData: any = {
@@ -462,6 +501,8 @@ export function DeptDirectorDashboard() {
           updateData = { ...updateData, eventTitle, location, date: eventDate, startTime, endTime, purpose: cameraPurpose, hostName: cameraHostName, requesterName: cameraHostName || profile.displayName };
         } else if (activeTab === 'VEHICLE') {
           updateData = { ...updateData, destination, tripName: workName, purpose: vehiclePurpose, passengers, departureDate: depDate, departureTime: depTime, returnTime: retTime, hostName: vehicleHostName || profile.displayName, requesterName: vehicleHostName || profile.displayName };
+        } else if (activeTab === 'STUDIO') {
+          updateData = { ...updateData, studioCategory, requestedPerson: studioRequestedPerson, eventName: studioEventName, guestCount: studioGuestCount, cameraCount: studioCameraCount, date: studioDate, time: studioTime, requesterName: profile.displayName };
         } else if (activeTab === 'OTHER') {
           if (clearanceType === 'ITEM') {
             updateData = { 
@@ -560,6 +601,29 @@ export function DeptDirectorDashboard() {
             departureDate: depDate,
             departureTime: depTime,
             returnTime: retTime,
+            status: 'NEW',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            attachmentUrl,
+            attachmentName,
+            };
+            docRef = await addDoc(collection(db, path), newRequest);
+        } else if (activeTab === 'STUDIO') {
+            const finalCategory = studioCategory;
+            const path = 'studio_requests';
+            const newRequest = {
+            requestId: studioEventName || `STUDIO-${Date.now()}`,
+            directorId: profile.uid,
+            directorName: profile.displayName,
+            departmentName: profile.department || 'Unknown Dept',
+            studioCategory: finalCategory,
+            requestedPerson: studioRequestedPerson,
+            eventName: studioEventName,
+            guestCount: studioGuestCount,
+            cameraCount: studioCameraCount,
+            date: studioDate,
+            time: studioTime,
+            requesterName: profile.displayName,
             status: 'NEW',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -914,6 +978,15 @@ export function DeptDirectorDashboard() {
     setVisitTime('');
     setHostName('');
     setGuestPurpose('');
+    
+    // Studio states
+    setStudioRequestedPerson('');
+    setStudioEventName('');
+    setStudioGuestCount(1);
+    setStudioCameraCount('');
+    setStudioDate('');
+    setStudioTime('');
+    setStudioCategory('');
   };
 
   const handleEdit = (e: React.MouseEvent, request: any) => {
@@ -959,6 +1032,15 @@ export function DeptDirectorDashboard() {
     setDeviceModel(request.deviceModel || '');
     setRequestQty(request.quantity || 1);
     setNeedDate(request.neededBy || '');
+    
+    // Studio
+    setStudioRequestedPerson(request.requestedPerson || '');
+    setStudioEventName(request.eventName || '');
+    setStudioGuestCount(request.guestCount || 1);
+    setStudioCameraCount(request.cameraCount || '');
+    setStudioDate(request.date || '');
+    setStudioTime(request.time || '');
+    setStudioCategory(request.studioCategory || '');
   };
 
   const handleDeleteOne = async (e: React.MouseEvent, request: any) => {
@@ -973,6 +1055,7 @@ export function DeptDirectorDashboard() {
         activeTab === 'SERVICE' ? 'service_requests' :
         activeTab === 'CAMERA' ? 'camera_requests' :
         activeTab === 'VEHICLE' ? 'vehicle_requests' :
+        activeTab === 'STUDIO' ? 'studio_requests' :
         activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
       );
       await updateDoc(doc(db, colName, request.id), { purgedByDeptDirector: true });
@@ -1006,7 +1089,7 @@ export function DeptDirectorDashboard() {
           className="flex items-center justify-center gap-2 bg-dark-accent hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-lg transition-all shadow-lg shadow-indigo-900/40 active:scale-95 text-[0.85rem]"
         >
           <Plus className="w-4 h-4" />
-          {t("Create New")} {activeTab === 'SERVICE' ? t("Service Request") : activeTab === 'CAMERA' ? t("Camera Request") : activeTab === 'VEHICLE' ? t("Vehicle Request") : t("Admin Clearance")}
+          {t("Create New")} {activeTab === 'SERVICE' ? t("Service Request") : activeTab === 'CAMERA' ? t("Camera Request") : activeTab === 'VEHICLE' ? t("Vehicle Request") : activeTab === 'STUDIO' ? t("Studio Request") : t("Admin Clearance")}
         </button>
       </div>
 
@@ -1032,6 +1115,13 @@ export function DeptDirectorDashboard() {
           icon={Car} 
           label={t("Vehicle Request", "Vehicle Request")} 
           count={vehicleRequests.length}
+        />
+        <TabButton 
+          active={activeTab === 'STUDIO'} 
+          onClick={() => setActiveTab('STUDIO')} 
+          icon={Video} 
+          label={t("Studio Booking", "Studio Booking")} 
+          count={studioRequests.length}
         />
         <TabButton 
           active={activeTab === 'OTHER'} 
@@ -1158,6 +1248,7 @@ export function DeptDirectorDashboard() {
                               {activeTab === 'SERVICE' ? request.workName :
                                activeTab === 'CAMERA' ? request.eventTitle :
                                activeTab === 'VEHICLE' ? request.tripName :
+                               activeTab === 'STUDIO' ? request.eventName :
                                (request.collectionName === 'item_requests' ? request.itemName :
                                 request.collectionName === 'guest_requests' ? `Guest Entrance: ${request.visitorNames}` :
                                 request.projectName)}
@@ -1180,6 +1271,7 @@ export function DeptDirectorDashboard() {
                             {activeTab === 'SERVICE' ? request.description :
                              activeTab === 'CAMERA' ? request.purpose :
                              activeTab === 'VEHICLE' ? request.destination :
+                             activeTab === 'STUDIO' ? `Requested: ${request.requestedPerson || 'N/A'} | Guests/Hosts: ${request.guestCount || 1}` :
                              (request.collectionName === 'item_requests' ? (
                                <div className="space-y-1">
                                  {request.items && Array.isArray(request.items) ? (
@@ -1405,6 +1497,31 @@ export function DeptDirectorDashboard() {
                         <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Return Time</p>
                            <p className="text-sm font-black text-black">{selectedRequest.returnTime}</p>
+                        </div>
+                     </div>
+                   )}
+
+                   {activeTab === 'STUDIO' && (
+                     <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                       <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Studio Category</p>
+                       <p className={cn(
+                         "text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-widest inline-block",
+                         selectedRequest.studioCategory === 'TV' ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : "bg-orange-500/10 text-orange-500 border-orange-500/20"
+                       )}>
+                         {selectedRequest.studioCategory ? `${selectedRequest.studioCategory} Studio` : "Studio Request"}
+                       </p>
+                     </div>
+                   )}
+
+                   {activeTab === 'STUDIO' && (
+                     <div className="grid grid-cols-2 gap-6">
+                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Person/Guests</p>
+                           <p className="text-sm font-black text-black">{selectedRequest.requestedPerson || 'N/A'} ({selectedRequest.guestCount} Guests)</p>
+                        </div>
+                        <div className="p-5 bg-dark-main border border-dark-border rounded-xl">
+                           <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-2 font-mono">Camera Count / Time</p>
+                           <p className="text-sm font-black text-black">{selectedRequest.cameraCount || 'N/A'} | {selectedRequest.time}</p>
                         </div>
                      </div>
                    )}
@@ -1663,7 +1780,7 @@ export function DeptDirectorDashboard() {
                         <div className="space-y-4">
                           <label className="block text-[10px] font-black text-black uppercase tracking-widest">{t("Items")}</label>
                           {items.map((item, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr,1fr,auto,auto] gap-3 items-end">
+                            <div key={`item-form-${index}-${item.name || 'new'}`} className="grid grid-cols-1 md:grid-cols-[1fr,1fr,auto,auto] gap-3 items-end">
                               <input
                                 required
                                 type="text"
@@ -2048,7 +2165,7 @@ export function DeptDirectorDashboard() {
                       <div>
                         <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Passengers")}</label>
                         {passengers.map((p, index) => (
-                          <div key={`passenger-${index}-${(p.name || '').replace(/\s+/g, '-').toLowerCase()}`} className="grid grid-cols-3 gap-2 mb-2">
+                          <div key={`passenger-row-${index}-${profile.uid}`} className="grid grid-cols-3 gap-2 mb-2">
                             <input placeholder="Name" value={p.name} onChange={(e) => { const n = [...passengers]; n[index].name = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Loc" value={p.location} onChange={(e) => { const n = [...passengers]; n[index].location = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Phone" value={p.phone} onChange={(e) => { const n = [...passengers]; n[index].phone = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
@@ -2115,8 +2232,107 @@ export function DeptDirectorDashboard() {
                   </>
                 )}
 
-
-
+                {activeTab === 'STUDIO' && (
+                  <>
+                    <div className="mb-6">
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Studio Category")}</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setStudioCategory('TV')}
+                          className={cn(
+                            "py-3 px-4 rounded-lg font-bold text-xs border transition-all text-center",
+                            studioCategory === 'TV' 
+                              ? "bg-dark-accent text-white border-dark-accent shadow-lg shadow-indigo-950/40" 
+                              : "bg-dark-main text-dark-text-muted border-dark-border hover:text-white hover:bg-dark-card"
+                          )}
+                        >
+                          {t("TV Studio Request")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStudioCategory('RADIO')}
+                          className={cn(
+                            "py-3 px-4 rounded-lg font-bold text-xs border transition-all text-center",
+                            studioCategory === 'RADIO' 
+                              ? "bg-dark-accent text-white border-dark-accent shadow-lg shadow-indigo-950/40" 
+                              : "bg-dark-main text-dark-text-muted border-dark-border hover:text-white hover:bg-dark-card"
+                          )}
+                        >
+                          {t("Radio Studio Request")}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Requested Person")}</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder={t("Name of requested person")}
+                        value={studioRequestedPerson}
+                        onChange={(e) => setStudioRequestedPerson(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Event Name")}</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder={t("Name of the event") + " (Production/Live)"}
+                        value={studioEventName}
+                        onChange={(e) => setStudioEventName(e.target.value)}
+                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("No of Hosts/Guests")}</label>
+                        <input
+                          required
+                          type="number"
+                          min="1"
+                          value={studioGuestCount}
+                          onChange={(e) => setStudioGuestCount(parseInt(e.target.value) || 1)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Field Camera Requested")}</label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder={t("Leave empty if none")}
+                          value={studioCameraCount}
+                          onChange={(e) => setStudioCameraCount(e.target.value === '' ? '' : parseInt(e.target.value))}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Event Date")}</label>
+                        <input
+                          required
+                          type="date"
+                          value={studioDate}
+                          onChange={(e) => setStudioDate(e.target.value)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Event Time")}</label>
+                        <input
+                          required
+                          type="time"
+                          value={studioTime}
+                          onChange={(e) => setStudioTime(e.target.value)}
+                          className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4 font-mono"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
 
                 <div className="flex gap-4 pt-6">

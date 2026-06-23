@@ -21,7 +21,8 @@ import {
   setDoc,
   collection,
   query,
-  where
+  where,
+  limit
 } from 'firebase/firestore';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth, db } from './lib/firebase';
@@ -44,7 +45,8 @@ export enum UserRole {
   CAMERAMAN = 'CAMERAMAN',
   SECURITY = 'SECURITY',
   ALL_IN_ONE = 'ALL_IN_ONE',
-  SYSTEM_ADMIN = 'SYSTEM_ADMIN'
+  SYSTEM_ADMIN = 'SYSTEM_ADMIN',
+  SUPERVISOR = 'SUPERVISOR'
 }
 
 export interface UserProfile {
@@ -303,13 +305,16 @@ export default function App() {
     const qRoot = query(
       collection(db, 'notifications'),
       where('userId', '==', user.uid),
-      where('read', '==', false)
+      limit(100)
     );
 
     const handleSnapshotDocs = (change: any) => {
       if (change.type === 'added') {
         const notifId = change.doc.id;
         const newNotif = change.doc.data();
+
+        // Local filter for unread state to avoid index requirement
+        if (newNotif.read === true) return;
 
         if (notifiedIds.has(notifId)) return;
         notifiedIds.add(notifId);
@@ -362,47 +367,8 @@ export default function App() {
       }
     );
 
-    // Also support sub-collection under user profile to be fully matching the 'notifications' sub-collection description
-    const qSub = collection(db, 'users', user.uid, 'notifications');
-    let isFirstLoadSub = true;
-    const unsubscribeSub = onSnapshot(
-      qSub,
-      (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const notifId = change.doc.id;
-            const newNotif = change.doc.data();
-
-            if (notifiedIds.has(notifId)) return;
-            notifiedIds.add(notifId);
-
-            const secondsAgo = newNotif.createdAt?.seconds 
-              ? (Date.now() / 1000) - newNotif.createdAt.seconds 
-              : null;
-            const isVeryRecent = secondsAgo === null || (secondsAgo > -300 && secondsAgo < 300);
-
-            if (isFirstLoadSub && !isVeryRecent) return;
-
-            const titleText = newNotif.title || '';
-            const msgText = newNotif.message || '';
-            
-            notificationService.notify(titleText, {
-              body: msgText,
-              tag: `sub-status-change-${notifId}`,
-            });
-          }
-        });
-        isFirstLoadSub = false;
-      },
-      (error) => {
-        // Silently skip if subcollection does not exist or lacks permission
-        console.log("App subcollection notification listener skipped", error);
-      }
-    );
-
     return () => {
       unsubscribeRoot();
-      unsubscribeSub();
     };
   }, [user]);
 

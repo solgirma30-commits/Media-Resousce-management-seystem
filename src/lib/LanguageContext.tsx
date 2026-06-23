@@ -201,6 +201,21 @@ export const translationDictionary: Record<string, Record<Language, string>> = {
     om: 'KONKOLAATTISTOOTA FMC',
     am: 'FMC አሽከርካሪዎች'
   },
+  'Studio Category': {
+    en: 'Studio Category',
+    om: 'Ramaddii Istuudiyoo',
+    am: 'የስቱዲዮ ምድብ'
+  },
+  'TV Studio Request': {
+    en: 'TV Studio Request',
+    om: 'Gaaffii Istuudiyoo Tiivii',
+    am: 'የቲቪ ስቱዲዮ ጥያቄ'
+  },
+  'Radio Studio Request': {
+    en: 'Radio Studio Request',
+    om: 'Gaaffii Istuudiyoo Raadiyoo',
+    am: 'የሬዲዮ ስቱዲዮ ጥያቄ'
+  },
   'fmc_cameramen': {
     en: 'FMC CAMERA OPERATORS',
     om: 'KAAMEERAALESSITOOTA FMC',

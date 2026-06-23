@@ -4,24 +4,36 @@ service cloud.firestore {
     
     // --- Global Helpers ---
     function isSignedIn() { return request.auth != null; }
+    function isSystemAdmin() { return request.auth != null && request.auth.uid == 'VSnotQzmWMfmqbeB144IJ2xhciq2'; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
-    function isAdmin() { 
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
-             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN'; 
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
+    
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() { 
+      return isSystemAdmin() || (isSignedIn() && userExists() && getUserData().role in ['ADMIN', 'SYSTEM_ADMIN', 'ALL_IN_ONE']); 
+    }
+    
     function isRole(role) {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))                
-             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+      return isSignedIn() && userExists() && getUserData().role == role;
+    }
+    
+    function isSupervisor() {
+      return isSystemAdmin() || isRole('SUPERVISOR') || isAdmin();
     }
 
     // --- Entity Validation Helpers ---
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role']) 
           && data.uid is string && data.uid.size() <= 128
-          && data.email is string && data.email.size() <= 256
-          && data.role in ['ADMIN', 'DEPT_DIRECTOR', 'TECHNICIAN'];
+          && data.email is string && data.email.size() <= 256;
     }
 
     // --- Rules ---
@@ -31,13 +43,11 @@ service cloud.firestore {
 
     // Users
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow update: if isSignedIn() && request.auth.uid == userId 
-                     && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phoneNumber'])
-                     && isValidUser(incoming());
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSupervisor());
+      allow list: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSupervisor());
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSystemAdmin());
       // Admins handle user creation/deletion/role updates
-      allow create, delete: if isAdmin();
+      allow create, delete: if isAdmin() || isSystemAdmin();
     }
 
     // Fleet
@@ -46,22 +56,29 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (isSystemAdmin() || isAdmin() || (resource != null && resource.data.userId == request.auth.uid));
+      allow write: if isSignedIn();
+    }
+
     // Requests (Abstract)
     match /{collection}/{requestId} {
-      allow get: if collection in ['service_requests', 'camera_requests', 'vehicle_requests']
-                && isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || resource.data.assignedTechnicianId == request.auth.uid);
-      allow list: if collection in ['service_requests', 'camera_requests', 'vehicle_requests']
-                 && isSignedIn() && (isAdmin() || resource.data.directorId == request.auth.uid || resource.data.assignedTechnicianId == request.auth.uid);
+      allow get: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'studio_requests', 'item_requests', 'device_requests', 'guest_requests']
+                && isSignedIn() && (isSystemAdmin() || isAdmin() || isSupervisor() || isRole('SECURITY') || resource.data.directorId == request.auth.uid || resource.data.assignedTechnicianId == request.auth.uid);
+      allow list: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'studio_requests', 'item_requests', 'device_requests', 'guest_requests']
+                 && isSignedIn() && (isSystemAdmin() || isAdmin() || isSupervisor() || isRole('SECURITY') || resource.data.directorId == request.auth.uid || resource.data.assignedTechnicianId == request.auth.uid);
       
-      allow create: if collection in ['service_requests', 'camera_requests', 'vehicle_requests']
-                   && isSignedIn() && isRole('DEPT_DIRECTOR')
-                   && incoming().directorId == request.auth.uid
+      allow create: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'studio_requests', 'item_requests', 'device_requests', 'guest_requests']
+                   && isSignedIn() && (isRole('DEPT_DIRECTOR') || isAdmin() || isSystemAdmin())
                    && incoming().status == 'NEW';
       
-      allow update: if collection in ['service_requests', 'camera_requests', 'vehicle_requests']
+      allow update: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'studio_requests', 'item_requests', 'device_requests', 'guest_requests']
                    && isSignedIn() && (
-                      isAdmin() || (resource.data.assignedTechnicianId == request.auth.uid) || (resource.data.directorId == request.auth.uid)
+                      isSystemAdmin() || isAdmin() || isSupervisor() || isRole('SECURITY') || (resource.data.assignedTechnicianId == request.auth.uid) || (resource.data.directorId == request.auth.uid)
                    );
+      allow delete: if collection in ['service_requests', 'camera_requests', 'vehicle_requests', 'studio_requests', 'item_requests', 'device_requests', 'guest_requests']
+                   && isSignedIn() && (isAdmin() || isSystemAdmin());
     }
     
     // SMS Logs

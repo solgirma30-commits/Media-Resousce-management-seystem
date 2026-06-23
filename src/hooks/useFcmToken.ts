@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
-import { messaging, auth } from '../lib/firebase';
+import { getMessagingClient, auth } from '../lib/firebase';
 import { notificationService } from '../services/notificationService';
 
 export function useFcmToken() {
@@ -22,16 +22,26 @@ export function useFcmToken() {
       if (currentPermission === 'granted') {
         // Explicitly register the service worker for background push
         let registration;
-        try {
-          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          console.log('FCM Service Worker registered:', registration);
-          // Wait for service worker to be ready
-          await navigator.serviceWorker.ready;
-        } catch (swErr) {
-          console.warn('Manual SW registration failed, falling back to auto:', swErr);
+        if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker) {
+          try {
+            registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+            console.log('FCM Service Worker registered:', registration);
+            // Wait for service worker to be ready
+            await navigator.serviceWorker.ready;
+          } catch (swErr) {
+            console.warn('Manual SW registration failed, falling back to auto:', swErr);
+          }
+        } else {
+          console.warn('Service worker is not supported or available in this browser context');
         }
 
-        const fcmToken = await getToken(messaging, { 
+        const messagingClient = await getMessagingClient();
+        if (!messagingClient) {
+          console.warn('FCM not supported, skipping token retrieval');
+          return null;
+        }
+
+        const fcmToken = await getToken(messagingClient, { 
           serviceWorkerRegistration: registration,
           vapidKey: 'BIj7C8x49zNn-5vJ29qM4n_R_0P3A6bV1J4S9E_f9s7n_v7O4r2Xn1n_qZ9A3vD4J1W7Qz1oX-o6L7K3j2V' 
         });
@@ -74,19 +84,25 @@ export function useFcmToken() {
     }
 
     // Set up foreground listener regardless of whether we generated a new token this session
-    try {
-      unsubscribeForeground = onMessage(messaging, (payload) => {
-        console.log('FCM Foreground message received:', payload);
-        if (payload.notification) {
-          notificationService.notify(payload.notification.title || 'FMC Alert', {
-            body: payload.notification.body,
-            data: payload.data
+    const setupForegroundListener = async () => {
+      try {
+        const messagingClient = await getMessagingClient();
+        if (messagingClient) {
+          unsubscribeForeground = onMessage(messagingClient, (payload) => {
+            console.log('FCM Foreground message received:', payload);
+            if (payload.notification) {
+              notificationService.notify(payload.notification.title || 'FMC Alert', {
+                body: payload.notification.body,
+                data: payload.data
+              });
+            }
           });
         }
-      });
-    } catch (err) {
-      console.warn('Foreground message hook registration restricted:', err);
-    }
+      } catch (err) {
+        console.warn('Foreground message hook registration restricted:', err);
+      }
+    };
+    setupForegroundListener();
 
     return () => {
       if (unsubscribeForeground) {

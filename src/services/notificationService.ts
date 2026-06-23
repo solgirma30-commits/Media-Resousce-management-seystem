@@ -57,7 +57,7 @@ class NotificationService {
         };
 
         // Prefer service worker for better mobile support
-        if ('serviceWorker' in navigator) {
+        if ('serviceWorker' in navigator && navigator.serviceWorker) {
           const registration = await navigator.serviceWorker.ready;
           await registration.showNotification(title, notificationOptions);
         } else {

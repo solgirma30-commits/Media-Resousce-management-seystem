@@ -15,7 +15,8 @@ import {
   Activity,
   Layers,
   Search,
-  Trash2
+  Trash2,
+  Video
 } from 'lucide-react';
 import { 
   collection, 
@@ -38,7 +39,8 @@ import { RequestPasswordModal } from '../RequestPasswordModal';
 export function AllInOneDashboard() {
   const { profile } = useAuth();
   const { t, language, setLanguage } = useLanguage();
-  const [activePortalTab, setActivePortalTab] = useState<'CAMERA' | 'SERVICE' | 'VEHICLE'>('CAMERA');
+  const [activePortalTab, setActivePortalTab] = useState<'CAMERA' | 'SERVICE' | 'VEHICLE' | 'STUDIO'>('CAMERA');
+  const [studioSubTab, setStudioSubTab] = useState<'ALL' | 'TV' | 'RADIO'>('ALL');
   const [allTasks, setAllTasks] = useState<any[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -52,11 +54,12 @@ export function AllInOneDashboard() {
 
     setLoading(true);
     
-    // Subscribe to all 3 main collections
+    // Subscribe to all 4 main collections (added Studio)
     const collections = [
       { name: 'service_requests', icon: Wrench, color: 'text-emerald-400' },
       { name: 'camera_requests', icon: Camera, color: 'text-purple-400' },
-      { name: 'vehicle_requests', icon: Truck, color: 'text-blue-400' }
+      { name: 'vehicle_requests', icon: Truck, color: 'text-blue-400' },
+      { name: 'studio_requests', icon: Video, color: 'text-orange-400' }
     ];
 
     const unsubscribes = collections.map(col => {
@@ -107,6 +110,12 @@ export function AllInOneDashboard() {
       );
       // Only show standalone vehicle requests here; linked ones are handled in Camera tab
       return !hasLinkedCamera;
+    }
+    if (activePortalTab === 'STUDIO') {
+      if (t.collectionName !== 'studio_requests') return false;
+      if (studioSubTab === 'TV') return t.studioCategory === 'TV';
+      if (studioSubTab === 'RADIO') return t.studioCategory === 'RADIO';
+      return true;
     }
     return false;
   }).filter(task => {
@@ -245,11 +254,12 @@ export function AllInOneDashboard() {
           </div>
 
           <div className="flex bg-dark-card p-0.5 rounded-lg border border-dark-border shadow-inner">
-            {(['CAMERA', 'SERVICE', 'VEHICLE'] as const).map((tab) => (
+            {(['CAMERA', 'SERVICE', 'VEHICLE', 'STUDIO'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => {
                   setActivePortalTab(tab);
+                  setStudioSubTab('ALL');
                   setSelectedIds(new Set());
                 }}
                 className={cn(
@@ -259,7 +269,10 @@ export function AllInOneDashboard() {
                     : "text-dark-text-muted hover:text-dark-accent"
                 )}
               >
-                {tab === 'CAMERA' ? t('tab_camera') : tab === 'SERVICE' ? t('tab_repair') : t('tab_transport')}
+                {tab === 'CAMERA' ? t('tab_camera') : 
+                 tab === 'SERVICE' ? t('tab_repair') : 
+                 tab === 'VEHICLE' ? t('tab_transport') : 
+                 t('Studio Booking')}
               </button>
             ))}
           </div>
@@ -278,6 +291,45 @@ export function AllInOneDashboard() {
           </div>
         </div>
       </div>
+
+      {activePortalTab === 'STUDIO' && (
+        <div className="flex items-center gap-2 bg-dark-card border border-dark-border p-2 rounded-xl">
+          <span className="text-[9px] font-black uppercase text-dark-text-muted/60 px-2 tracking-widest">{t('Filtering:')}</span>
+          <button
+            onClick={() => setStudioSubTab('ALL')}
+            className={cn(
+              "px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
+              studioSubTab === 'ALL' 
+                ? "bg-dark-accent text-white shadow-sm" 
+                : "text-dark-text-muted hover:text-dark-accent"
+            )}
+          >
+            {t('All Bookings')}
+          </button>
+          <button
+            onClick={() => setStudioSubTab('TV')}
+            className={cn(
+              "px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
+              studioSubTab === 'TV' 
+                ? "bg-indigo-600 text-white shadow-sm" 
+                : "text-dark-text-muted hover:text-indigo-400"
+            )}
+          >
+            {t('TV Studio Approval')} ({allTasks.filter(t => t.collectionName === 'studio_requests' && t.studioCategory === 'TV').length})
+          </button>
+          <button
+            onClick={() => setStudioSubTab('RADIO')}
+            className={cn(
+              "px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
+              studioSubTab === 'RADIO' 
+                ? "bg-orange-600 text-white shadow-sm" 
+                : "text-dark-text-muted hover:text-orange-400"
+            )}
+          >
+            {t('Radio Studio Approval')} ({allTasks.filter(t => t.collectionName === 'studio_requests' && t.studioCategory === 'RADIO').length})
+          </button>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
