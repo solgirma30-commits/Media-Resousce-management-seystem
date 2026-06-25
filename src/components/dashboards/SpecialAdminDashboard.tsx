@@ -741,7 +741,7 @@ export function SpecialAdminDashboard() {
 
                     return (
                       <motion.tr 
-                        key={`sys-user-${usr.id}-${idx}`}
+                        key={`sys-user-${usr.id}`}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="hover:bg-slate-50/70 transition-all cursor-pointer group"
@@ -1018,7 +1018,7 @@ export function SpecialAdminDashboard() {
                       <div className="grid grid-cols-2 gap-2">
                         {Object.values(UserRole).map((r, i) => (
                           <button
-                            key={`${r}-${i}`}
+                            key={r}
                             onClick={() => setTempRoles(prev => prev.includes(r) ? prev.filter(p => p !== r) : [...prev, r])}
                             className={`px-3 py-2 text-[10px] text-left font-black tracking-wide rounded-xl border transition-all ${
                               tempRoles.includes(r)

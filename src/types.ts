@@ -24,6 +24,7 @@ export interface UserProfile {
 }
 
 export interface Item {
+  id?: string;
   name: string;
   serialNumber: string;
   quantity: number;

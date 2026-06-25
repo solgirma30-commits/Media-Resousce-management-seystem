@@ -348,7 +348,7 @@ export function AllInOneDashboard() {
           { label: t('tab_repair'), value: allTasks.filter(t => t.collectionName === 'service_requests').length, icon: Wrench, color: 'text-emerald-400' },
         ].map((stat, i) => (
           <motion.div
-            key={`aio-stat-${i}-${stat.label}`}
+            key={`aio-stat-${stat.label}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}

@@ -3,7 +3,8 @@
   "description": "FMC Fleet Command is a mission-critical resource management platform for technical services, surveillance, and logistics, featuring multi-level authorization and SIM-integrated dispatch protocols.",
   "requestFramePermissions": [
     "camera",
-    "notifications"
+    "notifications",
+    "microphone"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

@@ -41,6 +41,7 @@ import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { Item } from '../../types';
 import { RequestPasswordModal } from '../RequestPasswordModal';
+import { VoiceRecorder } from '../VoiceRecorder';
 
 export function DeptDirectorDashboard() {
   useFcmToken();
@@ -123,7 +124,7 @@ export function DeptDirectorDashboard() {
   const [vehicleHostName, setVehicleHostName] = useState('');
 
   // Item Exit specific
-  const [items, setItems] = useState<Item[]>([{ name: '', serialNumber: '', quantity: 1 }]);
+  const [items, setItems] = useState<Item[]>([{ id: crypto.randomUUID(), name: '', serialNumber: '', quantity: 1 }]);
   const [exitReason, setExitReason] = useState('');
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
   const [responsiblePerson, setResponsiblePerson] = useState('');
@@ -1214,7 +1215,7 @@ export function DeptDirectorDashboard() {
                     </tr>
                     {(deptRequests as any[]).map((request, idx) => (
                       <tr 
-                        key={`dept-req-${dept}-${request.id || 'req'}-${idx}`} 
+                        key={`dept-req-${dept}-${request.id || 'req'}`} 
                         className={cn(
                            "group transition-colors",
                            isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
@@ -1276,7 +1277,7 @@ export function DeptDirectorDashboard() {
                                <div className="space-y-1">
                                  {request.items && Array.isArray(request.items) ? (
                                    request.items.map((item: any, idx: number) => (
-                                      <div key={`${request.id}-${idx}`} className="flex gap-2">
+                                      <div key={`${request.id}-item-${idx}-${item.name}`} className="flex gap-2">
                                         <span className="font-bold text-black">{item.name}</span>
                                         <span>(S/N: {item.serialNumber || 'N/A'})</span>
                                         <span>Qty: {item.quantity || 1}</span>
@@ -1710,23 +1711,29 @@ export function DeptDirectorDashboard() {
 
                     <div>
                       <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Work Name / Title")}</label>
-                      <input
-                        required
-                        type="text"
-                        placeholder={t("e.g., Office AC Repair")}
-                        value={workName}
-                        onChange={(e) => setWorkName(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold placeholder:text-dark-text-muted/50 focus:ring-1 focus:ring-dark-accent outline-none transition-all mb-4"
-                      />
-                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mb-3">{t("Issue Specifications")}</label>
-                      <textarea
-                        required
-                        rows={4}
-                        placeholder={t("Provide technical descriptors...")}
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold placeholder:text-dark-text-muted/50 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          required
+                          type="text"
+                          placeholder={t("e.g., Office AC Repair")}
+                          value={workName}
+                          onChange={(e) => setWorkName(e.target.value)}
+                          className="flex-1 px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold placeholder:text-dark-text-muted/50 focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
+                        <VoiceRecorder onTranscription={(t) => setWorkName(prev => prev + ' ' + t)} />
+                      </div>
+                      <label className="block text-[10px] font-black text-dark-text-subtle uppercase tracking-widest mt-4 mb-3">{t("Issue Specifications")}</label>
+                      <div className="flex gap-2">
+                        <textarea
+                          required
+                          rows={4}
+                          placeholder={t("Provide technical descriptors...")}
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          className="flex-1 px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold placeholder:text-dark-text-muted/50 focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                        />
+                        <VoiceRecorder onTranscription={(t) => setDescription(prev => prev + ' ' + t)} />
+                      </div>
                     </div>
                   </>
                 )}
@@ -1780,7 +1787,7 @@ export function DeptDirectorDashboard() {
                         <div className="space-y-4">
                           <label className="block text-[10px] font-black text-black uppercase tracking-widest">{t("Items")}</label>
                           {items.map((item, index) => (
-                            <div key={`item-form-${index}-${item.name || 'new'}`} className="grid grid-cols-1 md:grid-cols-[1fr,1fr,auto,auto] gap-3 items-end">
+                            <div key={item.id} className="grid grid-cols-1 md:grid-cols-[1fr,1fr,auto,auto] gap-3 items-end">
                               <input
                                 required
                                 type="text"
@@ -1833,7 +1840,7 @@ export function DeptDirectorDashboard() {
                           ))}
                           <button
                             type="button"
-                            onClick={() => setItems([...items, { name: '', serialNumber: '', quantity: 1 }])}
+                            onClick={() => setItems([...items, { id: crypto.randomUUID(), name: '', serialNumber: '', quantity: 1 }])}
                             className="flex items-center gap-2 text-xs font-black text-dark-accent hover:text-indigo-900 transition-all"
                           >
                             <Plus className="w-4 h-4" /> {t("Add Item")}
@@ -2058,14 +2065,17 @@ export function DeptDirectorDashboard() {
                   <>
                     <div>
                       <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Event Title")}</label>
-                      <input
-                        required
-                        type="text"
-                        placeholder={t("Event name or project title")}
-                        value={eventTitle}
-                        onChange={(e) => setEventTitle(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          required
+                          type="text"
+                          placeholder={t("Event name or project title")}
+                          value={eventTitle}
+                          onChange={(e) => setEventTitle(e.target.value)}
+                          className="flex-1 px-4 py-3 bg-dark-main border border-dark-border rounded-lg text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all"
+                        />
+                        <VoiceRecorder onTranscription={(t) => setEventTitle(prev => prev + ' ' + t)} />
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
@@ -2125,14 +2135,17 @@ export function DeptDirectorDashboard() {
                     </div>
                     <div>
                       <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Purpose / Equipment Needed")}</label>
-                      <textarea
-                        required
-                        rows={3}
-                        placeholder={t("Explain coverage requirements...")}
-                        value={cameraPurpose}
-                        onChange={(e) => setCameraPurpose(e.target.value)}
-                        className="w-full px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
-                      />
+                      <div className="flex gap-2">
+                        <textarea
+                          required
+                          rows={3}
+                          placeholder={t("Explain coverage requirements...")}
+                          value={cameraPurpose}
+                          onChange={(e) => setCameraPurpose(e.target.value)}
+                          className="flex-1 px-4 py-3 bg-dark-main border border-dark-border rounded-xl text-sm text-black font-bold focus:ring-1 focus:ring-dark-accent outline-none transition-all resize-none"
+                        />
+                        <VoiceRecorder onTranscription={(t) => setCameraPurpose(prev => prev + ' ' + t)} />
+                      </div>
                     </div>
                   </>
                 )}
@@ -2165,7 +2178,7 @@ export function DeptDirectorDashboard() {
                       <div>
                         <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-3">{t("Passengers")}</label>
                         {passengers.map((p, index) => (
-                          <div key={`passenger-row-${index}-${profile.uid}`} className="grid grid-cols-3 gap-2 mb-2">
+                          <div key={`passenger-row-${index}-${p.name}`} className="grid grid-cols-3 gap-2 mb-2">
                             <input placeholder="Name" value={p.name} onChange={(e) => { const n = [...passengers]; n[index].name = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Loc" value={p.location} onChange={(e) => { const n = [...passengers]; n[index].location = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
                             <input placeholder="Phone" value={p.phone} onChange={(e) => { const n = [...passengers]; n[index].phone = e.target.value; setPassengers(n); }} className="w-full px-3 py-2 bg-dark-main border border-dark-border rounded-lg text-xs text-black font-bold outline-none" />
@@ -2543,7 +2556,7 @@ export function DeptDirectorDashboard() {
                         ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
                         : format(new Date(), 'h:mm a');
                       return (
-                        <div key={`sms-log-${log.id || `idx-${idx}`}`} className="flex flex-col space-y-1">
+                        <div key={`sms-log-${log.id || (log.sentAt?.seconds || 0) + '-' + idx}`} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">
                             <span>💬 DISPATCH COMMAND</span>
                             <span>{timeStr}</span>

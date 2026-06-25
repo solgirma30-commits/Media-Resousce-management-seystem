@@ -6,8 +6,18 @@ import fs from "fs";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
 
 let adminDbInstance: Firestore | null = null;
 
@@ -84,6 +94,34 @@ async function startServer() {
       // Return empty array to allow frontend to continue functioning without Auth API
       res.setHeader('Content-Type', 'application/json');
       res.json([]);
+    }
+  });
+
+  app.post("/api/transcribe", async (req, res) => {
+    const { audioBase64, mimeType } = req.body;
+    if (!audioBase64 || !mimeType) {
+      return res.status(400).json({ error: "Missing audioBase64 or mimeType" });
+    }
+
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: {
+          parts: [
+            { text: "Transcribe the following audio content to text. Provide ONLY the transcribed text, no other conversation or filler." },
+            {
+              inlineData: {
+                mimeType,
+                data: audioBase64,
+              },
+            },
+          ],
+        },
+      });
+      res.json({ text: response.text });
+    } catch (error: any) {
+      console.error("Transcription Error:", error);
+      res.status(500).json({ error: "Transcription failed" });
     }
   });
 
