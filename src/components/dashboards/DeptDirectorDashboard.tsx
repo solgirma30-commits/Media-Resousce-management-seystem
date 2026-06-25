@@ -965,7 +965,7 @@ export function DeptDirectorDashboard() {
     setPriority('MEDIUM');
     setPhoneNumber(profile?.phoneNumber || '');
     setServiceRequester('');
-    setItems([{ name: '', serialNumber: '', quantity: 1 }]);
+    setItems([{ id: crypto.randomUUID(), name: '', serialNumber: '', quantity: 1 }]);
     setExitReason('');
     setExpectedReturnDate('');
     setResponsiblePerson('');
@@ -1027,7 +1027,7 @@ export function DeptDirectorDashboard() {
     setPriority(request.priority || 'MEDIUM');
     setPhoneNumber(request.phoneNumber || profile?.phoneNumber || '');
     setServiceRequester(request.requesterName || '');
-    setItems(request.items || [{ name: request.itemName || '', serialNumber: request.serialNumber || '', quantity: request.quantity || 1 }]);
+    setItems(request.items?.map((it: any) => ({ ...it, id: it.id || crypto.randomUUID() })) || [{ id: crypto.randomUUID(), name: request.itemName || '', serialNumber: request.serialNumber || '', quantity: request.quantity || 1 }]);
     setExitReason(request.purpose || '');
     setExpectedReturnDate(request.expectedReturnDate || '');
     setResponsiblePerson(request.responsiblePerson || '');
@@ -1216,9 +1216,9 @@ export function DeptDirectorDashboard() {
                   </td>
                 </tr>
               ) : (
-                Object.entries(groupedByDept).map(([dept, deptRequests]) => (
-                  <React.Fragment key={`dept-group-${dept}`}>
-                    <tr className="bg-dark-main/40">
+                Object.entries(groupedByDept).map(([dept, deptRequests], groupIdx) => (
+                  <React.Fragment key={`dept-group-${dept}-${groupIdx}`}>
+                    <tr key={`dept-header-${dept}-${groupIdx}`} className="bg-dark-main/40">
                       <td colSpan={7} className="px-6 py-2 border-y border-dark-border">
                         <div className="flex items-center gap-2">
                           <div className="w-1 h-3 bg-dark-accent rounded-full" />
@@ -1227,9 +1227,9 @@ export function DeptDirectorDashboard() {
                         </div>
                       </td>
                     </tr>
-                    {(deptRequests as any[]).map((request, idx) => (
+                    {(deptRequests as any[]).map((request, reqIdx) => (
                       <tr 
-                        key={`request-${request.id || idx}`} 
+                        key={`request-${request.id || `group-${groupIdx}-req-${reqIdx}`}`} 
                         className={cn(
                            "group transition-colors",
                            isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
@@ -1258,7 +1258,7 @@ export function DeptDirectorDashboard() {
                           <p className="text-[10px] text-dark-text-subtle font-medium uppercase tracking-widest">{request.requesterName || request.directorName || 'Unknown Agent'}</p>
                         </td>
                         <td className="py-4 px-6">
-                          <p className="text-sm font-bold text-slate-900 line-clamp-1 flex items-center gap-2">
+                          <div className="text-sm font-bold text-slate-900 line-clamp-1 flex items-center gap-2">
                             <span>
                               {activeTab === 'SERVICE' ? request.workName :
                                activeTab === 'CAMERA' ? request.eventTitle :
@@ -1281,7 +1281,7 @@ export function DeptDirectorDashboard() {
                                 {request.collectionName === 'item_requests' ? 'Item Exit' : request.collectionName === 'guest_requests' ? 'Guest Entry' : 'Laborer Request'}
                               </span>
                             )}
-                          </p>
+                          </div>
                           <div className="text-[10px] text-dark-text-subtle italic font-serif">
                             {activeTab === 'SERVICE' ? request.description :
                              activeTab === 'CAMERA' ? request.purpose :

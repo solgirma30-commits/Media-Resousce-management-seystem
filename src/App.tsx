@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, createContext, useContext, useCallback, useRef, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -22,7 +23,8 @@ import {
   collection,
   query,
   where,
-  limit
+  limit,
+  updateDoc
 } from 'firebase/firestore';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth, db } from './lib/firebase';
@@ -34,7 +36,7 @@ import { Dashboard } from './components/Dashboard';
 import { SpecialAdminDashboard } from './components/dashboards/SpecialAdminDashboard';
 import { PendingApproval } from './components/PendingApproval';
 import { LanguageProvider } from './lib/LanguageContext';
-import { AlertTriangle, Database, ExternalLink, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Database, ExternalLink, RefreshCw, Bell, X } from 'lucide-react';
 import { InactivityLogout } from './components/InactivityLogout';
 
 export enum UserRole {
@@ -74,6 +76,7 @@ interface AuthContextType {
   switchRole: () => void;
   selectedPortalRole?: UserRole | null;
   setSelectedPortalRole?: (role: UserRole | null) => void;
+  setActivePopup: (popup: { id: string; title: string; message: string; type?: string; itemName?: string } | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,6 +94,7 @@ export default function App() {
   const [signingIn, setSigningIn] = useState(false);
   const [isSelectingRole, setIsSelectingRole] = useState(false);
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+  const [activePopup, setActivePopup] = useState<{ id: string; title: string; message: string; type?: string; itemName?: string } | null>(null);
   const [selectedPortalRole, setSelectedPortalRoleState] = useState<UserRole | null>(() => {
     const saved = localStorage.getItem('fmc_selected_portal_role');
     return saved ? (saved as UserRole) : null;
@@ -322,34 +326,25 @@ export default function App() {
         const secondsAgo = newNotif.createdAt?.seconds 
           ? (Date.now() / 1000) - newNotif.createdAt.seconds 
           : null;
-        // Created within the last 5 minutes
-        const isVeryRecent = secondsAgo === null || (secondsAgo > -300 && secondsAgo < 300);
+        // Created within the last 15 minutes / 900 seconds
+        const isVeryRecent = secondsAgo === null || (secondsAgo > -300 && secondsAgo < 900);
 
         if (isFirstLoad && !isVeryRecent) return;
 
-        // Check if status changed or request update
-        const titleText = newNotif.title || '';
-        const msgText = newNotif.message || '';
-        const notifType = newNotif.type || '';
+        // Trigger a browser-level and in-app toast popup for all notifications
+        notificationService.notify(newNotif.title || 'System Alert', {
+          body: newNotif.message || '',
+          tag: `notif-${notifId}`,
+        });
 
-        // Match status change indicators, assignments, completions, or special types
-        const isStatusChange = 
-          notifType === 'status_change' || 
-          notifType === 'COMPLETION' || 
-          ['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'REJECTED', 'APPROVED'].includes(notifType) ||
-          titleText.toLowerCase().includes('status') ||
-          titleText.toLowerCase().includes('update') ||
-          titleText.toLowerCase().includes('accepted') ||
-          titleText.toLowerCase().includes('progress') ||
-          titleText.toLowerCase().includes('completed') ||
-          msgText.toLowerCase().includes('status') ||
-          msgText.toLowerCase().includes('marked as') ||
-          msgText.toLowerCase().includes('updated');
-
-        if (isStatusChange) {
-          notificationService.notify(titleText, {
-            body: msgText,
-            tag: `status-change-${notifId}`,
+        // Set the on-screen overlay modal for highly visible real-time alert pop-ups
+        if (isVeryRecent) {
+          setActivePopup({
+            id: notifId,
+            title: newNotif.title || 'System Alert',
+            message: newNotif.message || '',
+            type: newNotif.type || 'info',
+            itemName: newNotif.itemName || ''
           });
         }
       }
@@ -392,8 +387,9 @@ export default function App() {
     logout, 
     switchRole,
     selectedPortalRole,
-    setSelectedPortalRole
-  }), [user, profile, loading, signingIn, signIn, signInWithEmail, signUpWithEmail, logout, switchRole, selectedPortalRole, setSelectedPortalRole]);
+    setSelectedPortalRole,
+    setActivePopup
+  }), [user, profile, loading, signingIn, signIn, signInWithEmail, signUpWithEmail, logout, switchRole, selectedPortalRole, setSelectedPortalRole, setActivePopup]);
 
   if (loading) {
     return (
@@ -472,7 +468,22 @@ export default function App() {
   return (
     <AuthContext.Provider value={authValue}>
       <LanguageProvider>
-        <InactivityLogout />
+        <AnimatePresence mode="wait">
+          {!user ? (
+            <Login key="login-view" />
+          ) : ((!profile && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') || isSelectingRole) ? (
+            <RoleSetup key="role-setup-view" onComplete={() => setIsSelectingRole(false)} />
+          ) : (profile && !profile.approved && !profile.isPlaceholder && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
+            <PendingApproval key="pending-view" />
+          ) : (profile?.role === UserRole.SYSTEM_ADMIN && user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
+            <SpecialAdminDashboard key="special-admin-view" />
+          ) : (
+            <Layout key="layout-view">
+              <Dashboard key="dashboard-view" />
+            </Layout>
+          )}
+        </AnimatePresence>
+
         <Toaster 
           position="top-right" 
           toastOptions={{
@@ -499,20 +510,61 @@ export default function App() {
             },
           }}
         />
-        {/* Connection warning removed from UI to avoid clutter, will remain in background state */}
-        {!user ? (
-          <Login />
-        ) : ((!profile && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') || isSelectingRole) ? (
-          <RoleSetup onComplete={() => setIsSelectingRole(false)} />
-        ) : (profile && !profile.approved && !profile.isPlaceholder && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
-          <PendingApproval />
-        ) : (profile?.role === UserRole.SYSTEM_ADMIN && user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
-          <SpecialAdminDashboard />
-        ) : (
-          <Layout>
-            <Dashboard />
-          </Layout>
-        )}
+        {/* Global Real-time Interactive On-Screen Popup Notification Modal */}
+        <InactivityLogout />
+        <AnimatePresence>
+          {activePopup && (
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                transition={{ type: "spring", duration: 0.4 }}
+                className="bg-white rounded-3xl border border-indigo-100 p-6 max-w-md w-full shadow-2xl relative overflow-hidden text-slate-800"
+              >
+                {/* Vibrant Accent Strip */}
+                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 via-indigo-600 to-indigo-500 animate-gradient" />
+                
+                <div className="flex items-start gap-4">
+                  <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl shrink-0 mt-1 animate-pulse border border-indigo-100">
+                    <Bell className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                        {activePopup.title}
+                      </h3>
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 leading-relaxed">
+                      {activePopup.message}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      ⚡ Safe Dispatch Live Screen alert
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    onClick={async () => {
+                      // Mark as read in Firestore to keep the notifications list sync clean
+                      try {
+                        await updateDoc(doc(db, "notifications", activePopup.id), { read: true });
+                      } catch (e) {
+                        console.error("Failed to mark popup notification as read:", e);
+                      }
+                      setActivePopup(null);
+                    }}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-900/20 active:scale-95 cursor-pointer"
+                  >
+                    OK, DISMISS
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </LanguageProvider>
     </AuthContext.Provider>
   );

@@ -39,7 +39,9 @@ service cloud.firestore {
     // --- Rules ---
 
     // 1. Global Safety Net
-    match /{document=**} { allow read, write: if false; }
+    match /{document=**} { 
+      allow read, write: if isSystemAdmin(); 
+    }
 
     // Users
     match /users/{userId} {
@@ -91,8 +93,8 @@ service cloud.firestore {
     
     // SMS Logs
     match /sim_sms_logs/{logId} {
-      allow create: if isSignedIn() && (isAdmin() || isSystemAdmin());
-      allow get, list: if isSignedIn() && (isAdmin() || resource.data.recipientId == request.auth.uid);
+      allow create: if isSignedIn() && (isAdmin() || isSystemAdmin() || isRole('DEPT_DIRECTOR') || isRole('SUPERVISOR'));
+      allow get, list: if isSignedIn() && (isAdmin() || isSystemAdmin() || resource.data.recipientId == request.auth.uid);
     }
   }
 }
