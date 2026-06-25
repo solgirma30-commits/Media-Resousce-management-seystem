@@ -152,7 +152,7 @@ export function SupervisorDashboard() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    key={`stu-req-${req.id}`}
+                    key={`stu-req-${req.id}-${idx}`}
                     onClick={() => setSelectedRequest(req)}
                     className={cn(
                       "w-full text-left p-4 rounded-xl border transition-all duration-200 group relative overflow-hidden",

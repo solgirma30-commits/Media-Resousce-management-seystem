@@ -54,7 +54,11 @@ export function VoiceRecorder({ onTranscription }: { onTranscription: (text: str
     <button
       onClick={(e) => {
         e.preventDefault();
-        isRecording ? stopRecording() : startRecording();
+        if (isRecording) {
+          stopRecording();
+        } else {
+          startRecording();
+        }
       }}
       type="button"
       className={`p-2 rounded-full transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-dark-accent text-white hover:bg-dark-accent/90'}`}

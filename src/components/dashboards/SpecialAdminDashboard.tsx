@@ -741,7 +741,7 @@ export function SpecialAdminDashboard() {
 
                     return (
                       <motion.tr 
-                        key={`sys-user-${usr.id}`}
+                        key={`sys-user-${usr.id}-${idx}`}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="hover:bg-slate-50/70 transition-all cursor-pointer group"

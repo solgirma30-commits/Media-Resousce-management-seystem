@@ -157,7 +157,7 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
                   </thead>
                   <tbody className="divide-y divide-dark-border/50">
                     {weeklyData.taskList.map((task, idx) => (
-                      <tr key={`weekly-task-${task.id}`} className="group hover:bg-dark-sidebar/30 transition-colors">
+                      <tr key={`weekly-task-${task.id}-${idx}`} className="group hover:bg-dark-sidebar/30 transition-colors">
                         <td className="py-4 px-2 text-[11px] text-black font-semibold">{task.dept}</td>
                         <td className="py-4 px-2 text-[11px] text-black font-semibold">{task.assignee}</td>
                         <td className="py-4 px-2 text-[11px] text-black font-semibold truncate max-w-xs">{task.description}</td>

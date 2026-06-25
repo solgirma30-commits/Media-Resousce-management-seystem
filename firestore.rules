@@ -81,9 +81,17 @@ service cloud.firestore {
                    && isSignedIn() && (isAdmin() || isSystemAdmin());
     }
     
+    // Department Updates
+    match /department_updates/{updateId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && (isAdmin() || isSystemAdmin() || isSupervisor() || isRole('DEPT_DIRECTOR'));
+      allow update: if isSignedIn() && (isAdmin() || isSystemAdmin() || isRole('DEPT_DIRECTOR'));
+      allow delete: if isSignedIn();
+    }
+    
     // SMS Logs
     match /sim_sms_logs/{logId} {
-      allow create: if false; // System only
+      allow create: if isSignedIn() && (isAdmin() || isSystemAdmin());
       allow get, list: if isSignedIn() && (isAdmin() || resource.data.recipientId == request.auth.uid);
     }
   }

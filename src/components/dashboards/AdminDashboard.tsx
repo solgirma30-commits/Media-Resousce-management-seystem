@@ -66,6 +66,7 @@ import { toast } from "react-hot-toast";
 import { cn } from "../../lib/utils";
 import { format } from "date-fns";
 import { WeeklyReport } from "../WeeklyReport";
+import { SignaturePad } from "../SignaturePad";
 import { seedWorkforce } from "../../lib/seed";
 import { useLanguage } from "../../lib/LanguageContext";
 
@@ -168,6 +169,9 @@ export function AdminDashboard() {
   const [unlockPassword, setUnlockPassword] = useState("");
   const [showUnlockPassword, setShowUnlockPassword] = useState(false);
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [currentSignatureBase64, setCurrentSignatureBase64] = useState<string | null>(null);
+  const [currentApplyStamp, setCurrentApplyStamp] = useState(false);
   const [pendingAction, setPendingAction] = useState<{
     type: "APPROVE" | "ASSIGN";
     data: any;
@@ -676,11 +680,13 @@ export function AdminDashboard() {
     requestId: string,
     directorId: string,
     bypassLockCheck = false,
+    signatureBase64?: string | null,
+    hasOfficialStamp?: boolean
   ) => {
     if (!bypassLockCheck && !isSectorAuthorized()) {
       setPendingAction({
         type: "APPROVE",
-        data: { requestId, directorId },
+        data: { requestId, directorId, signatureBase64, hasOfficialStamp },
         sector: getSectorForActiveSelection(),
       });
       setIsUnlockModalOpen(true);
@@ -708,6 +714,9 @@ export function AdminDashboard() {
       await updateDoc(doc(db, colName, requestId), {
         status: "APPROVED",
         updatedAt: serverTimestamp(),
+        approvedBy: profile?.displayName || "System Administrator",
+        ...(signatureBase64 ? { signatureBase64 } : {}),
+        ...(hasOfficialStamp ? { hasOfficialStamp } : {}),
       });
 
       const isClearance = activeTab === "PROP_CASUALTY";
@@ -1429,6 +1438,8 @@ export function AdminDashboard() {
             pendingAction.data.requestId,
             pendingAction.data.directorId,
             true,
+            pendingAction.data.signatureBase64,
+            pendingAction.data.hasOfficialStamp
           );
         } else if (pendingAction.type === "ASSIGN" && pendingAction.data) {
           const req = pendingAction.data;
@@ -1935,7 +1946,7 @@ export function AdminDashboard() {
                   ) : (
                       uniqueActiveRequests.map((request, idx) => (
                         <tr
-                        key={`admin-req-${request.collectionName || 'none'}-${request.id || 'req'}`}
+                        key={`admin-req-${request.collectionName || 'none'}-${request.id || 'req'}-${idx}`}
                         onClick={() =>
                           isSelectMode
                             ? toggleSelect(request.id)
@@ -3132,6 +3143,36 @@ export function AdminDashboard() {
                   </div>
                 )}
 
+                {(selectedRequest.signatureBase64 || selectedRequest.hasOfficialStamp) && (
+                  <div className="mt-6 pt-6 border-t border-dark-border grid grid-cols-2 gap-6">
+                    {selectedRequest.signatureBase64 && (
+                      <div className="p-5 bg-white border border-slate-200 rounded-xl relative">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 font-mono">
+                          Digital Signature
+                        </p>
+                        <img 
+                          src={selectedRequest.signatureBase64} 
+                          alt="Signature" 
+                          className="h-20 w-auto object-contain mix-blend-multiply"
+                        />
+                      </div>
+                    )}
+                    {selectedRequest.hasOfficialStamp && (
+                      <div className="p-5 bg-dark-main border border-dark-border rounded-xl flex items-center justify-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-red-500/5" />
+                        <div className="w-24 h-24 rounded-full border-4 border-red-500/80 flex items-center justify-center relative rotate-[-15deg] mix-blend-screen opacity-90">
+                          <div className="absolute inset-2 border-2 border-dashed border-red-500/60 rounded-full" />
+                          <div className="text-center">
+                            <div className="text-red-500 font-black text-xs uppercase tracking-tighter">FMC ADMIN</div>
+                            <div className="text-red-500 font-bold text-[8px] tracking-widest border-y border-red-500/50 py-0.5 my-0.5">APPROVED</div>
+                            <div className="text-red-500/80 font-mono text-[6px]">{format(selectedRequest.updatedAt?.seconds ? new Date(selectedRequest.updatedAt.seconds * 1000) : new Date(), 'dd/MM/yy')}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex gap-4 pt-6">
                   <button
                     onClick={() => {
@@ -3156,11 +3197,15 @@ export function AdminDashboard() {
                       {selectedRequest.status === "NEW" && (
                         <button
                           onClick={() => {
-                            handleApprove(
-                              selectedRequest.id,
-                              selectedRequest.directorId,
-                            );
-                            setSelectedRequest(null);
+                            if (selectedRequest.type === "Exit Permit") {
+                              setIsSignatureModalOpen(true);
+                            } else {
+                              handleApprove(
+                                selectedRequest.id,
+                                selectedRequest.directorId,
+                              );
+                              setSelectedRequest(null);
+                            }
                           }}
                           className="flex-[2] bg-dark-accent text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-900/20 active:scale-95"
                         >
@@ -3977,6 +4022,97 @@ export function AdminDashboard() {
             </motion.div>
           </div>
         )}
+        {isSignatureModalOpen && selectedRequest && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSignatureModalOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-lg bg-dark-card border border-dark-border rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex items-center gap-4 mb-6 pb-6 border-b border-dark-border">
+                  <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-white">Digital Authorization</h3>
+                    <p className="text-xs text-dark-text-subtle font-mono mt-1">Exit Permit Approval</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1 mb-2 block">
+                      Director Signature
+                    </label>
+                    <SignaturePad 
+                      onSign={setCurrentSignatureBase64} 
+                      onClear={() => setCurrentSignatureBase64(null)} 
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 p-4 bg-dark-main border border-dark-border rounded-xl cursor-pointer hover:bg-dark-sidebar/50 transition-colors">
+                    <input 
+                      type="checkbox" 
+                      checked={currentApplyStamp}
+                      onChange={(e) => setCurrentApplyStamp(e.target.checked)}
+                      className="w-5 h-5 rounded border-dark-border bg-dark-card text-emerald-500 focus:ring-emerald-500 focus:ring-offset-dark-card"
+                    />
+                    <div>
+                      <div className="text-sm font-bold text-white">Apply FMC Official Stamp</div>
+                      <div className="text-[10px] text-dark-text-subtle font-mono mt-0.5">Appends digital watermark to record</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex gap-4 mt-8">
+                  <button
+                    onClick={() => {
+                      setIsSignatureModalOpen(false);
+                      setCurrentSignatureBase64(null);
+                      setCurrentApplyStamp(false);
+                    }}
+                    className="flex-1 px-4 py-3 bg-dark-main hover:bg-dark-sidebar text-dark-text-subtle text-xs font-bold rounded-xl transition-colors border border-dark-border"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!currentSignatureBase64) {
+                        toast.error("Signature is mandatory for exit item approval");
+                        return;
+                      }
+                      handleApprove(
+                        selectedRequest.id,
+                        selectedRequest.directorId,
+                        false,
+                        currentSignatureBase64,
+                        currentApplyStamp
+                      );
+                      setIsSignatureModalOpen(false);
+                      setSelectedRequest(null);
+                      setCurrentSignatureBase64(null);
+                      setCurrentApplyStamp(false);
+                    }}
+                    className="flex-[2] bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest py-3 rounded-xl transition-colors shadow-lg shadow-emerald-900/20 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Authorize & Sign
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {isUnlockModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div

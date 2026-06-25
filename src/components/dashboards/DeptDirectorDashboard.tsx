@@ -40,6 +40,7 @@ import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
 import { Item } from '../../types';
+import { SignaturePad } from '../SignaturePad';
 import { RequestPasswordModal } from '../RequestPasswordModal';
 import { VoiceRecorder } from '../VoiceRecorder';
 
@@ -92,6 +93,9 @@ export function DeptDirectorDashboard() {
   const [unreadSmsCount, setUnreadSmsCount] = useState(0);
   const [isSmsPhoneOpen, setIsSmsPhoneOpen] = useState(false);
   const [lastSmsNotification, setLastSmsNotification] = useState<any | null>(null);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [currentSignatureBase64, setCurrentSignatureBase64] = useState<string | null>(null);
+  const [currentApplyStamp, setCurrentApplyStamp] = useState(false);
 
   // General Form states
   const [priority, setPriority] = useState('MEDIUM');
@@ -821,8 +825,15 @@ export function DeptDirectorDashboard() {
     }
   };
 
-  const handleApproveClearance = async (requestId: string) => {
+  const handleApproveClearance = async (requestId: string, signatureBase64?: string | null, hasOfficialStamp?: boolean) => {
     if (!selectedRequest) return;
+    
+    // Enforce signature for item exit requests
+    if (selectedRequest.collectionName === 'item_requests' && !signatureBase64) {
+      setIsSignatureModalOpen(true);
+      return;
+    }
+
     const colName = selectedRequest.collectionName || 'item_requests';
     const path = `${colName}/${requestId}`;
     try {
@@ -830,6 +841,9 @@ export function DeptDirectorDashboard() {
         status: 'APPROVED',
         approvedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        approvedBy: profile?.displayName || "Department Director",
+        ...(signatureBase64 ? { signatureBase64 } : {}),
+        ...(hasOfficialStamp ? { hasOfficialStamp } : {}),
       });
       toast.success('Request approved successfully');
       
@@ -1203,7 +1217,7 @@ export function DeptDirectorDashboard() {
                 </tr>
               ) : (
                 Object.entries(groupedByDept).map(([dept, deptRequests]) => (
-                  <React.Fragment key={dept}>
+                  <React.Fragment key={`dept-group-${dept}`}>
                     <tr className="bg-dark-main/40">
                       <td colSpan={7} className="px-6 py-2 border-y border-dark-border">
                         <div className="flex items-center gap-2">
@@ -1215,7 +1229,7 @@ export function DeptDirectorDashboard() {
                     </tr>
                     {(deptRequests as any[]).map((request, idx) => (
                       <tr 
-                        key={`dept-req-${dept}-${request.id || 'req'}`} 
+                        key={`request-${request.id || idx}`} 
                         className={cn(
                            "group transition-colors",
                            isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
@@ -1268,7 +1282,7 @@ export function DeptDirectorDashboard() {
                               </span>
                             )}
                           </p>
-                          <p className="text-[10px] text-dark-text-subtle italic font-serif">
+                          <div className="text-[10px] text-dark-text-subtle italic font-serif">
                             {activeTab === 'SERVICE' ? request.description :
                              activeTab === 'CAMERA' ? request.purpose :
                              activeTab === 'VEHICLE' ? request.destination :
@@ -1276,8 +1290,8 @@ export function DeptDirectorDashboard() {
                              (request.collectionName === 'item_requests' ? (
                                <div className="space-y-1">
                                  {request.items && Array.isArray(request.items) ? (
-                                   request.items.map((item: any, idx: number) => (
-                                      <div key={`${request.id}-item-${idx}-${item.name}`} className="flex gap-2">
+                                   request.items.map((item: any, itemIdx: number) => (
+                                      <div key={`req-${request.id}-item-${itemIdx}`} className="flex gap-2">
                                         <span className="font-bold text-black">{item.name}</span>
                                         <span>(S/N: {item.serialNumber || 'N/A'})</span>
                                         <span>Qty: {item.quantity || 1}</span>
@@ -1291,7 +1305,7 @@ export function DeptDirectorDashboard() {
                              ) :
                               request.collectionName === 'guest_requests' ? `Guests: ${request.guestCount || 1} | Company: ${request.visitorCompany || 'N/A'} | Purpose: ${request.purpose}` :
                               `${request.deviceModel || 'General Service Request'} (${request.quantity || 1} Person[s])`)}
-                          </p>
+                          </div>
                           {activeTab === 'OTHER' && request.collectionName === 'item_requests' && request.responsiblePerson && (
                             <p className="text-[9px] font-black uppercase text-dark-text-muted mt-1 font-mono tracking-wider">
                               Responsible: <span className="text-dark-accent">{request.responsiblePerson}</span>
@@ -2586,6 +2600,104 @@ export function DeptDirectorDashboard() {
               {/* Phone Home Indicator bar */}
               <div className="bg-slate-900 px-6 py-4 flex items-center justify-center text-center">
                 <button onClick={() => setIsSmsPhoneOpen(false)} className="w-28 h-1 bg-slate-700 rounded-full hover:bg-slate-500 transition-colors pointer-events-auto"></button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+        {isSignatureModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsSignatureModalOpen(false);
+                setCurrentSignatureBase64(null);
+                setCurrentApplyStamp(false);
+              }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md bg-dark-card border border-dark-border rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-dark-border bg-dark-card/50 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-medium text-slate-950 tracking-tight">Digital Authorization</h3>
+                  <p className="text-[10px] text-dark-text-subtle font-mono mt-1 uppercase tracking-widest italic">Operational Clearance Required</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsSignatureModalOpen(false);
+                    setCurrentSignatureBase64(null);
+                    setCurrentApplyStamp(false);
+                  }}
+                  className="p-2 text-dark-text-subtle hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-8">
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1 mb-2 block">
+                      Director Signature
+                    </label>
+                    <SignaturePad 
+                      onSign={setCurrentSignatureBase64} 
+                      onClear={() => setCurrentSignatureBase64(null)} 
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 p-4 bg-dark-main border border-dark-border rounded-xl cursor-pointer hover:bg-dark-sidebar/50 transition-colors">
+                    <input 
+                      type="checkbox" 
+                      checked={currentApplyStamp}
+                      onChange={(e) => setCurrentApplyStamp(e.target.checked)}
+                      className="w-5 h-5 rounded border-dark-border bg-dark-card text-emerald-500 focus:ring-emerald-500 focus:ring-offset-dark-card"
+                    />
+                    <div>
+                      <div className="text-sm font-bold text-white">Apply FMC Official Stamp</div>
+                      <div className="text-[10px] text-dark-text-subtle font-mono mt-0.5">Appends digital watermark to record</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex gap-4 mt-8">
+                  <button
+                    onClick={() => {
+                      setIsSignatureModalOpen(false);
+                      setCurrentSignatureBase64(null);
+                      setCurrentApplyStamp(false);
+                    }}
+                    className="flex-1 px-4 py-3 bg-dark-main hover:bg-dark-sidebar text-dark-text-subtle text-xs font-bold rounded-xl transition-colors border border-dark-border"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!currentSignatureBase64) {
+                        toast.error("Signature is mandatory for exit item approval");
+                        return;
+                      }
+                      handleApproveClearance(
+                        selectedRequest.id,
+                        currentSignatureBase64,
+                        currentApplyStamp
+                      );
+                      setIsSignatureModalOpen(false);
+                      setCurrentSignatureBase64(null);
+                      setCurrentApplyStamp(false);
+                    }}
+                    className="flex-[2] bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest py-3 rounded-xl transition-colors shadow-lg shadow-emerald-900/20 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Authorize & Sign
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
