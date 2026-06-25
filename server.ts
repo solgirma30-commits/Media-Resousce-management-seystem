@@ -99,6 +99,7 @@ async function startServer() {
 
   app.post("/api/transcribe", async (req, res) => {
     const { audioBase64, mimeType } = req.body;
+    console.log("Transcription request received with mimeType:", mimeType);
     if (!audioBase64 || !mimeType) {
       return res.status(400).json({ error: "Missing audioBase64 or mimeType" });
     }
@@ -118,9 +119,10 @@ async function startServer() {
           ],
         },
       });
+      console.log("Transcription Response:", JSON.stringify(response, null, 2));
       res.json({ text: response.text });
     } catch (error: any) {
-      console.error("Transcription Error:", error);
+      console.error("Transcription Error Detail:", error);
       res.status(500).json({ error: "Transcription failed" });
     }
   });

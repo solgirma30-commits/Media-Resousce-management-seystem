@@ -2556,7 +2556,7 @@ export function DeptDirectorDashboard() {
                         ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
                         : format(new Date(), 'h:mm a');
                       return (
-                        <div key={`sms-log-${log.id || (log.sentAt?.seconds || 0) + '-' + idx}`} className="flex flex-col space-y-1">
+                        <div key={`sms-log-${log.id}-${idx}`} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">
                             <span>💬 DISPATCH COMMAND</span>
                             <span>{timeStr}</span>
