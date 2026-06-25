@@ -223,10 +223,10 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
               key={role.id}
               onClick={() => setSelectedRole(role.id)}
               className={cn(
-                "flex flex-col items-center p-6 rounded-xl border transition-all text-left group relative",
+                "flex flex-col items-center p-6 rounded-xl border-4 transition-all text-left group relative",
                 selectedRole === role.id 
-                  ? `${role.border} bg-dark-main/60 ring-1 ring-dark-accent/40` 
-                  : "border-dark-border bg-dark-main/30 hover:bg-dark-main/50 hover:border-dark-text-muted"
+                  ? `border-blue-700 bg-transparent ring-2 ring-blue-800` 
+                  : "border-blue-700/80 bg-transparent hover:border-blue-600"
               )}
             >
               <div className={cn("p-3 rounded-lg mb-4 transition-all duration-300", 
