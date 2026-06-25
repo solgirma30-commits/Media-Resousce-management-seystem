@@ -29,8 +29,11 @@ import { cn } from "../lib/utils";
 import { notificationService } from "../services/notificationService";
 import { useLanguage } from "../lib/LanguageContext";
 import { useFcmToken } from "../hooks/useFcmToken";
+import { OfflineIndicator } from "./OfflineIndicator";
+import { useOfflineSync } from "../hooks/useOfflineSync";
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  useOfflineSync();
   const { profile, logout, switchRole, selectedPortalRole, setSelectedPortalRole } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -332,9 +335,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                           </p>
                         </div>
                       ) : (
-                        notifications.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((n, idx) => (
+                        notifications.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).map((n) => (
                           <div
-                            key={`notif-${n.id}-${idx}`}
+                            key={`notif-${n.id}`}
                             className="p-4 border-b border-dark-border last:border-0 hover:bg-dark-main/30"
                           >
                             <div className="flex items-start gap-3">
@@ -484,6 +487,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <span className="font-serif italic text-lg text-slate-900">
             TechOps Central
           </span>
+          <OfflineIndicator />
         </div>
         <button
           id="mobile-menu-btn"
@@ -636,7 +640,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-10 overflow-x-hidden">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-10 overflow-x-hidden border-8 border-blue-600 rounded-xl shadow-[0_0_50px_rgba(37,99,235,0.6)]">
         {/* Portal Navigation Header */}
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-dark-border">
           {(profile?.role === UserRole.SYSTEM_ADMIN || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (

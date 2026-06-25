@@ -179,7 +179,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-dark-main flex items-center justify-center p-4 font-sans text-black font-bold overflow-y-auto relative">
+    <div className="min-h-screen bg-blue-900 flex items-center justify-center p-4 font-sans text-black font-bold overflow-y-auto relative">
       {/* Floating Language Switcher */}
       <div className="absolute top-6 right-6 z-50 flex items-center gap-2 bg-dark-card border border-dark-border rounded-full px-3 py-1.5 text-xs text-dark-text-subtle">
         <Globe className="w-3.5 h-3.5 text-dark-accent" />
