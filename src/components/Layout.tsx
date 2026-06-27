@@ -34,7 +34,7 @@ import { useOfflineSync } from "../hooks/useOfflineSync";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   useOfflineSync();
-  const { profile, logout, switchRole, selectedPortalRole, setSelectedPortalRole } = useAuth();
+  const { user, profile, logout, switchRole, selectedPortalRole, setSelectedPortalRole } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -420,7 +420,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </p>
             </div>
           </div>
-          {(profile?.role === UserRole.SYSTEM_ADMIN || profile?.role === UserRole.SUPERVISOR || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
+          {(profile?.role === UserRole.SYSTEM_ADMIN || profile?.role === UserRole.SUPERVISOR || user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
             <button
               id="switch-portal-btn"
               onClick={switchRole}
@@ -577,7 +577,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
 
-              {(profile?.role === UserRole.SYSTEM_ADMIN || profile?.role === UserRole.SUPERVISOR || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
+              {(profile?.role === UserRole.SYSTEM_ADMIN || profile?.role === UserRole.SUPERVISOR || user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') && (
                 <button
                   id="mobile-switch-portal-btn"
                   onClick={switchRole}
@@ -603,7 +603,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-10 overflow-x-hidden border-8 border-blue-600 rounded-xl shadow-[0_0_50px_rgba(37,99,235,0.6)]">
         {/* Portal Navigation Header */}
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-dark-border">
-          {(profile?.role === UserRole.SYSTEM_ADMIN || useAuth().user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
+          {(profile?.role === UserRole.SYSTEM_ADMIN || user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
             <button
               id="portal-back-btn"
               onClick={switchRole}
@@ -625,7 +625,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   {t('active_session_badge', 'SECURED ACTIVE WORKSTATION')}
                 </span>
                 <span className="text-xs font-black text-slate-800 font-sans mt-1 block leading-none">
-                  {profile?.displayName || useAuth().user?.displayName || "ACTIVED AGENT"}
+                  {profile?.displayName || user?.displayName || "ACTIVED AGENT"}
                 </span>
               </div>
             </div>

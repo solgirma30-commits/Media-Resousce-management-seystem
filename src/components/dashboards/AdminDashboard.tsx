@@ -1683,7 +1683,14 @@ export function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
+        <div
+          className={cn(
+            "space-y-8",
+            activeTab === "PROP_CASUALTY" || activeTab === "STUDIO"
+              ? "lg:col-span-3"
+              : "lg:col-span-2",
+          )}
+        >
           <div className="flex items-center gap-3 bg-dark-card p-1.5 rounded-xl border border-dark-border w-full overflow-x-auto scrollbar-hide shrink-0">
             <TabButton
               active={activeTab === "SERVICE"}
@@ -2180,7 +2187,7 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {activeTab !== "PROP_CASUALTY" && (
+      {activeTab !== "PROP_CASUALTY" && activeTab !== "STUDIO" && (
         <div className="bg-dark-card rounded-xl border border-dark-border shadow-lg flex flex-col h-[600px]">
           <div className="p-6 border-b border-dark-border bg-dark-card/50">
             <h3 className="text-[11px] font-bold text-dark-text-muted uppercase tracking-widest">
@@ -2219,7 +2226,7 @@ export function AdminDashboard() {
                 .sort((a, b) => b.orderCount - a.orderCount)
                 .map((tech, idx) => (
                   <div
-                            key={`workload-tech-${tech.id}`}
+                            key={`workload-tech-${tech.id || idx}-${idx}`}
                     className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors"
                   >
                     <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-slate-950 border border-dark-border uppercase">
@@ -3014,6 +3021,7 @@ export function AdminDashboard() {
                 {selectedRequest.status !== "NEW" &&
                   selectedRequest.type !== "Exit Permit" &&
                   selectedRequest.type !== "Device" &&
+                  selectedRequest.type !== "Studio" &&
                   selectedRequest.type !== "Guest Entry" && (
                     <div className="grid grid-cols-2 gap-6">
                       <div className="p-5 bg-dark-main border border-dark-border rounded-xl group relative">
@@ -3109,7 +3117,7 @@ export function AdminDashboard() {
                     </div>
                   )}
 
-                {selectedRequest.status === "COMPLETED" && (
+                {selectedRequest.status === "COMPLETED" && activeTab !== "STUDIO" && (
                   <div className="space-y-6 pt-6 border-t border-dark-border">
                     <div className="space-y-3">
                       <label className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest pl-1">
@@ -3518,7 +3526,7 @@ export function AdminDashboard() {
                         const isSelected = selectedAssignIds.includes(tech.id);
                         return (
                           <div
-                            key={`personnel-${tech.id}`}
+                            key={`personnel-${tech.id || idx}-${idx}`}
                             className={cn(
                               "flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar/40 transition-all group",
                               isSelected &&
@@ -3796,11 +3804,11 @@ export function AdminDashboard() {
                     .filter(
                       (v, i, a) => a.findIndex((t) => t.id === v.id) === i,
                     )
-                    .map((tech) => {
+                    .map((tech, idx) => {
                       const isEditingThis = editingTech?.id === tech.id;
                       return (
                         <div
-                          key={`tech-registry-card-${tech.id}`}
+                          key={`tech-registry-card-${tech.id || idx}-${idx}`}
                           className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all"
                         >
                           {isEditingThis ? (

@@ -2,9 +2,9 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import {registerSW} from 'virtual:pwa-register';
+// import {registerSW} from 'virtual:pwa-register';
 
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.self === window.top) {
+/* if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.self === window.top) {
   try {
     registerSW({
       immediate: true,
@@ -15,7 +15,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.self
   } catch (err) {
     console.warn('PWA service worker registration crashed:', err);
   }
-}
+} */
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

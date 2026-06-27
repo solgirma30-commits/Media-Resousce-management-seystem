@@ -1229,7 +1229,7 @@ export function DeptDirectorDashboard() {
                     </tr>
                     {(deptRequests as any[]).map((request, reqIdx) => (
                       <tr 
-                        key={`request-${request.id || `group-${groupIdx}-req-${reqIdx}`}`} 
+                        key={`request-${request.id || 'none'}-${groupIdx}-${reqIdx}`} 
                         className={cn(
                            "group transition-colors",
                            isSelectMode && selectedIds.has(request.id) ? "bg-dark-accent/5" : "hover:bg-dark-main/20"
@@ -1541,7 +1541,7 @@ export function DeptDirectorDashboard() {
                      </div>
                    )}
 
-                   {['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(selectedRequest.status) && (
+                   {['COMPLETED', 'CONFIRMED', 'CLOSED'].includes(selectedRequest.status) && activeTab !== 'STUDIO' && (
                      <div className="space-y-6">
                         <div className="space-y-3">
                           <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest pl-1 flex items-center gap-2">

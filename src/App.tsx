@@ -155,20 +155,16 @@ export default function App() {
         });
       } else if (authError.code === 'auth/popup-closed-by-user') {
         toast.error('Sign-in cancelled');
-      } else if (authError.code === 'auth/cancelled-popup-request') {
-        toast.error('Previous sign-in request was cancelled. Please try again.');
       } else if (authError.code === 'auth/unauthorized-domain') {
         const domain = window.location.hostname;
         toast.error(
           `Domain Unauthorized: Please add "${domain}" to your Authorized Domains in the Firebase Console (Auth > Settings).`,
           { duration: 10000 }
         );
-      } else if (authError.code === 'auth/missing-initial-state' || authError.code === 'auth/internal-error') {
+      } else if (authError.code === 'auth/internal-error' || authError.code === 'auth/missing-initial-state') {
         toast.error('Sign-in blocked by preview restrictions. Please click "Open in New Tab" on the login screen.', {
           duration: 8000,
         });
-      } else if (authError.code === 'auth/network-request-failed') {
-        toast.error('Network error. Firestore might be unreachable.');
       } else {
         toast.error(`Sign-in failed: ${authError.message}`);
       }
@@ -318,18 +314,27 @@ export default function App() {
         const newNotif = change.doc.data();
 
         // Local filter for unread state to avoid index requirement
-        if (newNotif.read === true) return;
+        console.log("New notification received:", newNotif);
+        if (newNotif.read === true) {
+          console.log("Notification already read, skipping.");
+          return;
+        }
 
-        if (notifiedIds.has(notifId)) return;
+        if (notifiedIds.has(notifId)) {
+          console.log("Notification already notified, skipping.");
+          return;
+        }
         notifiedIds.add(notifId);
 
         const secondsAgo = newNotif.createdAt?.seconds 
           ? (Date.now() / 1000) - newNotif.createdAt.seconds 
           : null;
         // Created within the last 15 minutes / 900 seconds
-        const isVeryRecent = secondsAgo === null || (secondsAgo > -300 && secondsAgo < 900);
+        const shouldShowNotification = true;
+        
+        console.log("Should show notification:", shouldShowNotification);
 
-        if (isFirstLoad && !isVeryRecent) return;
+        if (!shouldShowNotification) return;
 
         // Trigger a browser-level and in-app toast popup for all notifications
         notificationService.notify(newNotif.title || 'System Alert', {
@@ -338,15 +343,14 @@ export default function App() {
         });
 
         // Set the on-screen overlay modal for highly visible real-time alert pop-ups
-        if (isVeryRecent) {
-          setActivePopup({
-            id: notifId,
-            title: newNotif.title || 'System Alert',
-            message: newNotif.message || '',
-            type: newNotif.type || 'info',
-            itemName: newNotif.itemName || ''
-          });
-        }
+        console.log("Setting activePopup for notification:", notifId);
+        setActivePopup({
+          id: notifId,
+          title: newNotif.title || 'System Alert',
+          message: newNotif.message || '',
+          type: newNotif.type || 'info',
+          itemName: newNotif.itemName || ''
+        });
       }
     };
 
@@ -470,17 +474,27 @@ export default function App() {
       <LanguageProvider>
         <AnimatePresence mode="wait">
           {!user ? (
-            <Login key="login-view" />
+            <motion.div key="login-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <Login />
+            </motion.div>
           ) : ((!profile && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') || isSelectingRole) ? (
-            <RoleSetup key="role-setup-view" onComplete={() => setIsSelectingRole(false)} />
+            <motion.div key="role-setup-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <RoleSetup onComplete={() => setIsSelectingRole(false)} />
+            </motion.div>
           ) : (profile && !profile.approved && !profile.isPlaceholder && user.uid !== 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
-            <PendingApproval key="pending-view" />
+            <motion.div key="pending-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <PendingApproval />
+            </motion.div>
           ) : (profile?.role === UserRole.SYSTEM_ADMIN && user?.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') ? (
-            <SpecialAdminDashboard key="special-admin-view" />
+            <motion.div key="special-admin-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <SpecialAdminDashboard />
+            </motion.div>
           ) : (
-            <Layout key="layout-view">
-              <Dashboard key="dashboard-view" />
-            </Layout>
+            <motion.div key="layout-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-screen">
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </motion.div>
           )}
         </AnimatePresence>
 
