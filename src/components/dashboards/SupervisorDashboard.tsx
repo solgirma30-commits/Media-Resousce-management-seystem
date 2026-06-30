@@ -10,14 +10,7 @@ import {
   Building2,
   CalendarDays
 } from 'lucide-react';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  where,
-  limit
-} from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { apiRequest } from '../../lib/api';
 import { useAuth } from '../../App';
 import { cn } from '../../lib/utils';
 
@@ -33,32 +26,23 @@ export function SupervisorDashboard() {
     if (!profile) return;
     
     const studioPath = 'studio_requests';
-    const q = query(
-      collection(db, studioPath),
-      where('status', '==', 'APPROVED'),
-      limit(100)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Sort locally to avoid index requirement
-      const sorted = data.sort((a: any, b: any) => {
-        const dateA = a.createdAt?.seconds || 0;
-        const dateB = b.createdAt?.seconds || 0;
-        return dateB - dateA;
-      });
-      setStudioRequests(sorted);
-      setLoading(false);
-    }, (error) => {
-      console.warn("SupervisorDashboard sync error (likely permissions or index):", error);
-      // We don't throw hero to keep UI alive
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    const fetchRequests = async () => {
+      try {
+        const data = await apiRequest('/studio-requests?status=APPROVED');
+        // Sort locally
+        const sorted = data.sort((a: any, b: any) => {
+          const dateA = a.createdAt?.seconds || 0;
+          const dateB = b.createdAt?.seconds || 0;
+          return dateB - dateA;
+        });
+        setStudioRequests(sorted);
+      } catch (error) {
+        console.warn("SupervisorDashboard fetch error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRequests();
   }, [profile]);
 
   const filteredRequests = studioRequests.filter(req => {

@@ -30,9 +30,9 @@ import {
   getDocs,
   setDoc,
   limit
-} from 'firebase/firestore';
+} from '../../lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, handleFirestoreError, OperationType, storage } from '../../lib/firebase';
+import { storage, db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';

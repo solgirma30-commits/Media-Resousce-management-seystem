@@ -40,28 +40,6 @@ import {
 } from "lucide-react";
 import { LogOut } from "lucide-react";
 import { UserProfile } from "../../App";
-import {
-  collection,
-  query,
-  onSnapshot,
-  orderBy,
-  updateDoc,
-  setDoc,
-  doc,
-  serverTimestamp,
-  getDocs,
-  getDoc,
-  where,
-  deleteDoc,
-  limit,
-} from "firebase/firestore";
-import {
-  db,
-  handleFirestoreError,
-  OperationType,
-  auth,
-} from "../../lib/firebase";
-import { useAuth } from "../../App";
 import { toast } from "react-hot-toast";
 import { cn } from "../../lib/utils";
 import { format } from "date-fns";
@@ -69,9 +47,12 @@ import { WeeklyReport } from "../WeeklyReport";
 import { SignaturePad } from "../SignaturePad";
 import { seedWorkforce } from "../../lib/seed";
 import { useLanguage } from "../../lib/LanguageContext";
-
 import { notificationService } from "../../services/notificationService";
 import { RequestPasswordModal } from "../RequestPasswordModal";
+import { apiRequest } from "../../lib/api";
+import { collection, query, limit, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc, where, getDocs, serverTimestamp } from '../../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { useAuth } from "../../App";
 
 export function AdminDashboard() {
   const { profile, logout } = useAuth();

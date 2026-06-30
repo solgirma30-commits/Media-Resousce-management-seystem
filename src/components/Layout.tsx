@@ -21,9 +21,10 @@ import {
   updateDoc,
   doc,
   limit,
-} from "firebase/firestore";
+  getDocs,
+} from "../lib/firebase";
+import { db } from "../lib/firebase";
 import { toast } from "react-hot-toast";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { useAuth, UserRole } from "../App";
 import { cn } from "../lib/utils";
 import { notificationService } from "../services/notificationService";
@@ -31,6 +32,7 @@ import { useLanguage } from "../lib/LanguageContext";
 import { useFcmToken } from "../hooks/useFcmToken";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { useOfflineSync } from "../hooks/useOfflineSync";
+import { apiRequest } from "../lib/api";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   useOfflineSync();
@@ -63,39 +65,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
     // Update permission status
     setPermissionStatus(notificationService.getPermissionStatus());
 
-    const path = "notifications";
-    const q = query(
-      collection(db, path),
-      where("userId", "==", profile.uid),
-      limit(100)
-    );
-
-    let isFirstLoad = true;
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const allDocs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+    const fetchNotifications = async () => {
+      try {
+        const q = query(
+          collection(db, "notifications"),
+          where("userId", "==", profile.uid),
+          where("read", "==", false),
+          limit(100)
+        );
+        const snapshot = await getDocs(q);
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        // Filter read: false locally to avoid composite index
-        const docs = allDocs.filter((d: any) => d.read === false);
+        // Filter read: false locally
+        const unreadDocs = docs.filter((d: any) => d.read === false);
         
-        docs.sort((a: any, b: any) => {
+        unreadDocs.sort((a: any, b: any) => {
           const timeA = a.createdAt?.seconds || 0;
           const timeB = b.createdAt?.seconds || 0;
           return timeB - timeA;
         });
 
         // Update local notification list state for the drawer
-        setNotifications(docs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
-        isFirstLoad = false;
-      },
-      (error) => {
-        console.warn("Layout notification listener error:", error);
-      },
-    );
+        setNotifications(unreadDocs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
+      } catch (error) {
+        console.warn("Layout notification fetch error:", error);
+      }
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Poll every 30s
+    return () => clearInterval(interval);
   }, [profile]);
 
   const handleRequestPermission = async () => {
@@ -127,10 +126,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const markAllAsRead = async () => {
     try {
-      const promises = notifications.map((n) =>
-        updateDoc(doc(db, "notifications", n.id), { read: true }),
+      const q = query(
+        collection(db, "notifications"),
+        where("userId", "==", profile?.uid),
+        where("read", "==", false),
+        limit(100)
       );
-      await Promise.all(promises);
+      const snapshot = await getDocs(q);
+      const batchPromises = snapshot.docs.map(d => updateDoc(doc(db, "notifications", d.id), { read: true }));
+      await Promise.all(batchPromises);
+      setNotifications([]);
       setIsNotificationsOpen(false);
     } catch (error) {
       console.error("Failed to mark notifications as read:", error);

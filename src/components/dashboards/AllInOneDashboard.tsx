@@ -27,7 +27,7 @@ import {
   doc,
   updateDoc,
   limit
-} from 'firebase/firestore';
+} from '../../lib/firebase';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
 import { cn } from '../../lib/utils';
@@ -524,7 +524,7 @@ export function AllInOneDashboard() {
                 <tbody className="divide-y divide-dark-border/40">
                   {portalTasks.map((task, idx) => (
                     <tr 
-                      key={`${task.collectionName}-${task.id}-${idx}`}
+                      key={`${task.collectionName}-${task.id}`}
                       className={cn(
                         "group transition-all hover:bg-dark-main/30 animate-in fade-in slide-in-from-bottom-2 duration-300",
                         selectedIds.has(task.id) ? "bg-dark-accent/5" : ""

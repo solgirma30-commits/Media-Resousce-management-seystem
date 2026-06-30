@@ -1,5 +1,4 @@
-import { db } from './firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { apiRequest } from './api';
 
 export async function seedWorkforce() {
   const techniciansCount = 30;
@@ -18,17 +17,17 @@ export async function seedWorkforce() {
     for (let i = 1; i <= group.count; i++) {
       const uid = `seeded_${group.prefix}_${i}`;
       const name = `${group.namePrefix} ${i}`;
-      // Generate some dummy but plausible phone numbers
       const phone = `+2519${Math.floor(Math.random() * 100000000).toString().padStart(8, '0')}`;
       
-      await setDoc(doc(db, 'users', uid), {
-        uid,
-        displayName: name,
-        phoneNumber: phone,
-        role: group.role,
-        isPlaceholder: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      await apiRequest('/users', {
+        method: 'POST',
+        body: JSON.stringify({
+          uid,
+          displayName: name,
+          phoneNumber: phone,
+          role: group.role,
+          isPlaceholder: true,
+        })
       });
       totalAdded++;
     }

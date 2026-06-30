@@ -26,9 +26,9 @@ import {
   deleteDoc,
   writeBatch,
   limit
-} from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+} from '../../lib/firebase';
 import { useAuth } from '../../App';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';

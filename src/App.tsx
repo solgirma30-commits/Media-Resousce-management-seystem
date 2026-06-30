@@ -15,19 +15,10 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
 } from 'firebase/auth';
-import { 
-  doc, 
-  onSnapshot,
-  getDocFromServer,
-  setDoc,
-  collection,
-  query,
-  where,
-  limit,
-  updateDoc
-} from 'firebase/firestore';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth, db } from './lib/firebase';
+import { doc, getDoc, collection, query, where, limit, getDocs, updateDoc } from './lib/firebase';
+import { apiRequest } from './lib/api';
 import { Layout } from './components/Layout';
 import { notificationService } from './services/notificationService';
 import { Login } from './components/Login';
@@ -230,22 +221,31 @@ export default function App() {
   }, [logout]);
 
   useEffect(() => {
-    let unsubscribeProfile: (() => void) | null = null;
-    
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      
-      if (unsubscribeProfile) {
-        unsubscribeProfile();
-        unsubscribeProfile = null;
-      }
-
-      if (user) {
+    const fetchProfile = async (user: FirebaseUser) => {
+      try {
         const docRef = doc(db, 'users', user.uid);
-        unsubscribeProfile = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setProfile({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
-          } else if (user.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') {
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as UserProfile);
+        } else {
+          if (user.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') {
+             const adminProfile: UserProfile = {
+               uid: user.uid,
+               displayName: 'Principal Supervisor',
+               email: user.email || 'admin@fanamc.com',
+               role: UserRole.SYSTEM_ADMIN,
+               phoneNumber: '+251911000000',
+               department: 'Management',
+               approved: true,
+             };
+             setProfile(adminProfile);
+          } else {
+             setProfile(null);
+          }
+        }
+      } catch (error) {
+        console.error("Profile fetch error:", error);
+        if (user.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') {
             const adminProfile: UserProfile = {
               uid: user.uid,
               displayName: 'Principal Supervisor',
@@ -256,31 +256,18 @@ export default function App() {
               approved: true,
             };
             setProfile(adminProfile);
-            setDoc(docRef, {
-              uid: user.uid,
-              displayName: 'Principal Supervisor',
-              email: user.email || 'admin@fanamc.com',
-              role: 'SYSTEM_ADMIN',
-              phoneNumber: '+251911000000',
-              department: 'Management',
-              approved: true,
-            }, { merge: true }).catch(err => console.error("Error creating superadmin profile:", err));
-          } else {
+        } else {
             setProfile(null);
-          }
-          setLoading(false);
-        }, (error) => {
-          const errMsg = error?.message || '';
-          const isQuota = errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('exhausted') || errMsg.toLowerCase().includes('resource-exhausted') || errMsg.toLowerCase().includes('resource_exhausted');
-          if (isQuota) {
-            setIsQuotaExceeded(true);
-            (window as any).__firestoreQuotaExceeded = true;
-            console.log('[System Status] Handled profile snapshot capacity response safely.');
-          } else {
-            console.error("Profile sync error:", error);
-          }
-          setLoading(false);
-        });
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (user) {
+        fetchProfile(user);
       } else {
         setProfile(null);
         setLoading(false);
@@ -289,86 +276,41 @@ export default function App() {
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeProfile) unsubscribeProfile();
     };
   }, []);
 
-  // Real-time notification listener for status changes and browser push alerts
   const appNotifiedIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!user) return;
 
     const notifiedIds = appNotifiedIds.current;
-    let isFirstLoad = true;
 
-    // We listen to the root notifications collection where userId matches the current user
-    const qRoot = query(
-      collection(db, 'notifications'),
-      where('userId', '==', user.uid),
-      limit(100)
-    );
-
-    const handleSnapshotDocs = (change: any) => {
-      if (change.type === 'added') {
-        const notifId = change.doc.id;
-        const newNotif = change.doc.data();
-
-        // Local filter for unread state to avoid index requirement
-        console.log("New notification received:", newNotif);
-        if (newNotif.read === true) {
-          console.log("Notification already read, skipping.");
-          return;
-        }
-
-        if (notifiedIds.has(notifId)) {
-          console.log("Notification already notified, skipping.");
-          return;
-        }
-        notifiedIds.add(notifId);
-
-        const secondsAgo = newNotif.createdAt?.seconds 
-          ? (Date.now() / 1000) - newNotif.createdAt.seconds 
-          : null;
-        // Created within the last 15 minutes / 900 seconds
-        const shouldShowNotification = true;
+    const fetchNotifications = async () => {
+      try {
+        const q = query(
+          collection(db, 'notifications'),
+          where('userId', '==', user.uid),
+          limit(100)
+        );
+        const snapshot = await getDocs(q);
+        const notifications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        console.log("Should show notification:", shouldShowNotification);
-
-        if (!shouldShowNotification) return;
-
-        // Trigger a browser-level and in-app toast popup for all notifications
-        notificationService.notify(newNotif.title || 'System Alert', {
-          body: newNotif.message || '',
-          tag: `notif-${notifId}`,
+        notifications.forEach((notif: any) => {
+          if (!notifiedIds.has(notif.id)) {
+            notifiedIds.add(notif.id);
+            if (notif.read !== true) {
+              toast.success(notif.title || 'New Alert');
+            }
+          }
         });
-
-        // Set the on-screen overlay modal for highly visible real-time alert pop-ups
-        console.log("Setting activePopup for notification:", notifId);
-        setActivePopup({
-          id: notifId,
-          title: newNotif.title || 'System Alert',
-          message: newNotif.message || '',
-          type: newNotif.type || 'info',
-          itemName: newNotif.itemName || ''
-        });
+      } catch (error) {
+        console.error("Notifications fetch error:", error);
       }
     };
 
-    // Subscribing to the root notifications collection
-    const unsubscribeRoot = onSnapshot(
-      qRoot,
-      (snapshot) => {
-        snapshot.docChanges().forEach(handleSnapshotDocs);
-        isFirstLoad = false;
-      },
-      (error) => {
-        console.error("App notification listener error:", error);
-      }
-    );
-
-    return () => {
-      unsubscribeRoot();
-    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, [user]);
 
   const switchRole = () => {
@@ -562,7 +504,7 @@ export default function App() {
                 <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100">
                   <button
                     onClick={async () => {
-                      // Mark as read in Firestore to keep the notifications list sync clean
+                      // Mark as read to keep the notifications list sync clean
                       try {
                         await updateDoc(doc(db, "notifications", activePopup.id), { read: true });
                       } catch (e) {

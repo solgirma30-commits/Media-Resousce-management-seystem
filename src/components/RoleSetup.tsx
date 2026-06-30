@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Shield, UserRound, Wrench, ArrowRight, Truck, Camera, Globe, Eye, EyeOff } from 'lucide-react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth, UserRole } from '../App';
 import { toast } from 'react-hot-toast';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../lib/LanguageContext';
+import { apiRequest } from '../lib/api';
+import { db } from '../lib/firebase';
+import { doc, setDoc } from '../lib/firebase';
 
 export function RoleSetup({ onComplete }: { onComplete: () => void }) {
   const { user, profile: existingProfile, setProfile } = useAuth();
@@ -130,35 +131,25 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
     }
 
     setIsSubmitting(true);
-    const path = `users/${user.uid}`;
     try {
-      const newProfileData: any = {
+      const profileData = {
         uid: user.uid,
         email: user.email,
         displayName: fullName,
         phoneNumber: phoneNumber,
         role: selectedRole,
         department: department || null,
-        updatedAt: serverTimestamp(),
         approved: existingProfile ? (existingProfile.approved || false) : false,
+        photoURL: user.photoURL || null
       };
 
-      if (!existingProfile) {
-        newProfileData.createdAt = serverTimestamp();
-      }
-
-      if (user.photoURL) {
-        newProfileData.photoURL = user.photoURL;
-      }
-
-      await setDoc(doc(db, 'users', user.uid), newProfileData, { merge: true });
+      const docRef = doc(db, 'users', user.uid);
+      await setDoc(docRef, profileData, { merge: true });
+      const updatedProfile = profileData as any;
       
-      // Manually update the profile in context as a fallback if real-time listener is offline/dead due to quota
+      // Manually update the profile in context
       if (typeof setProfile === 'function') {
-         setProfile({
-           ...newProfileData,
-           updatedAt: new Date() // Convert timestamp for local state
-         } as any);
+         setProfile(updatedProfile);
       }
 
       toast.success('System credentials generated');
@@ -166,13 +157,6 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
     } catch (error) {
       console.error("Role setup error:", error);
       toast.error('Failed to sync identity credentials');
-      // We don't throw here to avoid unhandled rejections that might freeze the UI
-      // but we still call handleFirestoreError for logging if desired
-      try {
-        handleFirestoreError(error, OperationType.WRITE, path);
-      } catch {
-        // Silent
-      }
     } finally {
       setIsSubmitting(false);
     }

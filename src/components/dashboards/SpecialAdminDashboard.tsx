@@ -23,7 +23,7 @@ import {
   Building2,
   Phone
 } from 'lucide-react';
-import { collection, query, limit, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, limit, onSnapshot, doc, updateDoc, deleteDoc } from '../../lib/firebase';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth, UserRole } from '../../App';
 import { useLanguage } from '../../lib/LanguageContext';
@@ -130,7 +130,7 @@ export function SpecialAdminDashboard() {
   // Fetch users list in real time with diagnostic profiling
   useEffect(() => {
     addTelemetryLog('Active system monitoring kernel online.', 'info');
-    addTelemetryLog(`Connected to Google Firestore node: ${db.app.options.projectId || 'fmc-main-vault'}`, 'success');
+    addTelemetryLog(`Connected to Backend API: ${window.location.origin}`, 'success');
     addTelemetryLog('Initiating real-time directory synchronization...', 'info');
 
     const userPath = "users";
