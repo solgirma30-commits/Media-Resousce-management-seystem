@@ -1953,7 +1953,7 @@ export function AdminDashboard() {
                   ) : (
                       uniqueActiveRequests.map((request, idx) => (
                         <tr
-                        key={`admin-req-${request.collectionName || 'none'}-${request.id || 'req'}-${idx}`}
+                        key={`admin-dashboard-req-${request.collectionName || 'none'}-${request.id || 'req'}-${idx}`}
                         onClick={() =>
                           isSelectMode
                             ? toggleSelect(request.id)
@@ -2226,7 +2226,7 @@ export function AdminDashboard() {
                 .sort((a, b) => b.orderCount - a.orderCount)
                 .map((tech, idx) => (
                   <div
-                            key={`workload-tech-${tech.id || idx}-${idx}`}
+                            key={`admin-dashboard-workload-tech-${tech.id || idx}-${idx}`}
                     className="p-5 flex items-center gap-3 hover:bg-dark-main/40 transition-colors"
                   >
                     <div className="w-10 h-10 rounded-full bg-dark-sidebar flex items-center justify-center text-[11px] font-bold text-slate-950 border border-dark-border uppercase">
@@ -3526,7 +3526,7 @@ export function AdminDashboard() {
                         const isSelected = selectedAssignIds.includes(tech.id);
                         return (
                           <div
-                            key={`personnel-${tech.id || idx}-${idx}`}
+                            key={`admin-dashboard-personnel-${tech.id || idx}-${idx}`}
                             className={cn(
                               "flex items-center justify-between p-5 bg-dark-main border border-dark-border rounded-xl hover:bg-dark-sidebar/40 transition-all group",
                               isSelected &&
@@ -3808,7 +3808,7 @@ export function AdminDashboard() {
                       const isEditingThis = editingTech?.id === tech.id;
                       return (
                         <div
-                          key={`tech-registry-card-${tech.id || idx}-${idx}`}
+                          key={`admin-dashboard-tech-registry-card-${tech.id || idx}-${idx}`}
                           className="bg-dark-main border border-dark-border rounded-xl p-5 flex items-center justify-between group hover:border-dark-accent/50 transition-all"
                         >
                           {isEditingThis ? (

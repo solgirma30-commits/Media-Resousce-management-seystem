@@ -7,6 +7,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { GoogleGenAI } from "@google/genai";
+import updatesRouter from "./backend/routes/updates";
 
 dotenv.config();
 
@@ -86,6 +87,8 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", environment: process.env.NODE_ENV || "development" });
   });
+
+  app.use("/api", updatesRouter);
 
   app.get("/api/firebase-users", async (req, res) => {
     try {
