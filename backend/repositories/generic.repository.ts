@@ -22,7 +22,7 @@ function validateCollectionName(name: string): string {
   const allowed = [
     'users', 'department_updates', 'notifications', 'sim_sms_logs', 'fleet',
     'service_requests', 'camera_requests', 'studio_requests', 'vehicle_requests',
-    'item_requests', 'device_requests', 'guest_requests'
+    'item_requests', 'device_requests', 'guest_requests', 'identity_credentials'
   ];
   const cleaned = name.trim();
   if (allowed.includes(cleaned)) return cleaned;

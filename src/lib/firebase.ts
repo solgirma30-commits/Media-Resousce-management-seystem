@@ -115,19 +115,36 @@ export const getDocs = async (q: Query | CollectionReference) => {
     });
   }
 
-  const data = await apiRequest('GET', path, null, queryParams);
-  const hydratedData = hydrateTimestamps(data);
-  
-  return {
-    docs: hydratedData.map((doc: any) => ({
-      id: doc.id,
-      data: () => doc,
+  try {
+    const data = await apiRequest('GET', path, null, queryParams);
+    const hydratedData = hydrateTimestamps(data);
+    
+    const docs = Array.isArray(hydratedData) ? hydratedData.map((d: any) => ({
+      id: d.id,
+      ref: new DocumentReference(path, d.id),
+      data: () => d,
       exists: () => true
-    })),
-    size: hydratedData.length,
-    empty: hydratedData.length === 0,
-    forEach: (cb: any) => hydratedData.forEach((d: any) => cb({ id: d.id, data: () => d }))
-  };
+    })) : [];
+
+    return {
+      docs,
+      size: docs.length,
+      empty: docs.length === 0,
+      docChanges: () => [],
+      forEach: (cb: any) => docs.forEach((d: any) => cb(d)),
+      metadata: { fromCache: false }
+    };
+  } catch (error) {
+    console.error(`getDocs error on ${path}:`, error);
+    return {
+      docs: [],
+      size: 0,
+      empty: true,
+      docChanges: () => [],
+      forEach: () => {},
+      metadata: { fromCache: false }
+    };
+  }
 };
 
 export const getDoc = async (docRef: DocumentReference) => {
@@ -136,11 +153,13 @@ export const getDoc = async (docRef: DocumentReference) => {
     const hydratedData = hydrateTimestamps(data);
     return {
       id: docRef.id,
+      ref: docRef,
       exists: () => !!hydratedData,
-      data: () => hydratedData
+      data: () => hydratedData,
+      docChanges: () => [] // Added for compatibility
     };
   } catch (e: any) {
-    if (e.message.includes('404')) return { exists: () => false };
+    if (e.message.includes('404')) return { id: docRef.id, ref: docRef, exists: () => false, data: () => null, docChanges: () => [] };
     throw e;
   }
 };
@@ -165,12 +184,50 @@ export const deleteDoc = async (docRef: DocumentReference) => {
 export const onSnapshot = (q: any, onNext: any, onError?: any) => {
   // Polling implementation for "real-time" feel without real-time SDK
   let isStopped = false;
+  let lastDocIds = new Set<string>();
+  let lastDataMap = new Map<string, string>();
   
   const fetch = async () => {
     if (isStopped) return;
     try {
       const snap = await (q instanceof DocumentReference ? getDoc(q) : getDocs(q));
-      if (!isStopped) onNext(snap);
+      
+      if (!isStopped) {
+        if (!(q instanceof DocumentReference)) {
+          const currentDocs = (snap as any).docs;
+          const docChanges: any[] = [];
+
+          currentDocs.forEach((d: any) => {
+            const data = d.data();
+            const dataStr = JSON.stringify(data);
+            
+            if (!lastDocIds.has(d.id)) {
+              docChanges.push({ type: 'added', doc: d });
+            } else if (lastDataMap.get(d.id) !== dataStr) {
+              docChanges.push({ type: 'modified', doc: d });
+            }
+          });
+
+          // Also check for removed
+          const currentDocIds = new Set<string>(currentDocs.map((d: any) => d.id));
+          lastDocIds.forEach(id => {
+            if (!currentDocIds.has(id)) {
+              docChanges.push({ type: 'removed', doc: { id, data: () => ({}) } });
+            }
+          });
+
+          // Update state for next poll
+          lastDocIds = currentDocIds;
+          lastDataMap = new Map<string, string>();
+          currentDocs.forEach((d: any) => {
+            lastDataMap.set(d.id, JSON.stringify(d.data()));
+          });
+
+          (snap as any).docChanges = () => docChanges;
+        }
+        
+        onNext(snap);
+      }
     } catch (e) {
       if (!isStopped && onError) onError(e);
     }

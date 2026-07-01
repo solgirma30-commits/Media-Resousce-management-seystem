@@ -45,6 +45,12 @@ async function startServer() {
     console.log(`[API] POST /api/collections/${req.params.collection}`);
     CollectionController.create(req, res);
   });
+
+  app.post("/api/collections/:collection/:id", verifyFirebaseToken, (req, res) => {
+    console.log(`[API] POST /api/collections/${req.params.collection}/${req.params.id}`);
+    req.body.id = req.params.id; // Ensure ID is in body if coming from URL
+    CollectionController.create(req, res);
+  });
   
   app.get("/api/collections/:collection", verifyFirebaseToken, (req, res) => {
     console.log(`[API] GET /api/collections/${req.params.collection}`);
