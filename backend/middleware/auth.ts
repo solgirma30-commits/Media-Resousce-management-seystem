@@ -14,8 +14,12 @@ export async function verifyFirebaseToken(req: Request, res: Response, next: Nex
     const decodedToken = await getAuth(adminApp).verifyIdToken(token);
     (req as any).user = decodedToken;
     next();
-  } catch (error) {
-    console.error('Error verifying Firebase token:', error);
-    res.status(401).json({ success: false, message: 'Unauthorized: Invalid or expired token' });
+  } catch (error: any) {
+    console.error('Error verifying Firebase token:', error.message);
+    res.status(401).json({ 
+      success: false, 
+      message: 'Unauthorized: Invalid or expired token',
+      error: error.message 
+    });
   }
 }

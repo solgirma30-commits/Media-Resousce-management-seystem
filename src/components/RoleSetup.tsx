@@ -154,9 +154,9 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
 
       toast.success('System credentials generated');
       onComplete();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Role setup error:", error);
-      toast.error('Failed to sync identity credentials');
+      toast.error(`Failed to sync identity credentials: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
