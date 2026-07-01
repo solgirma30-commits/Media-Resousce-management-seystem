@@ -10,6 +10,7 @@ import { GoogleGenAI } from "@google/genai";
 import { initDb } from "./backend/database/init";
 import { verifyFirebaseToken } from "./backend/middleware/auth";
 import collectionRoutes from "./backend/routes/collection.routes";
+import { CollectionController } from "./backend/controllers/collection.controller";
 import { GenericRepository } from "./backend/repositories/generic.repository";
 import { getAdminApp } from "./backend/firebase-admin";
 
@@ -39,6 +40,32 @@ async function startServer() {
     next();
   });
 
+  // Explicitly register collection routes to ensure they are handled before any fallthrough
+  app.post("/api/collections/:collection", verifyFirebaseToken, (req, res) => {
+    console.log(`[API] POST /api/collections/${req.params.collection}`);
+    CollectionController.create(req, res);
+  });
+  
+  app.get("/api/collections/:collection", verifyFirebaseToken, (req, res) => {
+    console.log(`[API] GET /api/collections/${req.params.collection}`);
+    CollectionController.list(req, res);
+  });
+
+  app.get("/api/collections/:collection/:id", verifyFirebaseToken, (req, res) => {
+    console.log(`[API] GET /api/collections/${req.params.collection}/${req.params.id}`);
+    CollectionController.get(req, res);
+  });
+
+  app.patch("/api/collections/:collection/:id", verifyFirebaseToken, (req, res) => {
+    console.log(`[API] PATCH /api/collections/${req.params.collection}/${req.params.id}`);
+    CollectionController.update(req, res);
+  });
+
+  app.delete("/api/collections/:collection/:id", verifyFirebaseToken, (req, res) => {
+    console.log(`[API] DELETE /api/collections/${req.params.collection}/${req.params.id}`);
+    CollectionController.delete(req, res);
+  });
+
   // Twilio Client (Lazy Initialization)
   let twilioClient: any = null;
 
@@ -48,7 +75,7 @@ async function startServer() {
   });
 
   // Modular Collection Routes
-  app.use("/api/collections", verifyFirebaseToken, collectionRoutes);
+  // app.use("/api/collections", verifyFirebaseToken, collectionRoutes);
 
   // Backward-Compatible department updates routes
   app.get("/api/department-updates", async (req, res) => {

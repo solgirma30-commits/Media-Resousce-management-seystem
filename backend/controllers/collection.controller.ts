@@ -54,6 +54,7 @@ export const CollectionController = {
     try {
       const { id, data, merge } = req.body;
       const collectionName = req.params.collection;
+      console.log(`[CollectionController] Creating in ${collectionName}:`, { id, merge });
       
       let doc;
       if (merge) {
