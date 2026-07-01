@@ -1,30 +1,21 @@
-import pool from '../database/pool';
+import fs from 'fs';
+import path from 'path';
 
-// Helper to convert DB rows to application-friendly objects
-function fromDb(row: any) {
-  if (!row) return null;
-  const { uid, created_at, updated_at, ...rest } = row;
-  const id = row.id || uid;
-  
-  const parseDate = (d: any) => {
-    if (!d) return null;
-    const date = new Date(d);
-    if (isNaN(date.getTime())) return null;
-    return { seconds: Math.floor(date.getTime() / 1000), nanoseconds: 0 };
-  };
+const DB_FILE = path.join(process.cwd(), 'database.json');
 
-  const result: any = { 
-    id,
-    ...rest,
-    createdAt: parseDate(created_at),
-    updatedAt: parseDate(updated_at)
-  };
-  // Handle JSONB data field
-  if (rest.data && typeof rest.data === 'object') {
-    Object.assign(result, rest.data);
-    delete result.data;
+function readDb(): Record<string, Record<string, any>> {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.warn('Could not read DB_FILE, starting fresh.', e);
   }
-  return result;
+  return {};
+}
+
+function writeDb(data: Record<string, Record<string, any>>) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
 function validateCollectionName(name: string): string {
@@ -41,85 +32,68 @@ function validateCollectionName(name: string): string {
 export const GenericRepository = {
   async getDocument(collectionName: string, id: string): Promise<any | null> {
     const table = validateCollectionName(collectionName);
-    const idCol = table === 'users' ? 'uid' : 'id';
-    const res = await pool.query(`SELECT * FROM ${table} WHERE ${idCol} = $1`, [id]);
-    return fromDb(res.rows[0]);
+    const db = readDb();
+    if (!db[table]) return null;
+    return db[table][id] || null;
   },
 
   async createDocument(collectionName: string, id: string | undefined, data: any): Promise<any> {
     const table = validateCollectionName(collectionName);
+    const db = readDb();
+    if (!db[table]) db[table] = {};
+    
     const idCol = table === 'users' ? 'uid' : 'id';
     const finalId = id || data.id || data.uid || Math.random().toString(36).substring(2, 15);
     
-    const columns = [idCol];
-    const values = [finalId];
-    const placeholders = ['$1'];
+    const now = { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 };
+    const existing = db[table][finalId] || {};
     
-    const schemaCols = table === 'users' 
-      ? ['email', 'display_name', 'photo_url', 'role', 'approved', 'phone_number', 'fcm_token']
-      : ['department', 'message', 'sender', 'user_id', 'status', 'priority'];
-
-    const otherData: any = {};
-    Object.keys(data).forEach((key) => {
-      if (key === 'id' || key === 'uid' || key === 'createdAt' || key === 'updatedAt') return;
-      const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-      if (schemaCols.includes(snakeKey)) {
-        columns.push(snakeKey);
-        values.push(data[key]);
-        placeholders.push(`$${values.length}`);
-      } else {
-        otherData[key] = data[key];
-      }
-    });
-
-    if (Object.keys(otherData).length > 0 && table !== 'department_updates' && table !== 'users') {
-      columns.push('data');
-      values.push(JSON.stringify(otherData));
-      placeholders.push(`$${values.length}`);
+    const newData = {
+      ...existing,
+      ...data,
+      id: finalId,
+      updatedAt: now
+    };
+    if (idCol === 'uid') newData.uid = finalId;
+    if (!existing.createdAt && !newData.createdAt) {
+      newData.createdAt = now;
     }
-
-    const query = `
-      INSERT INTO ${table} (${columns.join(', ')})
-      VALUES (${placeholders.join(', ')})
-      ON CONFLICT (${idCol}) DO UPDATE SET
-      ${columns.slice(1).map((col, i) => `${col} = $${i + 2}`).join(', ')},
-      updated_at = CURRENT_TIMESTAMP
-      RETURNING *
-    `;
-
-    const res = await pool.query(query, values);
-    return fromDb(res.rows[0]);
+    
+    db[table][finalId] = newData;
+    writeDb(db);
+    return newData;
   },
 
   async listDocuments(collectionName: string, filters: Record<string, any> = {}): Promise<any[]> {
     const table = validateCollectionName(collectionName);
-    let query = `SELECT * FROM ${table}`;
-    const values: any[] = [];
-    const whereClauses: string[] = [];
-
-    Object.keys(filters).forEach((key) => {
+    const db = readDb();
+    if (!db[table]) return [];
+    
+    let results = Object.values(db[table]);
+    
+    for (const key of Object.keys(filters)) {
       const val = filters[key];
       if (val !== undefined && val !== null) {
-        const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        values.push(val);
-        whereClauses.push(`${snakeKey} = $${values.length}`);
+        results = results.filter(item => item[key] === val);
       }
-    });
-
-    if (whereClauses.length > 0) {
-      query += ` WHERE ${whereClauses.join(' AND ')}`;
     }
-
-    query += ` ORDER BY created_at DESC`;
-
-    const res = await pool.query(query, values);
-    return res.rows.map(fromDb);
+    
+    results.sort((a, b) => {
+      const aTime = a.createdAt?.seconds || 0;
+      const bTime = b.createdAt?.seconds || 0;
+      return bTime - aTime;
+    });
+    
+    return results;
   },
 
   async deleteDocument(collectionName: string, id: string): Promise<boolean> {
     const table = validateCollectionName(collectionName);
-    const idCol = table === 'users' ? 'uid' : 'id';
-    await pool.query(`DELETE FROM ${table} WHERE ${idCol} = $1`, [id]);
+    const db = readDb();
+    if (db[table] && db[table][id]) {
+      delete db[table][id];
+      writeDb(db);
+    }
     return true;
   }
 };

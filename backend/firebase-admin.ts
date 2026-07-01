@@ -32,6 +32,5 @@ export function getAdminFirestore() {
   } catch (e) {
     console.error("Failed to read firebase-applet-config.json", e);
   }
-  // @ts-expect-error Types mismatch in firebase-admin 
   return getFirestore(app, databaseId);
 }
