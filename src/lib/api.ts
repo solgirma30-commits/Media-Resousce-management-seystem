@@ -1,20 +1,24 @@
 import { auth } from './firebase';
 
-const API_BASE_URL = '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const token = await auth.currentUser?.getIdToken();
-  if (!token) {
+  // Allow unauthenticated requests for public endpoints if needed, but keeping existing logic
+  if (!token && !endpoint.includes('/public')) {
     throw new Error('User not authenticated');
   }
 
   const headers = {
-    'Authorization': `Bearer ${token}`,
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     'Content-Type': 'application/json',
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}/api${endpoint}`, {
+  // Ensure endpoint starts with /
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  const response = await fetch(`${API_BASE_URL}/api${path}`, {
     ...options,
     headers,
   });

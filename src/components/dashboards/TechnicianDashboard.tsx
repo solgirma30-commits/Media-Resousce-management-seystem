@@ -28,8 +28,7 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
-import { collection, query, where, limit, onSnapshot, getDocs, doc, updateDoc, setDoc, getDoc, deleteDoc, serverTimestamp } from '../../lib/firebase';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { dataService } from '../../services/dataService';
 import { apiRequest } from '../../lib/api';
 import { useAuth } from '../../App';
 import { toast } from 'react-hot-toast';
@@ -182,109 +181,55 @@ export function TechnicianDashboard() {
 
   useEffect(() => {
     if (!profile) return;
+    let isMounted = true;
 
-    const path = portalConfig.collection;
-    const q = query(
-      collection(db, path),
-      limit(100)
-    ); // Query ALL tasks in the collection for proper "Global Work Registry" representation
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const path = portalConfig.collection;
+        const docs = await dataService.list<any>(path);
+        
+        if (!isMounted) return;
 
-    let isFirstLoad = true;
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs
-        .map((doc: any) => ({ 
-          id: doc.id, 
-          collectionName: path,
-          ...doc.data() 
-        }))
-        .filter((doc: any) => !doc.technicianArchived && !doc.purgedByTechnician);
-      
-      console.log(`[TechnicianDashboard] Subscription update for ${path}: fetched ${docs.length} global docs`);
-      
-      docs.sort((a: any, b: any) => {
-        const timeA = a.updatedAt?.seconds || 0;
-        const timeB = b.updatedAt?.seconds || 0;
-        return timeB - timeA;
-      });
-      
-      if (!isFirstLoad) {
-        snapshot.docChanges().forEach(change => {
-          if (change.type === 'added' || change.type === 'modified') {
-            const data = change.doc.data() as any;
-            const isAssignedToMe = data[portalConfig.idField] === profile.uid ||
-                                   data.assignedTechnicianIds?.includes(profile.uid) ||
-                                   data.assignedDriverIds?.includes(profile.uid) ||
-                                   data.assignedTechnicians?.some((t: any) => t.id === profile.uid) ||
-                                   data.assignedDrivers?.some((d: any) => d.id === profile.uid);
-                                   
-            if (data.status === 'ASSIGNED' && isAssignedToMe) {
-              const requestId = change.doc.id;
-              if (!notifiedAssignments.current.has(requestId)) {
-                notifiedAssignments.current.add(requestId);
-                const shortId = requestId.slice(-6).toUpperCase();
-                console.log(`[TechnicianDashboard] New assignment detected for me: ${shortId}`);
-                notificationService.notify(`NEW ASSIGNMENT: Service No ${shortId}`, {
-                  body: `You are assigned for service no ${shortId}. Check your portal.`,
-                  icon: '/pwa-512x512.png'
-                });
-              }
-            }
-          }
+        const activeDocs = docs.filter((doc: any) => !doc.technicianArchived && !doc.purgedByTechnician);
+        
+        activeDocs.sort((a: any, b: any) => {
+          const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return timeB - timeA;
         });
-      }
 
-      // 1. Core personal assignments list (tasks explicitly assigned to the logged-in user)
-      const personalAssignments = docs.filter((doc: any) => {
-        const isMain = doc[portalConfig.idField] === profile.uid;
-        const isSecondaryArray = (doc.assignedTechnicianIds && Array.isArray(doc.assignedTechnicianIds) && doc.assignedTechnicianIds.includes(profile.uid)) ||
-                                 (doc.assignedDriverIds && Array.isArray(doc.assignedDriverIds) && doc.assignedDriverIds.includes(profile.uid));
-        const isObjectList = (doc.assignedTechnicians && Array.isArray(doc.assignedTechnicians) && doc.assignedTechnicians.some((t: any) => t.id === profile.uid)) ||
-                             (doc.assignedDrivers && Array.isArray(doc.assignedDrivers) && doc.assignedDrivers.some((d: any) => d.id === profile.uid));
-        return isMain || isSecondaryArray || isObjectList;
-      });
+        // 1. Core personal assignments list (tasks explicitly assigned to the logged-in user)
+        const personalAssignments = activeDocs.filter((doc: any) => {
+          const isMain = doc[portalConfig.idField] === profile.uid;
+          const isSecondaryArray = (doc.assignedTechnicianIds && Array.isArray(doc.assignedTechnicianIds) && doc.assignedTechnicianIds.includes(profile.uid)) ||
+                                   (doc.assignedDriverIds && Array.isArray(doc.assignedDriverIds) && doc.assignedDriverIds.includes(profile.uid));
+          const isObjectList = (doc.assignedTechnicians && Array.isArray(doc.assignedTechnicians) && doc.assignedTechnicians.some((t: any) => t.id === profile.uid)) ||
+                               (doc.assignedDrivers && Array.isArray(doc.assignedDrivers) && doc.assignedDrivers.some((d: any) => d.id === profile.uid));
+          return isMain || isSecondaryArray || isObjectList;
+        });
 
-      // 2. Global Registry (any tasks that have been APPROVED, DISPATCHED, or are currently in-progress/complete)
-      const globalRegistry = docs.filter((doc: any) => 
-        ['APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED', 'REOPENED'].includes(doc.status)
-      );
+        // 2. Global Registry (any tasks that have been APPROVED, DISPATCHED, or are currently in-progress/complete)
+        const globalRegistry = activeDocs.filter((doc: any) => 
+          ['APPROVED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CONFIRMED', 'CLOSED', 'REOPENED'].includes(doc.status)
+        );
 
-      setAssignments(personalAssignments.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
-      setAllRegistryTasks(globalRegistry.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
-      setLoading(false);
-      isFirstLoad = false;
-    }, (error) => {
+        setAssignments(personalAssignments.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
+        setAllRegistryTasks(globalRegistry.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
         setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, path);
-    });
-
-    // Listen for NEW unassigned requests to notify technicians in real-time
-    let isFirstLoadNew = true;
-    const qNew = query(
-      collection(db, path), 
-      where('status', '==', 'NEW'),
-      limit(20)
-    );
-    const unsubscribeNew = onSnapshot(qNew, (snapshot) => {
-      if (!isFirstLoadNew) {
-        snapshot.docChanges().forEach(change => {
-          if (change.type === 'added') {
-            const data = change.doc.data() as any;
-            const displayName = path === 'camera_requests' ? (data.eventTitle || data.purpose) : 
-                              path === 'vehicle_requests' ? (data.tripName || data.destination) : 
-                              (data.workName || data.description);
-            notificationService.notify(`NEW UNASSIGNED REQUEST: ${displayName}`, {
-              body: "Available for pick up",
-              icon: '/pwa-512x512.png'
-            });
-          }
-        });
+      } catch (error) {
+        if (!isMounted) return;
+        setLoading(false);
+        console.error("Fetch error:", error);
       }
-      isFirstLoadNew = false;
-    });
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 30000); // Poll every 30s
 
     return () => {
-      unsubscribe();
-      unsubscribeNew();
+      isMounted = false;
+      clearInterval(interval);
     };
   }, [profile, portalConfig]);
 
@@ -323,18 +268,14 @@ export function TechnicianDashboard() {
   const updateStatus = async (requestId: string, status: string) => {
     if (!selectedWork) return;
     const colName = selectedWork.collectionName || 'service_requests';
-    const path = `${colName}/${requestId}`;
     try {
       const update: any = {
         status,
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
       };
       
       if (status === 'COMPLETED') {
-        update.completedAt = serverTimestamp();
-        // Do not auto-archive completed tasks from active log, so users can view and delete them manually
-        // update.technicianArchived = true; 
-        // Use appropriate field based on request type
+        update.completedAt = new Date();
         if (colName === 'vehicle_requests') {
           update.driverNotes = notes;
         } else {
@@ -343,9 +284,8 @@ export function TechnicianDashboard() {
         update.completionImageUrl = previewUrl;
       }
 
-      await updateDoc(doc(db, colName, requestId), update);
+      await dataService.update(colName, requestId, update);
       
-      // Determine appropriate titles and messages for Director/Requestor notifications
       let notifTitle = '';
       let notifMessage = '';
       let shouldNotifyDirector = false;
@@ -368,27 +308,23 @@ export function TechnicianDashboard() {
         notifMessage = `Your ${friendlyType} "${selectedWork.workName || selectedWork.eventTitle || selectedWork.tripName || 'Untitled task'}" has been marked as COMPLETED by ${profile?.displayName || 'Staff'}.`;
       }
 
-      const postPromises: Promise<any>[] = [];
-
       // 1) Handle Admin notifications (Only for COMPLETED status)
       if (status === 'COMPLETED') {
         try {
-          const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'ADMIN')));
-          adminsSnapshot.docs.forEach(adminDoc => {
-            const notificationId = `notif_${Date.now()}_admin_${adminDoc.id}`;
-            postPromises.push(
-              setDoc(doc(db, 'notifications', notificationId), {
-                userId: adminDoc.id,
-                title: colName === 'vehicle_requests' ? 'Trip Completed' : 
-                       colName === 'camera_requests' ? 'Coverage Finished' : 'Repairs Completed',
-                message: `${profile?.displayName} has completed work on ${colName.replace('_', ' ')} #${shortId}`,
-                read: false,
-                type: 'COMPLETION',
-                requestId: requestId,
-                createdAt: serverTimestamp(),
-              })
-            );
-          });
+          const allUsers = await dataService.list<any>('users');
+          const admins = allUsers.filter((u: any) => u.role === 'ADMIN');
+          for (const admin of admins) {
+            await dataService.createNotification({
+              userId: admin.id,
+              title: colName === 'vehicle_requests' ? 'Trip Completed' : 
+                     colName === 'camera_requests' ? 'Coverage Finished' : 'Repairs Completed',
+              message: `${profile?.displayName} has completed work on ${colName.replace('_', ' ')} #${shortId}`,
+              read: false,
+              type: 'COMPLETION',
+              requestId: requestId,
+              createdAt: new Date(),
+            });
+          }
         } catch (adminErr) {
           console.error("Admin notification dispatch failed:", adminErr);
         }
@@ -396,31 +332,25 @@ export function TechnicianDashboard() {
 
       // 2) Handle Director/Requestor notifications & FCM & SIM SMS
       if (shouldNotifyDirector && selectedWork.directorId) {
-        const dirNotifId = `notif_${Date.now()}_dir_${status}_${selectedWork.directorId}`;
-        postPromises.push(
-          setDoc(doc(db, 'notifications', dirNotifId), {
-            userId: selectedWork.directorId,
-            title: notifTitle,
-            message: notifMessage,
-            read: false,
-            type: status,
-            requestId: requestId,
-            createdAt: serverTimestamp(),
-          })
-        );
+        await dataService.createNotification({
+          userId: selectedWork.directorId,
+          title: notifTitle,
+          message: notifMessage,
+          read: false,
+          type: status,
+          requestId: requestId,
+          createdAt: new Date(),
+        });
 
-        // Fetch director user info to send FCM push alert and simulated SMS
         try {
-          const directorSnap = await getDoc(doc(db, 'users', selectedWork.directorId));
-          if (directorSnap.exists()) {
-            const dirData = directorSnap.data();
+          const dirData = await dataService.get<any>('users', selectedWork.directorId);
+          if (dirData) {
             const directorFcmToken = dirData?.fcmToken || '';
             const directorPhone = dirData?.phoneNumber || '';
             const directorNameVal = dirData?.displayName || '';
 
-            // Send standard background FCM push notification
             if (directorFcmToken) {
-              const fetchPromise = fetch('/api/send-fcm-notification', {
+              fetch('/api/send-fcm-notification', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -433,23 +363,18 @@ export function TechnicianDashboard() {
               }).catch(e => console.error("FCM call failed:", e));
             }
 
-            // Write Sim SMS Log so the requestor receives local alerts simulator style
             if (directorPhone) {
-              const dirSmsLogId = `sms_dir_upd_${Date.now()}_${selectedWork.directorId}`;
-              postPromises.push(
-                setDoc(doc(db, 'sim_sms_logs', dirSmsLogId), {
-                  id: dirSmsLogId,
-                  recipientId: selectedWork.directorId,
-                  recipientName: directorNameVal,
-                  recipientPhone: directorPhone,
-                  role: 'DEPT_DIRECTOR',
-                  message: `[ALERT] ${notifMessage}`,
-                  status: 'SENT',
-                  sentAt: serverTimestamp(),
-                  requestId: requestId,
-                  requestType: colName
-                })
-              );
+              await dataService.create('sim_sms_logs', {
+                recipientId: selectedWork.directorId,
+                recipientName: directorNameVal,
+                recipientPhone: directorPhone,
+                role: 'DEPT_DIRECTOR',
+                message: `[ALERT] ${notifMessage}`,
+                status: 'SENT',
+                sentAt: new Date(),
+                requestId: requestId,
+                requestType: colName
+              });
             }
           }
         } catch (dirErr) {
@@ -457,14 +382,10 @@ export function TechnicianDashboard() {
         }
       }
 
-      if (postPromises.length > 0) {
-        await Promise.all(postPromises);
-      }
-
       const toastMsg = status === 'COMPLETED' ? 'Operation Finished & Reported' : `Status: ${status.replace('_', ' ')}`;
       toast.success(toastMsg);
       if (status === 'COMPLETED') {
-        setSelectedWork(prev => prev?.id === requestId ? { 
+        setSelectedWork((prev: any) => prev?.id === requestId ? { 
           ...prev, 
           status, 
           technicianNotes: colName === 'vehicle_requests' ? undefined : notes,
@@ -472,7 +393,8 @@ export function TechnicianDashboard() {
         } : prev);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error(error);
+      toast.error('Status update failed');
     }
   };
 
@@ -480,20 +402,20 @@ export function TechnicianDashboard() {
     if (!selectedWork || !notes) return;
     setSaving(true);
     const colName = selectedWork.collectionName || 'service_requests';
-    const path = `${colName}/${selectedWork.id}`;
     try {
       const update: any = {
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
       };
       if (colName === 'vehicle_requests') {
         update.driverNotes = notes;
       } else {
         update.technicianNotes = notes;
       }
-      await updateDoc(doc(db, colName, selectedWork.id), update);
+      await dataService.update(colName, selectedWork.id, update);
       toast.success('Work log synchronized');
     } catch (error) {
-       handleFirestoreError(error, OperationType.UPDATE, path);
+       console.error(error);
+       toast.error('Failed to save notes');
     } finally {
       setSaving(false);
     }
@@ -507,7 +429,7 @@ export function TechnicianDashboard() {
 
     try {
       const colName = work.collectionName || 'service_requests';
-      await updateDoc(doc(db, colName, work.id), {
+      await dataService.update(colName, work.id, {
         technicianArchived: true
       });
       toast.success('Assignment archived from active view');
@@ -530,7 +452,7 @@ export function TechnicianDashboard() {
     try {
       const promises = finished.map(work => {
         const colName = (work.collectionName as string) || 'service_requests';
-        return updateDoc(doc(db, colName, work.id), {
+        return dataService.update(colName, work.id, {
           technicianArchived: true
         });
       });
@@ -558,8 +480,7 @@ export function TechnicianDashboard() {
         const work = assignments.find(a => a.id === id);
         if (!work) return Promise.resolve();
         const collectionName = (work.collectionName as string) || 'service_requests';
-        const docRef = doc(db, collectionName, id);
-        return updateDoc(docRef, {
+        return dataService.update(collectionName, id, {
           technicianArchived: true
         });
       });
@@ -597,13 +518,13 @@ export function TechnicianDashboard() {
     );
 
     try {
-      await updateDoc(doc(db, colName, work.id), { purgedByTechnician: true });
+      await dataService.update(colName, work.id, { purgedByTechnician: true });
       toast.success('Record purged permanently');
       setDeleteConfirmId(null);
       if (selectedWork?.id === work.id) setSelectedWork(null);
     } catch (error) {
       toast.error('Purge failure');
-      handleFirestoreError(error, OperationType.DELETE, `${colName}/${work.id}`);
+      console.error(error);
     }
   };
 
@@ -646,11 +567,11 @@ export function TechnicianDashboard() {
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">
-                    {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString() : 'Just now'}
+                    {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'Just now'}
                   </p>
                 </div>
                 <button 
-                  onClick={() => deleteDoc(doc(db, 'department_updates', msg.id))}
+                  onClick={() => dataService.delete('department_updates', msg.id)}
                   className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Delete message for everyone"
                 >
@@ -831,7 +752,7 @@ export function TechnicianDashboard() {
                     <div className="flex items-center justify-end gap-2 text-dark-text-subtle">
                       <Clock className="w-3 h-3 group-hover:text-dark-accent transition-colors" />
                       <span className="text-[10px] font-mono group-hover:text-slate-900 transition-colors">
-                        {work.createdAt?.toDate ? format(work.createdAt.toDate(), 'dd/MM HH:mm') : 'Sync...'}
+                        {work.createdAt ? format(new Date(work.createdAt), 'dd/MM HH:mm') : 'Sync...'}
                       </span>
                     </div>
                   </td>
@@ -917,7 +838,7 @@ export function TechnicianDashboard() {
                     </p>
                     <p className="text-sm font-mono text-slate-900">
                       {selectedWork.collectionName === 'vehicle_requests' ? selectedWork.departureDate : 
-                       selectedWork.createdAt?.toDate ? format(selectedWork.createdAt.toDate(), 'dd MMM yyyy') : 'Pending'}
+                       selectedWork.createdAt ? format(new Date(selectedWork.createdAt), 'dd MMM yyyy') : 'Pending'}
                     </p>
                   </div>
                 </div>

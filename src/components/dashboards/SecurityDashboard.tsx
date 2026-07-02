@@ -15,20 +15,8 @@ import {
   Users,
   Activity
 } from 'lucide-react';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  where,
-  updateDoc,
-  doc,
-  serverTimestamp,
-  deleteDoc,
-  writeBatch,
-  limit
-} from '../../lib/firebase';
 import { useAuth } from '../../App';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { dataService } from '../../services/dataService';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
@@ -55,100 +43,106 @@ export function SecurityDashboard() {
 
   // Real-time notepad updates subscription
   useEffect(() => {
-    const qUpdates = query(
-      collection(db, 'department_updates'),
-      where('department', '==', 'PROP_CASUALTY'),
-      limit(20)
-    );
-    
-    const unsubscribe = onSnapshot(qUpdates, (snapshot) => {
-      const msgs: any[] = [];
-      snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
-      
-      // Sort client-side to avoid Firestore composite index requirements
-      msgs.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-        return timeB - timeA;
-      });
+    let isMounted = true;
+    const notifiedIds = new Set<string>();
 
-      setTeamUpdates(msgs.slice(0, 5)); // Keep only latest 5 for banner
+    const fetchUpdates = async () => {
+      try {
+        const msgs = await dataService.list<any>('department_updates', {
+          department: 'PROP_CASUALTY'
+        });
+        
+        if (!isMounted) return;
 
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const data = change.doc.data() as any;
-          
-          // Check if this is a relatively new message (within last 30 seconds)
-          // or if it has pending writes (local).
-          const isPending = snapshot.metadata.hasPendingWrites;
-          const ts = data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now();
-          const isRecent = (Date.now() - ts) < 30000;
-          
-          if (isPending || isRecent) {
-            toast(`📢 Director Update: ${data.message}`, { 
-              duration: 6000,
-              style: {
-                background: '#1e293b',
-                color: '#fff',
-                border: '1px solid #334155'
-              }
-            });
+        // Sort client-side
+        msgs.sort((a, b) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeB - timeA;
+        });
+
+        setTeamUpdates(msgs.slice(0, 5)); // Keep only latest 5 for banner
+
+        // Toast for new messages
+        msgs.forEach((data) => {
+          if (!notifiedIds.has(data.id)) {
+            notifiedIds.add(data.id);
+            const ts = data.createdAt ? new Date(data.createdAt).getTime() : Date.now();
+            const isRecent = (Date.now() - ts) < 30000;
+            
+            if (isRecent) {
+              toast(`📢 Director Update: ${data.message}`, { 
+                duration: 6000,
+                style: {
+                  background: '#1e293b',
+                  color: '#fff',
+                  border: '1px solid #334155'
+                }
+              });
+            }
           }
-        }
-      });
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, 'department_updates');
-    });
-    return () => unsubscribe();
+        });
+      } catch (error: any) {
+        console.error("Updates fetch error:", error);
+      }
+    };
+    
+    fetchUpdates();
+    const interval = setInterval(fetchUpdates, 10000); // Poll every 10s
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
-    // Security only sees APPROVED requests for items
-    const qItems = query(
-      collection(db, 'item_requests'),
-      where('status', 'in', ['APPROVED', 'EXITED', 'RETURNED']),
-      limit(50)
-    );
+    let isMounted = true;
 
-    const unsubscribeItems = onSnapshot(qItems, (snapshot) => {
-      const docs = snapshot.docs
-        .map(doc => ({ id: doc.id, collectionName: 'item_requests', ...doc.data() }))
-        .filter((doc: any) => !doc.purgedBySecurity);
-      
-      // Sort by creation time desc
-      docs.sort((a: any, b: any) => {
-        const timeA = a.createdAt?.seconds || 0;
-        const timeB = b.createdAt?.seconds || 0;
-        return timeB - timeA;
-      });
+    const fetchAllRequests = async () => {
+      try {
+        // Fetch item requests
+        const itemDocs = await dataService.list<any>('item_requests', {
+          status: ['APPROVED', 'EXITED', 'RETURNED']
+        });
+        
+        // Fetch guest requests
+        const guestDocs = await dataService.list<any>('guest_requests', {
+          status: ['APPROVED', 'COMPLETED']
+        });
 
-      setRequests(docs.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
-      setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, 'item_requests');
-    });
+        if (!isMounted) return;
 
-    const qGuests = query(
-      collection(db, 'guest_requests'),
-      where('status', 'in', ['APPROVED', 'COMPLETED']),
-      limit(50)
-    );
+        const filteredItems = itemDocs
+          .filter((doc: any) => !doc.purgedBySecurity)
+          .map(doc => ({ ...doc, collectionName: 'item_requests' }));
+        
+        filteredItems.sort((a: any, b: any) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeB - timeA;
+        });
 
-    const unsubscribeGuests = onSnapshot(qGuests, (snapshot) => {
-      const docs = snapshot.docs
-        .map(doc => ({ id: doc.id, collectionName: 'guest_requests', ...doc.data() }))
-        .filter((doc: any) => !doc.purgedBySecurity);
-      setGuestRequests(docs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, 'guest_requests');
-    });
+        const filteredGuests = guestDocs
+          .filter((doc: any) => !doc.purgedBySecurity)
+          .map(doc => ({ ...doc, collectionName: 'guest_requests' }));
+
+        setRequests(filteredItems);
+        setGuestRequests(filteredGuests);
+        setLoading(false);
+      } catch (error: any) {
+        if (!isMounted) return;
+        setLoading(false);
+        console.error("Requests fetch error:", error);
+      }
+    };
+
+    fetchAllRequests();
+    const interval = setInterval(fetchAllRequests, 20000); // Poll every 20s
 
     return () => {
-      unsubscribeItems();
-      unsubscribeGuests();
+      isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -163,7 +157,7 @@ export function SecurityDashboard() {
 
   const executeSingleDelete = async (record: any) => {
     try {
-      await updateDoc(doc(db, record.collectionName, record.id), { purgedBySecurity: true });
+      await dataService.update(record.collectionName, record.id, { purgedBySecurity: true });
       toast.success('Record purged from registry');
       setDeleteConfirmId(null);
     } catch (error) {
@@ -180,12 +174,9 @@ export function SecurityDashboard() {
 
   const executeBulkDelete = async () => {
     try {
-      const batch = writeBatch(db);
-      selectedIds.forEach((id) => {
-        const docRef = doc(db, 'item_requests', id);
-        batch.update(docRef, { purgedBySecurity: true });
-      });
-      await batch.commit();
+      await Promise.all(selectedIds.map(id => 
+        dataService.update('item_requests', id, { purgedBySecurity: true })
+      ));
       toast.success('Selected records purged');
       setSelectedIds([]);
       setIsSelectMode(false);
@@ -197,17 +188,18 @@ export function SecurityDashboard() {
 
   const handleGateOut = async (requestId: string) => {
     try {
-      await updateDoc(doc(db, 'item_requests', requestId), {
+      await dataService.update('item_requests', requestId, {
         status: 'EXITED',
-        exitedAt: serverTimestamp(),
+        exitedAt: new Date(),
         securityPersonnelId: profile?.uid,
         securityPersonnelName: profile?.displayName,
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
       });
       toast.success('Item Exit Logged: Operational Release Confirmed');
       setSelectedRequest(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `item_requests/${requestId}`);
+      console.error("Gate out error:", error);
+      toast.error("Failed to log gate out");
     }
   };
 
@@ -220,13 +212,14 @@ export function SecurityDashboard() {
 
   const handleVerifyGuest = async (requestId: string) => {
     try {
-      await updateDoc(doc(db, 'guest_requests', requestId), {                
+      await dataService.update('guest_requests', requestId, {                
         status: 'COMPLETED',
-        updatedAt: serverTimestamp()
+        updatedAt: new Date()
       });
       toast.success('Guest entrance verified');
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'guest_requests');
+      console.error("Guest verify error:", error);
+      toast.error("Failed to verify guest");
     }
   };
 
@@ -284,11 +277,18 @@ export function SecurityDashboard() {
                 <div>
                   <p className="text-xs font-semibold">{msg.message}</p>
                   <p className="text-[9px] text-slate-500 font-mono mt-1">
-                    {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString() : 'Just now'}
+                    {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : 'Just now'}
                   </p>
                 </div>
                 <button 
-                  onClick={() => deleteDoc(doc(db, 'department_updates', msg.id))}
+                  onClick={async () => {
+                    try {
+                      await dataService.delete('department_updates', msg.id);
+                      setTeamUpdates(prev => prev.filter(m => m.id !== msg.id));
+                    } catch (e) {
+                      toast.error("Failed to delete update");
+                    }
+                  }}
                   className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                   title="Delete message for everyone"
                 >
@@ -422,7 +422,7 @@ export function SecurityDashboard() {
                          <div className="text-right">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Completed</p>
                            <p className="text-[9px] font-mono text-dark-accent mt-0.5">
-                             {req.updatedAt ? format(req.updatedAt.toDate(), 'MMM dd, HH:mm') : 'N/A'}
+                             {req.updatedAt ? format(new Date(req.updatedAt), 'MMM dd, HH:mm') : 'N/A'}
                            </p>
                          </div>
                          <button 
@@ -513,7 +513,7 @@ export function SecurityDashboard() {
                              {req.status === 'RETURNED' ? 'Returned' : 'In Field'}
                            </p>
                            <p className="text-[9px] font-mono text-dark-accent mt-0.5">
-                             {req.exitedAt ? format(req.exitedAt.toDate(), 'MMM dd, HH:mm') : 'N/A'}
+                             {req.exitedAt ? format(new Date(req.exitedAt), 'MMM dd, HH:mm') : 'N/A'}
                            </p>
                          </div>
                          {!isSelectMode && (

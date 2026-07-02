@@ -50,9 +50,10 @@ import { useLanguage } from "../../lib/LanguageContext";
 import { notificationService } from "../../services/notificationService";
 import { RequestPasswordModal } from "../RequestPasswordModal";
 import { apiRequest } from "../../lib/api";
-import { collection, query, limit, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc, where, getDocs, serverTimestamp } from '../../lib/firebase';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from "../../App";
+import { dataService } from "../../services/dataService";
+import { auth, storage } from "../../lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export function AdminDashboard() {
   const { profile, logout } = useAuth();
@@ -175,363 +176,69 @@ export function AdminDashboard() {
   };
 
   useEffect(() => {
-    const srPath = "service_requests";
-    const q = query(collection(db, srPath), limit(50));
-    let isFirstLoad = true;
-    const unsubscribeReq = onSnapshot(
-      q,
-      (snapshot) => {
-        const docs = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            type: "Service",
-            collectionName: srPath,
-            ...doc.data(),
-          }))
-          .filter((req: any) => !req.archived && !req.purgedByAdmin);
+    let isMounted = true;
 
-        docs.sort((a: any, b: any) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
+    const fetchAllData = async () => {
+      try {
+        setLoading(true);
+        const [
+          srDocs,
+          camDocs,
+          stuDocs,
+          vehDocs,
+          itemDocs,
+          devDocs,
+          guestDocs,
+          userDocs
+        ] = await Promise.all([
+          dataService.list<any>('service_requests'),
+          dataService.list<any>('camera_requests'),
+          dataService.list<any>('studio_requests'),
+          dataService.list<any>('vehicle_requests'),
+          dataService.list<any>('item_requests'),
+          dataService.list<any>('device_requests'),
+          dataService.list<any>('guest_requests'),
+          dataService.list<any>('users')
+        ]);
 
-        setRequests(docs);
+        if (!isMounted) return;
 
-        if (!isFirstLoad) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const data = change.doc.data() as any;
-              if (data.status === "NEW" && !data.archived) {
-                const displayName = data.workName || data.description;
-                notificationService.notify(`NEW SERVICE: ${displayName}`, {
-                  body: `Department: ${data.departmentName}`,
-                  icon: "/pwa-512x512.png",
-                });
-              }
-            }
-          });
-        }
+        const filterActive = (docs: any[], colName: string, typeLabel: string) => 
+          docs.filter(req => !req.archived && !req.purgedByAdmin)
+              .map(doc => ({ ...doc, collectionName: colName, type: typeLabel }))
+              .sort((a, b) => {
+                const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return tB - tA;
+              });
+
+        setRequests(filterActive(srDocs, 'service_requests', 'Service'));
+        setCameraRequests(filterActive(camDocs, 'camera_requests', 'Camera'));
+        setStudioRequests(filterActive(stuDocs, 'studio_requests', 'Studio'));
+        setVehicleRequests(filterActive(vehDocs, 'vehicle_requests', 'Vehicle'));
+        setItemRequests(filterActive(itemDocs, 'item_requests', 'Exit Permit'));
+        setDeviceRequests(filterActive(devDocs, 'device_requests', 'Device'));
+        setGuestRequests(filterActive(guestDocs, 'guest_requests', 'Guest Entry'));
+
+        setAllUsers(userDocs);
+        setTechnicians(userDocs.filter((u: any) => u.role === "TECHNICIAN"));
+        setDrivers(userDocs.filter((u: any) => u.role === "DRIVER"));
+        setCameramen(userDocs.filter((u: any) => u.role === "CAMERAMAN"));
 
         setLoading(false);
-        isFirstLoad = false;
-      },
-      (error) => {
+      } catch (error) {
+        if (!isMounted) return;
         setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, srPath);
-      },
-    );
+        console.error("Data fetch error:", error);
+      }
+    };
 
-    let isFirstLoadCam = true;
-    const camPath = "camera_requests";
-    const qCam = query(collection(db, camPath), limit(50));
-    const unsubscribeCam = onSnapshot(
-      qCam,
-      (snapshot) => {
-        const docs = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            type: "Camera",
-            collectionName: camPath,
-            ...doc.data(),
-          }))
-          .filter((req: any) => !req.archived && !req.purgedByAdmin);
-
-        docs.sort((a: any, b: any) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
-
-        setCameraRequests(docs);
-
-        if (!isFirstLoadCam) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const data = change.doc.data() as any;
-              if (data.status === "NEW" && !data.archived) {
-                const displayName = data.eventTitle || data.purpose;
-                notificationService.notify(`NEW CAMERA: ${displayName}`, {
-                  body: `Department: ${data.departmentName}`,
-                  icon: "/pwa-512x512.png",
-                });
-              }
-            }
-          });
-        }
-        isFirstLoadCam = false;
-      },
-      (error) => {
-        setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, camPath);
-      },
-    );
-
-    let isFirstLoadStudio = true;
-    const stuPath = "studio_requests";
-    const qStu = query(collection(db, stuPath), limit(50));
-    const unsubscribeStu = onSnapshot(
-      qStu,
-      (snapshot) => {
-        const docs = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            type: "Studio",
-            collectionName: stuPath,
-            ...doc.data(),
-          }))
-          .filter((req: any) => !req.archived && !req.purgedByAdmin);
-
-        docs.sort((a: any, b: any) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
-
-        setStudioRequests(docs);
-
-        if (!isFirstLoadStudio) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const data = change.doc.data() as any;
-              if (data.status === "NEW" && !data.archived) {
-                const displayName = data.eventName;
-                notificationService.notify(`NEW STUDIO: ${displayName}`, {
-                  body: `Department: ${data.departmentName}`,
-                  icon: "/pwa-512x512.png",
-                });
-              }
-            }
-          });
-        }
-        isFirstLoadStudio = false;
-      },
-      (error) => {
-        setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, stuPath);
-      },
-    );
-
-    let isFirstLoadVeh = true;
-    const vehPath = "vehicle_requests";
-    const qVeh = query(collection(db, vehPath), limit(50));
-    const unsubscribeVeh = onSnapshot(
-      qVeh,
-      (snapshot) => {
-        const docs = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            type: "Vehicle",
-            collectionName: vehPath,
-            ...doc.data(),
-          }))
-          .filter((req: any) => !req.archived && !req.purgedByAdmin);
-
-        docs.sort((a: any, b: any) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
-
-        setVehicleRequests(docs);
-
-        if (!isFirstLoadVeh) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const data = change.doc.data() as any;
-              if (data.status === "NEW" && !data.archived) {
-                const displayName = data.tripName || data.destination;
-                notificationService.notify(`NEW SHIPMENT: ${displayName}`, {
-                  body: `Department: ${data.departmentName}`,
-                  icon: "/pwa-512x512.png",
-                });
-              }
-            }
-          });
-        }
-        isFirstLoadVeh = false;
-      },
-      (error) => {
-        setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, vehPath);
-      },
-    );
-
-    let isFirstLoadItem = true;
-    const itemPath = "item_requests";
-    const qItem = query(collection(db, itemPath), limit(50));
-    const unsubscribeItem = onSnapshot(
-      qItem,
-      (snapshot) => {
-        const docs = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            type: "Exit Permit",
-            collectionName: itemPath,
-            ...doc.data(),
-          }))
-          .filter((req: any) => !req.archived && !req.purgedByAdmin);
-
-        docs.sort((a: any, b: any) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
-
-        setItemRequests(docs);
-
-        if (!isFirstLoadItem) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const data = change.doc.data() as any;
-              if (data.status === "NEW" && !data.archived) {
-                const displayName = data.itemName || data.purpose;
-                notificationService.notify(`NEW EXIT PERMIT: ${displayName}`, {
-                  body: `Department: ${data.departmentName}`,
-                  icon: "/pwa-512x512.png",
-                });
-              }
-            }
-          });
-        }
-        isFirstLoadItem = false;
-      },
-      (error) => {
-        setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, itemPath);
-      },
-    );
-
-    let isFirstLoadDev = true;
-    const devPath = "device_requests";
-    const qDev = query(collection(db, devPath), limit(50));
-    const unsubscribeDev = onSnapshot(
-      qDev,
-      (snapshot) => {
-        const docs = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            type: "Device",
-            collectionName: devPath,
-            ...doc.data(),
-          }))
-          .filter((req: any) => !req.archived && !req.purgedByAdmin);
-
-        docs.sort((a: any, b: any) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
-
-        setDeviceRequests(docs);
-
-        if (!isFirstLoadDev) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const data = change.doc.data() as any;
-              if (data.status === "NEW" && !data.archived) {
-                const displayName = data.projectName || data.deviceModel;
-                notificationService.notify(
-                  `NEW DEVICE REQUEST: ${displayName}`,
-                  {
-                    body: `Department: ${data.departmentName}`,
-                    icon: "/pwa-512x512.png",
-                  },
-                );
-              }
-            }
-          });
-        }
-        isFirstLoadDev = false;
-      },
-      (error) => {
-        setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, devPath);
-      },
-    );
-
-    let isFirstLoadGuest = true;
-    const guestPath = "guest_requests";
-    const qGuest = query(collection(db, guestPath), limit(50));
-    const unsubscribeGuest = onSnapshot(
-      qGuest,
-      (snapshot) => {
-        const docs = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            type: "Guest Entry",
-            collectionName: guestPath,
-            ...doc.data(),
-          }))
-          .filter((req: any) => !req.archived && !req.purgedByAdmin);
-
-        docs.sort((a: any, b: any) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
-
-        setGuestRequests(docs);
-
-        if (!isFirstLoadGuest) {
-          snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-              const data = change.doc.data() as any;
-              if (data.status === "NEW" && !data.archived) {
-                const displayName = data.visitorNames || data.purpose;
-                notificationService.notify(
-                  `NEW GUEST ENTRANCE: ${displayName}`,
-                  {
-                    body: `Department: ${data.departmentName}`,
-                    icon: "/pwa-512x512.png",
-                  },
-                );
-              }
-            }
-          });
-        }
-        isFirstLoadGuest = false;
-      },
-      (error) => {
-        setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, guestPath);
-      },
-    );
-
-    const userPath = "users";
-    // Fetch workforce users with limit to avoid burning quota
-    const qUsers = query(collection(db, userPath), limit(450));
-    const unsubscribeTech = onSnapshot(
-      qUsers,
-      (snapshot) => {
-        const users = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setAllUsers(users);
-
-        const techList = users.filter((u: any) => u.role === "TECHNICIAN");
-        const driverList = users.filter((u: any) => u.role === "DRIVER");
-        const cameraList = users.filter((u: any) => u.role === "CAMERAMAN");
-        setTechnicians(techList);
-        setDrivers(driverList);
-        setCameramen(cameraList);
-      },
-      (error) => {
-        setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, userPath);
-      },
-    );
+    fetchAllData();
+    const interval = setInterval(fetchAllData, 30000); // Poll every 30s
 
     return () => {
-      unsubscribeReq();
-      unsubscribeCam();
-      unsubscribeVeh();
-      unsubscribeStu();
-      unsubscribeItem();
-      unsubscribeDev();
-      unsubscribeGuest();
-      unsubscribeTech();
+      isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -604,9 +311,9 @@ export function AdminDashboard() {
     if (!selectedRequest) return;
     try {
       const colName = getCollectionForActiveSelection();
-      await updateDoc(doc(db, colName, selectedRequest.id), {
+      await dataService.update(colName, selectedRequest.id, {
         ...editFormData,
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
       });
       toast.success("Record updated successfully");
       setSelectedRequest({ ...selectedRequest, ...editFormData });
@@ -624,7 +331,7 @@ export function AdminDashboard() {
       const isVehicle =
         selectedRequest.type === "Vehicle" || activeTab === "VEHICLE";
       const updateData: any = {
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
       };
       if (isVehicle) {
         updateData.assignedDriverName = inlineAssignedName;
@@ -633,7 +340,7 @@ export function AdminDashboard() {
         updateData.assignedTechnicianName = inlineAssignedName;
         updateData.assignedTechnicianPhone = inlineAssignedPhone;
       }
-      await updateDoc(doc(db, colName, selectedRequest.id), updateData);
+      await dataService.update(colName, selectedRequest.id, updateData);
       toast.success("Assigned member details updated successfully");
       setSelectedRequest({
         ...selectedRequest,
@@ -690,11 +397,11 @@ export function AdminDashboard() {
                 : clearanceType === "GUEST"
                   ? req?.visitorNames || "Untitled Guest"
                   : req?.projectName || "Untitled Laborer Request";
-    const path = `${colName}/${requestId}`;
+
     try {
-      await updateDoc(doc(db, colName, requestId), {
+      await dataService.update(colName, requestId, {
         status: "APPROVED",
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
         approvedBy: profile?.displayName || "System Administrator",
         ...(signatureBase64 ? { signatureBase64 } : {}),
         ...(hasOfficialStamp ? { hasOfficialStamp } : {}),
@@ -706,17 +413,15 @@ export function AdminDashboard() {
         audienceIds.add(directorId);
       }
 
-      const deptName = req?.departmentName || req?.department || "";
       const userMap = new Map<string, Partial<UserProfile>>();
 
       if (directorId && !userMap.has(directorId)) {
         try {
-          const directorSnap = await getDoc(doc(db, "users", directorId));
-          if (directorSnap.exists()) {
-            const dData = directorSnap.data();
+          const directorData = await dataService.get<any>("users", directorId);
+          if (directorData) {
             userMap.set(directorId, {
-              fcmToken: dData?.fcmToken,
-              displayName: dData?.displayName,
+              fcmToken: directorData?.fcmToken,
+              displayName: directorData?.displayName,
             });
           }
         } catch (e) {
@@ -728,7 +433,6 @@ export function AdminDashboard() {
       if (isClearance) {
         const clearancePromises = Array.from(audienceIds).map(
           async (targetUserId) => {
-            const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${targetUserId}`;
             let title: string;
             let message: string;
 
@@ -744,7 +448,7 @@ export function AdminDashboard() {
             }
 
             // 1. Save local in-app notification doc
-            await setDoc(doc(db, "notifications", notificationId), {
+            await dataService.createNotification({
               userId: targetUserId,
               title,
               message,
@@ -752,7 +456,7 @@ export function AdminDashboard() {
               type: "APPROVAL",
               isClearanceApproval: isClearance, // This signals Layout.tsx to trigger a browser & toast popup immediately!
               requestId: requestId,
-              createdAt: serverTimestamp(),
+              createdAt: new Date(),
             });
 
             // 2. Dispatch real/simulated FCM Push Notification for both target and director
@@ -775,13 +479,13 @@ export function AdminDashboard() {
                 }).catch(e => console.error("FCM target notification failed:", e))
               );
             }
-            if (dDetails?.fcmToken && dDetails.uid !== targetUserId) {
+            if (dDetails?.fcmToken && (dDetails as any).uid !== targetUserId) {
               notifyPromises.push(
                 fetch("/api/send-fcm-notification", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    targetUserId: dDetails.uid,
+                    targetUserId: (dDetails as any).uid,
                     title,
                     body: message,
                     requestId,
@@ -798,12 +502,10 @@ export function AdminDashboard() {
         // Create simulated SMS log for the director/requested person if they have a phone number
         if (directorId) {
           try {
-            const directorSnap = await getDoc(doc(db, "users", directorId));
-            if (directorSnap.exists()) {
-              const dData = directorSnap.data();
+            const dData = await dataService.get<any>("users", directorId);
+            if (dData) {
               const phoneNumber = dData?.phoneNumber;
               if (phoneNumber) {
-                const smsLogId = `sms_${Date.now()}_${directorId}`;
                 let smsMessage = "";
                 if (clearanceType === "ITEM") {
                   smsMessage = `TRANSIT PERMIT: Your exit permit for "${displayName}" is APPROVED. Security gate notified.`;
@@ -813,15 +515,14 @@ export function AdminDashboard() {
                   smsMessage = `LABOR ACCESS: Your laborer request for "${displayName}" is APPROVED. Site access cleared.`;
                 }
 
-                await setDoc(doc(db, "sim_sms_logs", smsLogId), {
-                  id: smsLogId,
+                await dataService.create('sim_sms_logs', {
                   recipientId: directorId,
                   recipientName: dData.displayName || "",
                   recipientPhone: phoneNumber,
                   role: dData.role || "DEPT_DIRECTOR",
                   message: smsMessage,
                   status: "SENT",
-                  sentAt: serverTimestamp(),
+                  sentAt: new Date(),
                   requestId: requestId,
                   requestType: activeTab,
                 });
@@ -835,7 +536,8 @@ export function AdminDashboard() {
 
       toast.success("Request approved");
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error("Approve error:", error);
+      toast.error("Approval failed");
     }
   };
 
@@ -861,7 +563,6 @@ export function AdminDashboard() {
                 : clearanceType === "GUEST"
                   ? req?.visitorNames || "Untitled Guest"
                   : req?.projectName || "Untitled Laborer Request";
-    const path = `${colName}/${requestId}`;
 
     const selectedTechs = Array.isArray(techOrTechs)
       ? techOrTechs
@@ -878,7 +579,7 @@ export function AdminDashboard() {
     try {
       const updateData: any = {
         status: "ASSIGNED",
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
       };
 
       const names = selectedTechs.map((t) => t.displayName).join(", ");
@@ -910,7 +611,7 @@ export function AdminDashboard() {
         }));
       }
 
-      await updateDoc(doc(db, colName, requestId), updateData);
+      await dataService.update(colName, requestId, updateData);
       
       const userMap = new Map<string, Partial<UserProfile>>();
       for (const t of allUsers) {
@@ -923,18 +624,17 @@ export function AdminDashboard() {
       if (requestorId) audienceIds.add(requestorId);
       
       for (const targetUserId of audienceIds) {
-        const notifId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${targetUserId}`;
         const title = `[APPROVED] Request Assigned`;
         const message = `Your request for "${displayName}" is approved and ${names} is assigned for your request.`;
 
-        await setDoc(doc(db, "notifications", notifId), {
+        await dataService.createNotification({
           userId: targetUserId,
           title: title,
           message: message,
           read: false,
           type: "APPROVAL_ASSIGNMENT",
           requestId: requestId,
-          createdAt: serverTimestamp(),
+          createdAt: new Date(),
         });
         
         // FCM notification for requestor/director
@@ -958,18 +658,17 @@ export function AdminDashboard() {
 
       for (const currentTech of selectedTechs) {
         // Create in-app notification for technician
-        const techNotificationId = `notif_tech_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${currentTech.id}`;
         const techTitle = `[NEW ASSIGNMENT] Service No ${shortId}`;
         const techMessage = `You are assigned for service no ${shortId}. Check your portal.`;
 
-        await setDoc(doc(db, "notifications", techNotificationId), {
+        await dataService.createNotification({
           userId: currentTech.id,
           title: techTitle,
           message: techMessage,
           read: false,
           type: "ASSIGNMENT",
           requestId: requestId,
-          createdAt: serverTimestamp(),
+          createdAt: new Date(),
         });
 
         // Send FCM notification
@@ -992,11 +691,9 @@ export function AdminDashboard() {
         if (currentTech.phoneNumber) {
           const smsMessage = `Dear ${currentTech.displayName}, you are assigned for service no ${shortId}. Check your portal.`;
 
-          // Write to Firestore 'sim_sms_logs' so the target user sees it immediately on their in-app simulated screen
-          const smsLogId = `sms_${Date.now()}_${currentTech.id}`;
+          // Write to 'sim_sms_logs' so the target user sees it immediately on their in-app simulated screen
           try {
-            await setDoc(doc(db, "sim_sms_logs", smsLogId), {
-              id: smsLogId,
+            await dataService.create("sim_sms_logs", {
               recipientId: currentTech.id,
               recipientName: currentTech.displayName,
               recipientPhone: currentTech.phoneNumber,
@@ -1009,7 +706,7 @@ export function AdminDashboard() {
                     : "TECHNICIAN"),
               message: smsMessage,
               status: "SENT",
-              sentAt: serverTimestamp(),
+              sentAt: new Date(),
               requestId: requestId,
               requestType: activeTab,
             });
@@ -1082,9 +779,8 @@ export function AdminDashboard() {
         let directorNameVal = "";
         if (directorId) {
           try {
-            const directorSnap = await getDoc(doc(db, "users", directorId));
-            if (directorSnap.exists()) {
-              const dData = directorSnap.data();
+            const dData = await dataService.get<any>("users", directorId);
+            if (dData) {
               directorFcmToken = dData?.fcmToken || "";
               directorPhone = dData?.phoneNumber || "";
               directorNameVal = dData?.displayName || "";
@@ -1098,11 +794,10 @@ export function AdminDashboard() {
         }
 
         // Create notification for director
-        const dirNotificationId = `notif_dir_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${directorId}`;
         const dirTitle = `[ASSIGNED] Request Status`;
         const dirMessage = `Your request for your service "${displayName}" is approved and ${names} is assigned for your request.`;
 
-        await setDoc(doc(db, "notifications", dirNotificationId), {
+        await dataService.createNotification({
           userId: directorId,
           title: dirTitle,
           message: dirMessage,
@@ -1110,7 +805,7 @@ export function AdminDashboard() {
           type: "ASSIGNMENT",
           isClearanceApproval: true, // Triggers immediate local UI and browser popup/notification
           requestId: requestId,
-          createdAt: serverTimestamp(),
+          createdAt: new Date(),
         });
 
         // Send real/simulated FCM push notification to director's phone/screen
@@ -1134,17 +829,15 @@ export function AdminDashboard() {
 
         // Write SMS simulated log for Director
         if (directorPhone) {
-          const dirSmsLogId = `sms_dir_${Date.now()}_${directorId}`;
           try {
-            await setDoc(doc(db, "sim_sms_logs", dirSmsLogId), {
-              id: dirSmsLogId,
+            await dataService.create("sim_sms_logs", {
               recipientId: directorId,
               recipientName: directorNameVal,
               recipientPhone: directorPhone,
               role: "DEPT_DIRECTOR",
               message: dirMessage,
               status: "SENT",
-              sentAt: serverTimestamp(),
+              sentAt: new Date(),
               requestId: requestId,
               requestType: activeTab,
             });
@@ -1157,40 +850,41 @@ export function AdminDashboard() {
       setIsAssignModalOpen(false);
       setSelectedRequest(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error("Assign error:", error);
+      toast.error("Assignment failed");
     }
   };
 
   const handleConfirm = async (requestId: string) => {
     const colName = getCollectionForActiveSelection();
-    const path = `${colName}/${requestId}`;
     try {
-      await updateDoc(doc(db, colName, requestId), {
+      await dataService.update(colName, requestId, {
         status: "CLOSED",
         archived: true, // Auto-delete from active view
-        updatedAt: serverTimestamp(),
-        confirmedAt: serverTimestamp(),
+        updatedAt: new Date(),
+        confirmedAt: new Date(),
       });
       toast.success("Service decommissioned and archived");
       setSelectedRequest(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error("Confirm error:", error);
+      toast.error("Failed to confirm request");
     }
   };
 
   const handleClose = async (requestId: string) => {
     const colName = getCollectionForActiveSelection();
-    const path = `${colName}/${requestId}`;
     try {
-      await updateDoc(doc(db, colName, requestId), {
+      await dataService.update(colName, requestId, {
         status: "CLOSED",
         archived: true, // Auto-delete from active view
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date(),
       });
       toast.success("Service vector decommissioned and archived");
       setSelectedRequest(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error("Close error:", error);
+      toast.error("Failed to close request");
     }
   };
 
@@ -1213,7 +907,7 @@ export function AdminDashboard() {
         if (req) {
           const collectionName = getCollectionForActiveSelection();
           if (collectionName) {
-            return updateDoc(doc(db, collectionName, id), {
+            return dataService.update(collectionName, id, {
               purgedByAdmin: true,
             });
           }
@@ -1235,7 +929,7 @@ export function AdminDashboard() {
     try {
       const colName =
         request.collectionName || getCollectionForActiveSelection();
-      await updateDoc(doc(db, colName, request.id), { purgedByAdmin: true });
+      await dataService.update(colName, request.id, { purgedByAdmin: true });
       toast.success("Record purged from queue");
       setDeleteConfirmId(null);
     } catch (err) {
@@ -1256,7 +950,7 @@ export function AdminDashboard() {
 
   const executeTechDelete = async (techId: string) => {
     try {
-      await deleteDoc(doc(db, "users", techId));
+      await dataService.delete("users", techId);
       toast.success("Agent removed from registry");
       setDeleteTechConfirmId(null);
     } catch (error) {
@@ -1305,15 +999,17 @@ export function AdminDashboard() {
     ];
 
     for (const colName of collections) {
-      const q = query(
-        collection(db, colName),
-        where("createdAt", "<", weekAgo),
-      );
-      const snapshot = await getDocs(q);
-      const deletePromises = snapshot.docs.map((doc) =>
-        updateDoc(doc.ref, { purgedByAdmin: true }),
-      );
-      await Promise.all(deletePromises);
+      try {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const oldRecords = await dataService.list<any>(colName, {
+          createdAtBefore: weekAgo.toISOString()
+        });
+        const promises = oldRecords.map(r => dataService.update(colName, r.id, { purgedByAdmin: true }));
+        await Promise.all(promises);
+      } catch (err) {
+        console.error(`Failed to cleanup ${colName}:`, err);
+      }
     }
     toast.success("Old records cleaned up");
   };
@@ -1347,18 +1043,17 @@ export function AdminDashboard() {
     }
 
     try {
-      await setDoc(
-        doc(db, "users", targetUid),
+      await dataService.update(
+        "users", targetUid,
         {
           uid: targetUid,
           displayName: editName,
           phoneNumber: formattedPhone,
           role: editRole,
           isPlaceholder: true,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
       );
 
       toast.success(
@@ -1372,7 +1067,8 @@ export function AdminDashboard() {
       setEditPhone("");
       setEditRole("TECHNICIAN");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
+      console.error("Agent update error:", error);
+      toast.error("Fleet registry update failure");
     }
   };
 
@@ -1448,7 +1144,7 @@ export function AdminDashboard() {
 
     try {
       const smsLogId = `sms_${Date.now()}_${selectedTechForSms.id}`;
-      await setDoc(doc(db, "sim_sms_logs", smsLogId), {
+      await dataService.create("sim_sms_logs", {
         id: smsLogId,
         recipientId: selectedTechForSms.id,
         recipientName: selectedTechForSms.displayName,
@@ -1456,7 +1152,7 @@ export function AdminDashboard() {
         role: selectedTechForSms.role || "TECHNICIAN",
         message: customSmsMessage,
         status: "SENT",
-        sentAt: serverTimestamp(),
+        sentAt: new Date(),
         requestType: "MANUAL",
       });
       toast.success(`Simulated SMS sent to ${selectedTechForSms.displayName}`, {

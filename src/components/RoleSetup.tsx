@@ -5,9 +5,7 @@ import { useAuth, UserRole } from '../App';
 import { toast } from 'react-hot-toast';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../lib/LanguageContext';
-import { apiRequest } from '../lib/api';
-import { db } from '../lib/firebase';
-import { doc, setDoc } from '../lib/firebase';
+import { dataService } from '../services/dataService';
 
 export function RoleSetup({ onComplete }: { onComplete: () => void }) {
   const { user, profile: existingProfile, setProfile } = useAuth();
@@ -143,8 +141,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
         photoURL: user.photoURL || null
       };
 
-      const docRef = doc(db, 'users', user.uid);
-      await setDoc(docRef, profileData, { merge: true });
+      await dataService.update('users', user.uid, profileData);
       const updatedProfile = profileData as any;
       
       // Manually update the profile in context
@@ -154,9 +151,9 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
 
       toast.success('System credentials generated');
       onComplete();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Role setup error:", error);
-      toast.error(`Failed to sync identity credentials: ${error.message || 'Unknown error'}`);
+      toast.error('Failed to sync identity credentials');
     } finally {
       setIsSubmitting(false);
     }

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { getMessagingClient, auth } from '../lib/firebase';
 import { notificationService } from '../services/notificationService';
+import { dataService } from '../services/dataService';
 
 export function useFcmToken() {
   const [token, setToken] = useState<string | null>(null);
@@ -49,15 +50,14 @@ export function useFcmToken() {
         if (fcmToken && auth.currentUser) {
           setToken(fcmToken);
           
-          // 1. Directly save to Firestore from client-side SDK where the user context has security rule clearance
+          // 1. Directly save to PostgreSQL via dataService
           try {
-            const { doc, updateDoc, db } = await import('../lib/firebase');
-            await updateDoc(doc(db, "users", auth.currentUser.uid), { fcmToken });
+            await dataService.update("users", auth.currentUser.uid, { fcmToken });
           } catch (dbErr) {
-            console.warn("Could not save FCM token directly via client Firestore (expected if first launch):", dbErr);
+            console.warn("Could not save FCM token via dataService:", dbErr);
           }
 
-          // 2. Register on server side (handled gracefully without throwing unhandled exceptions if ADMIN DB is restricted)
+          // 2. Register on server side legacy endpoint if still needed (or just use dataService above)
           await fetch('/api/register-fcm-token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

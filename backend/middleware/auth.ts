@@ -1,25 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
 import { getAuth } from 'firebase-admin/auth';
-import { getAdminApp } from '../firebase-admin';
+import { initializeApp, getApps } from 'firebase-admin/app';
+
+const app = getApps().length === 0 ? initializeApp() : getApps()[0];
 
 export async function verifyFirebaseToken(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Unauthorized: Missing Authorization header' });
+    return res.status(401).json({ success: false, message: 'Unauthorized' });
   }
 
-  const token = authHeader.split('Bearer ')[1];
+  const token = authHeader.split(' ')[1];
   try {
-    const adminApp = getAdminApp();
-    const decodedToken = await getAuth(adminApp).verifyIdToken(token);
+    const decodedToken = await getAuth(app).verifyIdToken(token);
     (req as any).user = decodedToken;
     next();
-  } catch (error: any) {
-    console.error('Error verifying Firebase token:', error.message);
-    res.status(401).json({ 
-      success: false, 
-      message: 'Unauthorized: Invalid or expired token',
-      error: error.message 
-    });
+  } catch (error) {
+    console.error('Error verifying Firebase token:', error);
+    res.status(403).json({ success: false, message: 'Forbidden' });
   }
 }

@@ -30,18 +30,18 @@ export function WeeklyReport({ requests, workforce, onClose }: WeeklyReportProps
     const end = endOfWeek(now, { weekStartsOn: 1 });
 
     const totalThisWeek = requests.filter(r => {
-      const createdAt = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
+      const createdAt = r.createdAt ? new Date(r.createdAt) : new Date();
       return createdAt >= start && createdAt <= end;
     }).length;
 
     const completedThisWeek = requests.filter(r => {
-      const updatedAt = r.updatedAt?.toDate ? r.updatedAt.toDate() : r.updatedAt ? new Date(r.updatedAt) : new Date();
+      const updatedAt = r.updatedAt ? new Date(r.updatedAt) : new Date();
       return (r.status === 'CONFIRMED' || r.status === 'CLOSED' || r.status === 'COMPLETED' || r.status === 'EXITED' || r.status === 'RETURNED') && updatedAt >= start && updatedAt <= end;
     }).length;
 
     const taskList = requests.map(r => {
-        const createdAt = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
-        const updatedAt = r.updatedAt?.toDate ? r.updatedAt.toDate() : r.updatedAt ? new Date(r.updatedAt) : new Date();
+        const createdAt = r.createdAt ? new Date(r.createdAt) : new Date();
+        const updatedAt = r.updatedAt ? new Date(r.updatedAt) : new Date();
         const duration = Math.round((updatedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60)); // In hours
         
         const technician = workforce.find(w => w.id === r.assignedTechnicianId || w.id === r.assignedDriverId);

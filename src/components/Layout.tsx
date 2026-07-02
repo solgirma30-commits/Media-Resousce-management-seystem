@@ -13,26 +13,16 @@ import {
   ArrowLeft,
   Globe,
 } from "lucide-react";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  updateDoc,
-  doc,
-  limit,
-  getDocs,
-} from "../lib/firebase";
-import { db } from "../lib/firebase";
-import { toast } from "react-hot-toast";
-import { useAuth, UserRole } from "../App";
-import { cn } from "../lib/utils";
-import { notificationService } from "../services/notificationService";
+import { dataService } from "../services/dataService";
 import { useLanguage } from "../lib/LanguageContext";
 import { useFcmToken } from "../hooks/useFcmToken";
 import { OfflineIndicator } from "./OfflineIndicator";
 import { useOfflineSync } from "../hooks/useOfflineSync";
 import { apiRequest } from "../lib/api";
+import { useAuth, UserRole } from "../App";
+import { cn } from "../lib/utils";
+import { toast } from "react-hot-toast";
+import { notificationService } from "../services/notificationService";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   useOfflineSync();
@@ -67,26 +57,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
     const fetchNotifications = async () => {
       try {
-        const q = query(
-          collection(db, "notifications"),
-          where("userId", "==", profile.uid),
-          where("read", "==", false),
-          limit(100)
-        );
-        const snapshot = await getDocs(q);
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const docs = await dataService.list<any>("notifications", {
+          userId: profile.uid,
+          read: false
+        });
         
-        // Filter read: false locally
-        const unreadDocs = docs.filter((d: any) => d.read === false);
-        
-        unreadDocs.sort((a: any, b: any) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
+        // Update local notification list state for the drawer
+        const sorted = docs.sort((a: any, b: any) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return timeB - timeA;
         });
 
-        // Update local notification list state for the drawer
-        setNotifications(unreadDocs.filter((v: any, i: number, a: any[]) => a.findIndex(t => t.id === v.id) === i));
+        setNotifications(sorted);
       } catch (error) {
         console.warn("Layout notification fetch error:", error);
       }
@@ -126,15 +109,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const markAllAsRead = async () => {
     try {
-      const q = query(
-        collection(db, "notifications"),
-        where("userId", "==", profile?.uid),
-        where("read", "==", false),
-        limit(100)
-      );
-      const snapshot = await getDocs(q);
-      const batchPromises = snapshot.docs.map(d => updateDoc(doc(db, "notifications", d.id), { read: true }));
-      await Promise.all(batchPromises);
+      const promises = notifications.map(n => dataService.update("notifications", n.id, { read: true }));
+      await Promise.all(promises);
       setNotifications([]);
       setIsNotificationsOpen(false);
     } catch (error) {

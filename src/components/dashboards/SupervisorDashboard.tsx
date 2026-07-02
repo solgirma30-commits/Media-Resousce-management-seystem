@@ -10,7 +10,7 @@ import {
   Building2,
   CalendarDays
 } from 'lucide-react';
-import { apiRequest } from '../../lib/api';
+import { dataService } from '../../services/dataService';
 import { useAuth } from '../../App';
 import { cn } from '../../lib/utils';
 
@@ -24,25 +24,35 @@ export function SupervisorDashboard() {
 
   useEffect(() => {
     if (!profile) return;
-    
-    const studioPath = 'studio_requests';
+    let isMounted = true;
+
     const fetchRequests = async () => {
       try {
-        const data = await apiRequest('/studio-requests?status=APPROVED');
+        setLoading(true);
+        const data = await dataService.list<any>('studio_requests');
+        if (!isMounted) return;
+
+        const approved = data.filter((req: any) => req.status === 'APPROVED');
         // Sort locally
-        const sorted = data.sort((a: any, b: any) => {
-          const dateA = a.createdAt?.seconds || 0;
-          const dateB = b.createdAt?.seconds || 0;
+        const sorted = approved.sort((a: any, b: any) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return dateB - dateA;
         });
         setStudioRequests(sorted);
       } catch (error) {
         console.warn("SupervisorDashboard fetch error:", error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchRequests();
+    const interval = setInterval(fetchRequests, 30000); // Poll every 30s
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [profile]);
 
   const filteredRequests = studioRequests.filter(req => {

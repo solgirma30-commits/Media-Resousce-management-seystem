@@ -18,17 +18,7 @@ import {
   Trash2,
   Video
 } from 'lucide-react';
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  orderBy,
-  writeBatch,
-  doc,
-  updateDoc,
-  limit
-} from '../../lib/firebase';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { dataService } from '../../services/dataService';
 import { useAuth } from '../../App';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
@@ -51,6 +41,7 @@ export function AllInOneDashboard() {
 
   useEffect(() => {
     if (!profile) return;
+    let isMounted = true;
 
     setLoading(true);
     
@@ -62,40 +53,42 @@ export function AllInOneDashboard() {
       { name: 'studio_requests', icon: Video, color: 'text-orange-400' }
     ];
 
-    const unsubscribes = collections.map(col => {
-      const q = query(
-        collection(db, col.name), 
-        orderBy('createdAt', 'desc'),
-        limit(100)
-      );
-      return onSnapshot(q, (snapshot) => {
-        const docs = snapshot.docs
-          .map(doc => ({ 
-            id: doc.id, 
-            collectionName: col.name,
-            ...doc.data() 
-          }))
-          .filter((t: any) => !t.purgedByAllInOne);
-        
-        setAllTasks(prev => {
-          const others = prev.filter(t => t.collectionName !== col.name);
-          const merged = [...others, ...docs];
-          
-          // Deduplicate and sort
-          return merged.sort((a, b) => {
-            const timeA = a.createdAt?.seconds || 0;
-            const timeB = b.createdAt?.seconds || 0;
-            return timeB - timeA;
-          });
-        });
-        setLoading(false);
-      }, (error) => {
-        setLoading(false);
-        handleFirestoreError(error, OperationType.LIST, col.name);
-      });
-    });
+    const fetchAllData = async () => {
+      try {
+        const results = await Promise.all(collections.map(col => dataService.list<any>(col.name)));
+        if (!isMounted) return;
 
-    return () => unsubscribes.forEach(unsub => unsub());
+        let merged: any[] = [];
+        results.forEach((docs, idx) => {
+          const col = collections[idx];
+          const activeDocs = docs.filter((t: any) => !t.purgedByAllInOne)
+                                 .map(doc => ({ ...doc, collectionName: col.name }));
+          merged = [...merged, ...activeDocs];
+        });
+
+        // Deduplicate and sort
+        const sorted = merged.sort((a, b) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeB - timeA;
+        });
+
+        setAllTasks(sorted);
+        setLoading(false);
+      } catch (error) {
+        if (!isMounted) return;
+        setLoading(false);
+        console.error("AllInOneDashboard fetch error:", error);
+      }
+    };
+
+    fetchAllData();
+    const interval = setInterval(fetchAllData, 30000); // Poll every 30s
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [profile]);
 
   const portalTasks = allTasks.filter(t => {
@@ -159,7 +152,7 @@ export function AllInOneDashboard() {
   const executeSingleDelete = async (id: string, col: string) => {
     setLoading(true);
     try {
-        await updateDoc(doc(db, col, id), { purgedByAllInOne: true });
+        await dataService.update(col, id, { purgedByAllInOne: true });
         toast.success("Task archived successfully");
         setDeleteConfirmId(null);
     } catch (err) {
@@ -173,19 +166,19 @@ export function AllInOneDashboard() {
   const executeBulkDelete = async () => {
     setLoading(true);
     try {
-      const batch = writeBatch(db);
       let count = 0;
+      const promises = [];
 
-      selectedIds.forEach(id => {
+      for (const id of selectedIds) {
         const task = allTasks.find(t => t.id === id);
         if (task && task.collectionName) {
-          batch.update(doc(db, task.collectionName, id), { purgedByAllInOne: true });
+          promises.push(dataService.update(task.collectionName, id, { purgedByAllInOne: true }));
           count++;
         }
-      });
+      }
 
       if (count > 0) {
-        await batch.commit();
+        await Promise.all(promises);
         toast.success(`${count} records deleted successfully`);
         setSelectedIds(new Set());
       } else {
@@ -625,7 +618,7 @@ export function AllInOneDashboard() {
                           <div className="flex items-center gap-0.5 text-dark-text-muted">
                             <Clock className="w-1.5 h-1.5" />
                             <span className="text-[8px] font-mono font-bold">
-                              {task.createdAt?.toDate ? format(task.createdAt.toDate(), 'dd/MM/yy') : '--/--/--'}
+                              {task.createdAt ? format(new Date(task.createdAt), 'dd/MM/yy') : '--/--/--'}
                             </span>
                           </div>
                         </div>

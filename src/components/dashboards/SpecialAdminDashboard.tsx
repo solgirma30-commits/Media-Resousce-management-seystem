@@ -23,12 +23,11 @@ import {
   Building2,
   Phone
 } from 'lucide-react';
-import { collection, query, limit, onSnapshot, doc, updateDoc, deleteDoc } from '../../lib/firebase';
-import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth, UserRole } from '../../App';
 import { useLanguage } from '../../lib/LanguageContext';
 import { toast } from 'react-hot-toast';
 import { SystemHealthPanel } from './SystemHealthPanel';
+import { dataService } from '../../services/dataService';
 
 interface FirestoreUser {
   id: string; // Document ID is uid
@@ -105,7 +104,7 @@ export function SpecialAdminDashboard() {
 
       const promises = placeholders.map(async (u) => {
         try {
-          await deleteDoc(doc(db, 'users', u.id));
+          await dataService.delete('users', u.id);
           successCount++;
           setSessionDeletes(prev => prev + 1);
           setSessionWrites(prev => prev + 1);
@@ -131,53 +130,36 @@ export function SpecialAdminDashboard() {
   useEffect(() => {
     addTelemetryLog('Active system monitoring kernel online.', 'info');
     addTelemetryLog(`Connected to Backend API: ${window.location.origin}`, 'success');
-    addTelemetryLog('Initiating real-time directory synchronization...', 'info');
+    addTelemetryLog('Initiating directory synchronization...', 'info');
 
-    const userPath = "users";
     const startTime = performance.now();
-    const q = query(collection(db, userPath), limit(500));
+    let isMounted = true;
 
-    const unsubscribe = onSnapshot(
-      q,
-      async (snapshot) => {
-        const firestoreUsers = snapshot.docs.map((d) => ({
-          id: d.id,
-          uid: d.id,
-          ...d.data()
-        } as FirestoreUser));
+    const fetchUsers = async () => {
+      try {
+        // Fetch users from PostgreSQL through API
+        const dbUsers = await dataService.list<FirestoreUser>('users');
         
         // Fetch users from Auth API
         let authUsers: FirestoreUser[] = [];
         try {
-          const res = await fetch('/api/firebase-users');
-          if (res.ok) {
-            const contentType = res.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-              const data = await res.json();
-              if (Array.isArray(data)) {
-                authUsers = data.map((d: any) => ({
-                  id: d.uid,
-                  uid: d.uid,
-                  email: d.email || null,
-                  displayName: d.displayName || null,
-                  role: 'GUEST',
-                  approved: false,
-                  isPlaceholder: false
-                } as FirestoreUser));
-              }
-            } else {
-              console.error("Auth API response is not JSON");
-            }
-          } else {
-            console.error("Auth API fetch failed with status", res.status);
-          }
+          const authData = await dataService.getFirebaseUsers();
+          authUsers = authData.map((d: any) => ({
+            id: d.uid,
+            uid: d.uid,
+            email: d.email || null,
+            displayName: d.displayName || null,
+            role: 'GUEST',
+            approved: false,
+            isPlaceholder: false
+          } as FirestoreUser));
         } catch (e) {
           console.error("Auth API fetch failed", e);
         }
 
-        // Merge collections: prioritize firestoreUser (for roles/approval status), fallback to authUser
+        // Merge collections: prioritize dbUser (for roles/approval status), fallback to authUser
         const mergedUsers = [...authUsers];
-        firestoreUsers.forEach(fUser => {
+        dbUsers.forEach(fUser => {
             const index = mergedUsers.findIndex(aUser => aUser.id === fUser.id);
             if(index !== -1) {
                 mergedUsers[index] = fUser;
@@ -186,27 +168,29 @@ export function SpecialAdminDashboard() {
             }
         });
 
+        if (!isMounted) return;
+
         const latency = Math.round(performance.now() - startTime);
         setDbInitialLoadTime(latency);
-        setSessionReads(snapshot.docs.length);
-        
-        addTelemetryLog(
-          `Directory synced successfully. Synced ${mergedUsers.length} total user records in ${latency}ms.`,
-          'success'
-        );
+        setSessionReads(dbUsers.length);
         
         setUsers(mergedUsers);
         setLoading(false);
-      },
-      (error) => {
+      } catch (error: any) {
+        if (!isMounted) return;
         setLoading(false);
         addTelemetryLog(`Directory sync interrupted: ${error.message}`, 'error');
-        handleFirestoreError(error, OperationType.LIST, userPath);
         toast.error('Failed to retrieve system registries');
       }
-    );
+    };
 
-    return () => unsubscribe();
+    fetchUsers();
+    const interval = setInterval(fetchUsers, 15000); // Poll every 15 seconds
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // System session uptime ticker and networking indicators fluctuation
@@ -258,26 +242,6 @@ export function SpecialAdminDashboard() {
   const formatDate = (timestamp: any) => {
     if (!timestamp) return t('db_no_date', 'System Default (Seeded)');
     
-    // Firestore Timestamp check
-    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-      return timestamp.toDate().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    }
-    // Seconds standard seconds check
-    if (timestamp.seconds) {
-      return new Date(timestamp.seconds * 1000).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    }
     // Simple js date check
     const d = new Date(timestamp);
     if (!isNaN(d.getTime())) {
@@ -298,8 +262,7 @@ export function SpecialAdminDashboard() {
     setIsSavingRole(true);
     addTelemetryLog(`Initiating UPDATE on /users/${selectedUser.id} - shifting roles to [${tempRoles.join(', ')}]`, 'info');
     try {
-      const userRef = doc(db, 'users', selectedUser.id);
-      await updateDoc(userRef, {
+      await dataService.update('users', selectedUser.id, {
         role: tempRoles[0] || selectedUser.role, // Keep first as primary
         roles: tempRoles,
         updatedAt: new Date()
@@ -323,8 +286,7 @@ export function SpecialAdminDashboard() {
     setIsSavingPhone(true);
     addTelemetryLog(`Initiating UPDATE on /users/${selectedUser.id} - shifting phone to ${tempPhone}`, 'info');
     try {
-      const userRef = doc(db, 'users', selectedUser.id);
-      await updateDoc(userRef, {
+      await dataService.update('users', selectedUser.id, {
         phoneNumber: tempPhone,
         updatedAt: new Date()
       });
@@ -350,7 +312,7 @@ export function SpecialAdminDashboard() {
     }
     addTelemetryLog(`Initiating DELETE on /users/${selectedUser.id} - auth confirm received`, 'warn');
     try {
-      await deleteDoc(doc(db, 'users', selectedUser.id));
+      await dataService.delete('users', selectedUser.id);
       toast.success('System credentials revoked');
       addTelemetryLog(`DELETE committed successfully for /users/${selectedUser.id} from registry.`, 'success');
       setSessionDeletes(prev => prev + 1);
@@ -972,8 +934,7 @@ export function SpecialAdminDashboard() {
                           try {
                             const isCurrentApproved = !!(selectedUser.approved === true || selectedUser.role === UserRole.SYSTEM_ADMIN || selectedUser.isPlaceholder === true);
                             const newStatus = !isCurrentApproved;
-                            const userRef = doc(db, 'users', selectedUser.id);
-                            await updateDoc(userRef, {
+                            await dataService.update('users', selectedUser.id, {
                               approved: newStatus,
                               updatedAt: new Date()
                             });

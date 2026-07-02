@@ -16,9 +16,8 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { Toaster, toast } from 'react-hot-toast';
-import { auth, db } from './lib/firebase';
-import { doc, getDoc, collection, query, where, limit, getDocs, updateDoc } from './lib/firebase';
-import { apiRequest } from './lib/api';
+import { auth } from './lib/firebase';
+import { dataService } from './services/dataService';
 import { Layout } from './components/Layout';
 import { notificationService } from './services/notificationService';
 import { Login } from './components/Login';
@@ -84,7 +83,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
   const [isSelectingRole, setIsSelectingRole] = useState(false);
-  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [activePopup, setActivePopup] = useState<{ id: string; title: string; message: string; type?: string; itemName?: string } | null>(null);
   const [selectedPortalRole, setSelectedPortalRoleState] = useState<UserRole | null>(() => {
     const saved = localStorage.getItem('fmc_selected_portal_role');
@@ -101,18 +99,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const handleQuota = () => {
-      setIsQuotaExceeded(true);
-      setLoading(false);
-    };
-    window.addEventListener('firestore-quota-exceeded', handleQuota);
-    if ((window as any).__firestoreQuotaExceeded) {
-      setIsQuotaExceeded(true);
-      setLoading(false);
-    }
-    return () => {
-      window.removeEventListener('firestore-quota-exceeded', handleQuota);
-    };
+    setLoading(false);
   }, []);
 
   const logout = useCallback(async () => {
@@ -223,28 +210,11 @@ export default function App() {
   useEffect(() => {
     const fetchProfile = async (user: FirebaseUser) => {
       try {
-        const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
-        } else {
-          if (user.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') {
-             const adminProfile: UserProfile = {
-               uid: user.uid,
-               displayName: 'Principal Supervisor',
-               email: user.email || 'admin@fanamc.com',
-               role: UserRole.SYSTEM_ADMIN,
-               phoneNumber: '+251911000000',
-               department: 'Management',
-               approved: true,
-             };
-             setProfile(adminProfile);
-          } else {
-             setProfile(null);
-          }
-        }
+        const profileData = await dataService.get<UserProfile>('users', user.uid);
+        setProfile(profileData);
       } catch (error) {
         console.error("Profile fetch error:", error);
+        // Fallback for system admin if DB is not available yet
         if (user.uid === 'VSnotQzmWMfmqbeB144IJ2xhciq2') {
             const adminProfile: UserProfile = {
               uid: user.uid,
@@ -287,13 +257,7 @@ export default function App() {
 
     const fetchNotifications = async () => {
       try {
-        const q = query(
-          collection(db, 'notifications'),
-          where('userId', '==', user.uid),
-          limit(100)
-        );
-        const snapshot = await getDocs(q);
-        const notifications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const notifications = await dataService.getNotifications(user.uid);
         
         notifications.forEach((notif: any) => {
           if (!notifiedIds.has(notif.id)) {
@@ -341,72 +305,6 @@ export default function App() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-      </div>
-    );
-  }
-
-  if (isQuotaExceeded) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-white">
-        <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-10 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
-          
-          <div className="flex flex-col items-center text-center">
-            <div className="p-4 bg-amber-500/10 rounded-full border border-amber-500/30 mb-6 animate-pulse">
-              <AlertTriangle className="w-12 h-12 text-amber-400" />
-            </div>
-            
-            <h1 className="text-2xl font-black tracking-tight text-white mb-2 uppercase">
-              Firestore Quota Limit Exceeded
-            </h1>
-            <p className="text-slate-400 font-serif italic text-sm mb-6">
-              Daily Read Operations Limit Reached
-            </p>
-            
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 mb-8 text-left space-y-4">
-              <p className="text-slate-300 text-xs leading-relaxed opacity-90">
-                The Firestore database free daily read quota of <strong className="text-white font-bold">50,000 units</strong> has been fully exhausted for this database instance. When this happens, real-time sync listeners are temporarily paused by Firebase.
-              </p>
-              
-              <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-2.5">
-                <Database className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-amber-350 leading-relaxed">
-                  Your daily quota will reset automatically tomorrow. Alternatively, you can lift this restriction permanently by upgrading from the Spark plan. Detailed quota information can be found under the Spark plan column in the Enterprise edition section of Google Firebase Pricing.
-                </p>
-              </div>
-            </div>
-
-            <div className="w-full space-y-3">
-              <a 
-                href="https://console.firebase.google.com/project/gen-lang-client-0274556355/firestore/databases/ai-studio-cf583c2c-7621-4cdf-ac2e-a6c84f44a7d2/data?openUpgradeDialog=true"
-                target="_blank"
-                rel="noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 rounded-xl text-xs font-black transition-all shadow-lg hover:shadow-amber-500/10"
-              >
-                <span>Upgrade Firebase Spark Plan</span>
-                <ExternalLink className="w-3.5 h-3.5 font-bold" />
-              </a>
-
-              <button 
-                onClick={() => {
-                  (window as any).__firestoreQuotaExceeded = false;
-                  window.location.reload();
-                }}
-                className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700 active:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all border border-slate-700 cursor-pointer flex items-center justify-center gap-2"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Reload Application Portal</span>
-              </button>
-
-              <button 
-                onClick={logout}
-                className="w-full py-2.5 px-4 text-slate-500 hover:text-slate-400 text-xs font-medium cursor-pointer transition-colors"
-              >
-                Sign Out Account
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     );
   }
@@ -506,7 +404,7 @@ export default function App() {
                     onClick={async () => {
                       // Mark as read to keep the notifications list sync clean
                       try {
-                        await updateDoc(doc(db, "notifications", activePopup.id), { read: true });
+                        await dataService.updateNotification(activePopup.id, { read: true });
                       } catch (e) {
                         console.error("Failed to mark popup notification as read:", e);
                       }

@@ -61,7 +61,7 @@ export function SystemHealthPanel({ stats }: { stats: HealthStats }) {
                 {statusLabel}
               </p>
               <p className="text-xs text-slate-500 mt-1 font-medium">
-                Real-time connection with safe Firestore cloud database and SMS dispatch nodes.
+                Real-time connection with Node.js backend and PostgreSQL database.
               </p>
             </div>
           </div>

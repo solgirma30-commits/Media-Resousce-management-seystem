@@ -18,22 +18,8 @@ import {
   Smartphone,
   Video
 } from 'lucide-react';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc,
-  serverTimestamp,
-  updateDoc,
-  doc,
-  getDocs,
-  setDoc,
-  limit
-} from '../../lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage, db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { useAuth } from '../../App';
+import { dataService } from '../../services/dataService';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { format } from 'date-fns';
@@ -43,6 +29,8 @@ import { Item } from '../../types';
 import { SignaturePad } from '../SignaturePad';
 import { RequestPasswordModal } from '../RequestPasswordModal';
 import { VoiceRecorder } from '../VoiceRecorder';
+import { auth, storage } from '../../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export function DeptDirectorDashboard() {
   useFcmToken();
@@ -151,160 +139,62 @@ export function DeptDirectorDashboard() {
     if (!profile) return;
 
     setLoading(true);
+    let isMounted = true;
 
-    // Service Requests
-    const srPath = 'service_requests';
-    const srQ = query(
-      collection(db, srPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      limit(50)
-    );
-    const unsubscribeSR = onSnapshot(srQ, (snapshot) => {
-      setRequests(
-        snapshot.docs
-          .map(doc => ({ id: doc.id, collectionName: srPath, ...doc.data() }))
-          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
-      );
-      if (activeTab === 'SERVICE') setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, srPath);
-    });
+    const fetchAllData = async () => {
+      try {
+        const dept = profile.department || 'Unknown';
+        
+        // Fetch everything in parallel
+        const [
+          srDocs,
+          crDocs,
+          vrDocs,
+          stDocs,
+          irDocs,
+          drDocs,
+          grDocs,
+          fleetDocs
+        ] = await Promise.all([
+          dataService.list<any>('service_requests', { departmentName: dept }),
+          dataService.list<any>('camera_requests', { departmentName: dept }),
+          dataService.list<any>('vehicle_requests', { departmentName: dept }),
+          dataService.list<any>('studio_requests', { departmentName: dept }),
+          dataService.list<any>('item_requests', { departmentName: dept }),
+          dataService.list<any>('device_requests', { departmentName: dept }),
+          dataService.list<any>('guest_requests', { departmentName: dept }),
+          dataService.list<any>('fleet', { status: 'OPERATIONAL' })
+        ]);
 
-    // Camera Requests
-    const crPath = 'camera_requests';
-    const crQ = query(
-      collection(db, crPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      limit(50)
-    );
-    const unsubscribeCR = onSnapshot(crQ, (snapshot) => {
-      setCameraRequests(
-        snapshot.docs
-          .map(doc => ({ id: doc.id, collectionName: crPath, ...doc.data() }))
-          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
-      );
-      if (activeTab === 'CAMERA') setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, crPath);
-    });
+        if (!isMounted) return;
 
-    // Vehicle Requests
-    const vrPath = 'vehicle_requests';
-    const vrQ = query(
-      collection(db, vrPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      limit(50)
-    );
-    const unsubscribeVR = onSnapshot(vrQ, (snapshot) => {
-      setVehicleRequests(
-        snapshot.docs
-          .map(doc => ({ id: doc.id, collectionName: vrPath, ...doc.data() }))
-          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
-      );
-      if (activeTab === 'VEHICLE') setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, vrPath);
-    });
+        const filterActive = (docs: any[], colName: string) => 
+          docs.filter(req => !req.archived && !req.purgedByDeptDirector)
+              .map(doc => ({ ...doc, collectionName: colName }));
 
-    // Studio Requests
-    const stPath = 'studio_requests';
-    const stQ = query(
-      collection(db, stPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      limit(50)
-    );
-    const unsubscribeST = onSnapshot(stQ, (snapshot) => {
-      setStudioRequests(
-        snapshot.docs
-          .map(doc => ({ id: doc.id, collectionName: stPath, ...doc.data() }))
-          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
-      );
-      if (activeTab === 'STUDIO') setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, stPath);
-    });
+        setRequests(filterActive(srDocs, 'service_requests'));
+        setCameraRequests(filterActive(crDocs, 'camera_requests'));
+        setVehicleRequests(filterActive(vrDocs, 'vehicle_requests'));
+        setStudioRequests(filterActive(stDocs, 'studio_requests'));
+        setItemRequests(filterActive(irDocs, 'item_requests'));
+        setDeviceRequests(filterActive(drDocs, 'device_requests'));
+        setGuestRequests(filterActive(grDocs, 'guest_requests'));
+        setFleet(fleetDocs);
+        
+        setLoading(false);
+      } catch (error) {
+        if (!isMounted) return;
+        setLoading(false);
+        console.error("Data fetch error:", error);
+      }
+    };
 
-    // Item Exit Requests
-    const irPath = 'item_requests';
-    const irQ = query(
-      collection(db, irPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      limit(50)
-    );
-    const unsubscribeIR = onSnapshot(irQ, (snapshot) => {
-      setItemRequests(
-        snapshot.docs
-          .map(doc => ({ id: doc.id, collectionName: irPath, ...doc.data() }))
-          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
-      );
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, irPath);
-    });
-
-    // Device Requests (Other)
-    const drPath = 'device_requests';
-    const drQ = query(
-      collection(db, drPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      limit(50)
-    );
-    const unsubscribeDR = onSnapshot(drQ, (snapshot) => {
-      setDeviceRequests(
-        snapshot.docs
-          .map(doc => ({ id: doc.id, collectionName: drPath, ...doc.data() }))
-          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
-      );
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, drPath);
-    });
-
-    // Guest Requests
-    const grPath = 'guest_requests';
-    const grQ = query(
-      collection(db, grPath),
-      where('departmentName', '==', profile.department || 'Unknown'),
-      limit(50)
-    );
-    const unsubscribeGR = onSnapshot(grQ, (snapshot) => {
-      setGuestRequests(
-        snapshot.docs
-          .map(doc => ({ id: doc.id, collectionName: grPath, ...doc.data() }))
-          .filter((req: any) => !req.archived && !req.purgedByDeptDirector)
-      );
-      if (activeTab === 'OTHER') setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, grPath);
-    });
-
-    const fleetPath = 'fleet';
-    const fleetQuery = query(
-      collection(db, fleetPath), 
-      where('status', '==', 'OPERATIONAL'),
-      limit(20)
-    );
-    const unsubscribeFleet = onSnapshot(fleetQuery, (snapshot) => {
-      setFleet(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, fleetPath);
-    });
+    fetchAllData();
+    const interval = setInterval(fetchAllData, 30000); // Poll every 30s
 
     return () => {
-      unsubscribeSR();
-      unsubscribeCR();
-      unsubscribeVR();
-      unsubscribeST();
-      unsubscribeIR();
-      unsubscribeDR();
-      unsubscribeGR();
-      unsubscribeFleet();
+      isMounted = false;
+      clearInterval(interval);
     };
   }, [profile, activeTab]);
 
@@ -312,58 +202,63 @@ export function DeptDirectorDashboard() {
   useEffect(() => {
     if (!profile?.uid) return;
 
-    const qSms = query(
-      collection(db, 'sim_sms_logs'),
-      where('recipientId', '==', profile.uid),
-      limit(20)
-    );
+    let isMounted = true;
 
-    const unsubscribeSms = onSnapshot(qSms, (snapshot) => {
-      const logs: any[] = [];
-      snapshot.forEach((docSnap) => {
-        logs.push({ id: docSnap.id, ...docSnap.data() });
-      });
+    const fetchSms = async () => {
+      try {
+        const logs = await dataService.list<any>('sim_sms_logs', {
+          recipientId: profile.uid
+        });
 
-      // Sort descending by sentAt (fallback to ID timestamp)
-      logs.sort((a, b) => {
-        const timeA = a.sentAt?.seconds || 0;
-        const timeB = b.sentAt?.seconds || 0;
-        return timeB - timeA;
-      });
+        if (!isMounted) return;
 
-      setSmsLogs(logs.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i));
+        // Sort descending by sentAt
+        logs.sort((a, b) => {
+          const timeA = a.sentAt ? new Date(a.sentAt).getTime() : 0;
+          const timeB = b.sentAt ? new Date(b.sentAt).getTime() : 0;
+          return timeB - timeA;
+        });
 
-      const readIds = JSON.parse(localStorage.getItem(`read_sms_${profile.uid}`) || '[]');
-      const unreadCount = logs.filter((log: any) => !readIds.includes(log.id)).length;
-      setUnreadSmsCount(unreadCount);
+        setSmsLogs(logs);
 
-      // Trigger user-friendly sound and modal banner notification for new unread SMS
-      if (logs.length > 0) {
-        const latest = logs[0];
-        if (!readIds.includes(latest.id)) {
-          setLastSmsNotification(latest);
-          
-          try {
-            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.15);
-          } catch (e) {
-            // Browser blocked audio auto-play fallback
+        const readIds = JSON.parse(localStorage.getItem(`read_sms_${profile.uid}`) || '[]');
+        const unreadCount = logs.filter((log: any) => !readIds.includes(log.id)).length;
+        setUnreadSmsCount(unreadCount);
+
+        // Trigger user-friendly sound and modal banner notification for new unread SMS
+        if (logs.length > 0) {
+          const latest = logs[0];
+          if (!readIds.includes(latest.id)) {
+            setLastSmsNotification(latest);
+            
+            try {
+              const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+              const osc = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              osc.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+              gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+              osc.start();
+              osc.stop(audioCtx.currentTime + 0.15);
+            } catch (e) {
+              // Browser blocked audio auto-play fallback
+            }
           }
         }
+      } catch (error) {
+        console.error("SMS fetch error:", error);
       }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'sim_sms_logs');
-    });
+    };
 
-    return () => unsubscribeSms();
+    fetchSms();
+    const interval = setInterval(fetchSms, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [profile?.uid]);
 
   const markSmsAsRead = () => {
@@ -483,7 +378,7 @@ export function DeptDirectorDashboard() {
         }
       }
 
-      let docRef;
+      let createdId = '';
       if (isEditing && editingId) {
         const colName = activeTab === 'SERVICE' ? 'service_requests' : 
                         activeTab === 'CAMERA' ? 'camera_requests' : 
@@ -492,7 +387,7 @@ export function DeptDirectorDashboard() {
                         (clearanceType === 'ITEM' ? 'item_requests' : clearanceType === 'LABOR' ? 'device_requests' : 'guest_requests');
         
         let updateData: any = {
-          updatedAt: serverTimestamp(),
+          updatedAt: new Date(),
         };
 
         if (attachmentUrl) {
@@ -544,7 +439,8 @@ export function DeptDirectorDashboard() {
           }
         }
 
-        await updateDoc(doc(db, colName, editingId), updateData);
+        await dataService.update(colName, editingId, updateData);
+        createdId = editingId;
         toast.success('Request updated successfully');
       } else {
         if (activeTab === 'SERVICE') {
@@ -561,12 +457,13 @@ export function DeptDirectorDashboard() {
             priority,
             requesterName: serviceRequester || profile.displayName,
             status: 'NEW',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
             attachmentUrl,
             attachmentName,
             };
-            docRef = await addDoc(collection(db, path), newRequest);
+            const res = await dataService.create<{id: string}>(path, newRequest);
+            createdId = res.id;
         } else if (activeTab === 'CAMERA') {
             const path = 'camera_requests';
             const newRequest = {
@@ -583,12 +480,13 @@ export function DeptDirectorDashboard() {
             requesterName: cameraHostName || profile.displayName,
             hostName: cameraHostName || profile.displayName,
             status: 'NEW',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
             attachmentUrl,
             attachmentName,
             };
-            docRef = await addDoc(collection(db, path), newRequest);
+            const res = await dataService.create<{id: string}>(path, newRequest);
+            createdId = res.id;
         } else if (activeTab === 'VEHICLE') {
             const path = 'vehicle_requests';
             const newRequest = {
@@ -607,12 +505,13 @@ export function DeptDirectorDashboard() {
             departureTime: depTime,
             returnTime: retTime,
             status: 'NEW',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
             attachmentUrl,
             attachmentName,
             };
-            docRef = await addDoc(collection(db, path), newRequest);
+            const res = await dataService.create<{id: string}>(path, newRequest);
+            createdId = res.id;
         } else if (activeTab === 'STUDIO') {
             const finalCategory = studioCategory;
             const path = 'studio_requests';
@@ -630,12 +529,13 @@ export function DeptDirectorDashboard() {
             time: studioTime,
             requesterName: profile.displayName,
             status: 'NEW',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
             attachmentUrl,
             attachmentName,
             };
-            docRef = await addDoc(collection(db, path), newRequest);
+            const res = await dataService.create<{id: string}>(path, newRequest);
+            createdId = res.id;
         } else if (activeTab === 'OTHER') {
             if (clearanceType === 'ITEM') {
               const path = 'item_requests';
@@ -652,12 +552,13 @@ export function DeptDirectorDashboard() {
                 quantity: items.reduce((sum, item) => sum + item.quantity, 0),
                 responsiblePerson,
                 status: 'NEW',
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+                createdAt: new Date(),
+                updatedAt: new Date(),
                 attachmentUrl,
                 attachmentName,
               };
-              docRef = await addDoc(collection(db, path), newRequest);
+              const res = await dataService.create<{id: string}>(path, newRequest);
+              createdId = res.id;
             } else if (clearanceType === 'LABOR') {
               const path = 'device_requests';
               const newRequest = {
@@ -674,12 +575,13 @@ export function DeptDirectorDashboard() {
                 date: eventDate,
                 purpose: description,
                 status: 'NEW',
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+                createdAt: new Date(),
+                updatedAt: new Date(),
                 attachmentUrl,
                 attachmentName,
               };
-              docRef = await addDoc(collection(db, path), newRequest);
+              const res = await dataService.create<{id: string}>(path, newRequest);
+              createdId = res.id;
             } else if (clearanceType === 'GUEST') {
               const path = 'guest_requests';
               const newRequest = {
@@ -696,12 +598,13 @@ export function DeptDirectorDashboard() {
                 hostName: hostName || profile.displayName,
                 purpose: guestPurpose,
                 status: 'NEW',
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+                createdAt: new Date(),
+                updatedAt: new Date(),
                 attachmentUrl,
                 attachmentName,
               };
-              docRef = await addDoc(collection(db, path), newRequest);
+              const res = await dataService.create<{id: string}>(path, newRequest);
+              createdId = res.id;
             }
         }
       } // End of creation block
@@ -716,11 +619,10 @@ export function DeptDirectorDashboard() {
       setIsUploading(false);
         
       if (!isEditing) {
-        const realRequestId = docRef?.id || `REQ-${Date.now()}`;
+        const realRequestId = createdId || `REQ-${Date.now()}`;
         
         // Create notifications for Admins and relevant operators
-        const adminsSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'ADMIN')));
-        const adminDocs = adminsSnapshot.docs;
+        const adminUsers = await dataService.list<any>('users', { role: 'ADMIN' });
         
         // Target roles based on request type
         let targetRole = '';
@@ -733,13 +635,12 @@ export function DeptDirectorDashboard() {
           else targetRole = 'TECHNICIAN';
         }
 
-        const staffSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', targetRole)));
-        const staffDocs = staffSnapshot.docs;
+        const staffUsers = await dataService.list<any>('users', { role: targetRole });
 
         // Combine audiences (Admins + Relevant Staff)
         const audienceIds = Array.from(new Set([
-          ...adminDocs.map(d => d.id),
-          ...staffDocs.map(d => d.id)
+          ...adminUsers.map(d => d.id),
+          ...staffUsers.map(d => d.id)
         ]));
 
         const isApprovedItem = activeTab === 'OTHER' && (clearanceType === 'ITEM' || clearanceType === 'GUEST');
@@ -780,8 +681,7 @@ export function DeptDirectorDashboard() {
           : `ALERT: ${profile.displayName} submitted a new ${requestTypeLabel.toLowerCase()} request: "${displayName}" for ${location || destination || 'unspecified site'}.`;
         
         const notificationPromises = audienceIds.map(userId => {
-          const notificationId = `notif_new_${Date.now()}_${userId}`;
-          return setDoc(doc(db, 'notifications', notificationId), {
+          return dataService.createNotification({
             userId,
             title: notificationTitle,
             message: notificationMessage,
@@ -789,19 +689,16 @@ export function DeptDirectorDashboard() {
             role: 'ADMIN_OR_STAFF', // Helpful for filtering if needed
             type: 'NEW_REQUEST',
             requestId: realRequestId, 
-            createdAt: serverTimestamp(),
+            createdAt: new Date(),
           });
         });
-
-        // Add self-notification & background FCM for Director requestor
-        // (Self-notification removed per user request)
 
         await Promise.all(notificationPromises);
       }
       resetForm();
-    } catch (error) {
-      const path = activeTab === 'SERVICE' ? 'service_requests' : activeTab === 'CAMERA' ? 'camera_requests' : 'vehicle_requests';
-      handleFirestoreError(error, OperationType.CREATE, path);
+    } catch (error: any) {
+      console.error("Submission error:", error);
+      toast.error(`Request submission failed: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -810,18 +707,18 @@ export function DeptDirectorDashboard() {
   const handleConfirm = async (requestId: string) => {
     if (!selectedRequest) return;
     const colName = selectedRequest.collectionName || 'service_requests';
-    const path = `${colName}/${requestId}`;
     try {
-      await updateDoc(doc(db, colName, requestId), {
+      await dataService.update(colName, requestId, {
         status: 'CONFIRMED',
         directorComments,
-        confirmedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        confirmedAt: new Date(),
+        updatedAt: new Date(),
       });
       toast.success('Completion confirmed');
       setDirectorComments('');
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.error("Confirm error:", error);
+      toast.error("Failed to confirm completion");
     }
   };
 
@@ -835,12 +732,11 @@ export function DeptDirectorDashboard() {
     }
 
     const colName = selectedRequest.collectionName || 'item_requests';
-    const path = `${colName}/${requestId}`;
     try {
-      await updateDoc(doc(db, colName, requestId), {
+      await dataService.update(colName, requestId, {
         status: 'APPROVED',
-        approvedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        approvedAt: new Date(),
+        updatedAt: new Date(),
         approvedBy: profile?.displayName || "Department Director",
         ...(signatureBase64 ? { signatureBase64 } : {}),
         ...(hasOfficialStamp ? { hasOfficialStamp } : {}),
@@ -853,8 +749,7 @@ export function DeptDirectorDashboard() {
       
       if (isItem || isGuest || isLabor) {
         // Query users with role === 'SECURITY'
-        const securitySnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'SECURITY')));
-        const securityDocs = securitySnapshot.docs;
+        const securityUsers = await dataService.list<any>('users', { role: 'SECURITY' });
         
         let displayName = '';
         let requestTypeLabel = '';
@@ -877,11 +772,9 @@ export function DeptDirectorDashboard() {
           ? `APPROVED EXIT: Director ${profile.displayName} approved Exit Permit for item "${displayName}". Security clearance authorized.`
           : `APPROVED LABORER: Director ${profile.displayName} approved Laborer Request for "${displayName}". General access authorized.`;
           
-        const notificationPromises = securityDocs.map(uDoc => {
-          const targetUserId = uDoc.id;
-          const notificationId = `notif_sec_approve_${Date.now()}_${targetUserId}`;
-          return setDoc(doc(db, 'notifications', notificationId), {
-            userId: targetUserId,
+        const notificationPromises = securityUsers.map(uDoc => {
+          return dataService.createNotification({
+            userId: uDoc.id,
             title,
             message,
             read: false,
@@ -889,7 +782,7 @@ export function DeptDirectorDashboard() {
             type: 'APPROVAL',
             isClearanceApproval: true,
             requestId: requestId,
-            createdAt: serverTimestamp(),
+            createdAt: new Date(),
           });
         });
         await Promise.all(notificationPromises);
@@ -905,7 +798,8 @@ export function DeptDirectorDashboard() {
       
       setSelectedRequest(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+       console.error("Approve clearance error:", error);
+       toast.error("Failed to approve clearance");
     }
   };
 
@@ -935,7 +829,7 @@ export function DeptDirectorDashboard() {
             activeTab === 'VEHICLE' ? 'vehicle_requests' :
             activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
           );
-          return updateDoc(doc(db, collectionName as string, id as string), { purgedByDeptDirector: true });
+          return dataService.update(collectionName as string, id as string, { purgedByDeptDirector: true });
         }
       });
 
@@ -1073,7 +967,7 @@ export function DeptDirectorDashboard() {
         activeTab === 'STUDIO' ? 'studio_requests' :
         activeTab === 'ITEM' ? 'item_requests' : 'device_requests'
       );
-      await updateDoc(doc(db, colName, request.id), { purgedByDeptDirector: true });
+      await dataService.update(colName, request.id, { purgedByDeptDirector: true });
       toast.success('Record purged permanently');
       setDeleteConfirmId(null);
     } catch (error) {
