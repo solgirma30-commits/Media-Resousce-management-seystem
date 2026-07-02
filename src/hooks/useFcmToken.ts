@@ -52,17 +52,13 @@ export function useFcmToken() {
           
           // 1. Directly save to PostgreSQL via dataService
           try {
-            await dataService.update("users", auth.currentUser.uid, { fcmToken });
+            await dataService.upsert("users", auth.currentUser.uid, { fcmToken });
           } catch (dbErr) {
             console.warn("Could not save FCM token via dataService:", dbErr);
           }
 
           // 2. Register on server side legacy endpoint if still needed (or just use dataService above)
-          await fetch('/api/register-fcm-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: auth.currentUser.uid, fcmToken }),
-          });
+          await dataService.registerFcmToken(auth.currentUser.uid, fcmToken);
 
           return fcmToken;
         }

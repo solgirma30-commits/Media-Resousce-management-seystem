@@ -32,7 +32,7 @@ import { dataService } from '../../services/dataService';
 import { apiRequest } from '../../lib/api';
 import { useAuth } from '../../App';
 import { toast } from 'react-hot-toast';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import { format } from 'date-fns';
 import { notificationService } from '../../services/notificationService';
 import { useLanguage } from '../../lib/LanguageContext';
@@ -130,7 +130,7 @@ export function TechnicianDashboard() {
     if (!portalConfig.department) return;
     const fetchTeamUpdates = async () => {
       try {
-        const msgs = await apiRequest(`/department-updates?department=${portalConfig.department}`);
+        const msgs = await apiRequest(`/department-updates?department=${portalConfig.department}`) as any[];
         
         // Sort client-side
         msgs.sort((a: any, b: any) => {
@@ -350,16 +350,12 @@ export function TechnicianDashboard() {
             const directorNameVal = dirData?.displayName || '';
 
             if (directorFcmToken) {
-              fetch('/api/send-fcm-notification', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  targetUserId: selectedWork.directorId,
-                  title: notifTitle,
-                  body: notifMessage,
-                  requestId: requestId,
-                  fcmToken: directorFcmToken,
-                }),
+              dataService.sendFcmNotification({
+                targetUserId: selectedWork.directorId,
+                title: notifTitle,
+                body: notifMessage,
+                requestId: requestId,
+                fcmToken: directorFcmToken,
               }).catch(e => console.error("FCM call failed:", e));
             }
 
@@ -752,7 +748,7 @@ export function TechnicianDashboard() {
                     <div className="flex items-center justify-end gap-2 text-dark-text-subtle">
                       <Clock className="w-3 h-3 group-hover:text-dark-accent transition-colors" />
                       <span className="text-[10px] font-mono group-hover:text-slate-900 transition-colors">
-                        {work.createdAt ? format(new Date(work.createdAt), 'dd/MM HH:mm') : 'Sync...'}
+                        {formatDate(work.createdAt, 'dd/MM HH:mm')}
                       </span>
                     </div>
                   </td>
@@ -838,7 +834,7 @@ export function TechnicianDashboard() {
                     </p>
                     <p className="text-sm font-mono text-slate-900">
                       {selectedWork.collectionName === 'vehicle_requests' ? selectedWork.departureDate : 
-                       selectedWork.createdAt ? format(new Date(selectedWork.createdAt), 'dd MMM yyyy') : 'Pending'}
+                       formatDate(selectedWork.createdAt, 'dd MMM yyyy')}
                     </p>
                   </div>
                 </div>
@@ -1279,9 +1275,7 @@ export function TechnicianDashboard() {
                 ) : (
                   <div className="space-y-3.5">
                     {smsLogs.map((log, idx) => {
-                      const timeStr = log.sentAt?.seconds 
-                        ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
-                        : format(new Date(), 'h:mm a');
+                      const timeStr = formatDate(log.sentAt, 'MMM d, h:mm a');
                       return (
                         <div key={`sms-log-${log.id}-${idx}`} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">

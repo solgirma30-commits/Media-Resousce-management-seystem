@@ -21,7 +21,7 @@ import {
 import { useAuth } from '../../App';
 import { dataService } from '../../services/dataService';
 import { toast } from 'react-hot-toast';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
@@ -2460,9 +2460,7 @@ export function DeptDirectorDashboard() {
                 ) : (
                   <div className="space-y-3.5">
                     {smsLogs.map((log, idx) => {
-                      const timeStr = log.sentAt?.seconds 
-                        ? format(new Date(log.sentAt.seconds * 1000), 'MMM d, h:mm a')
-                        : format(new Date(), 'h:mm a');
+                      const timeStr = formatDate(log.sentAt, 'MMM d, h:mm a');
                       return (
                         <div key={`sms-log-${log.id}-${idx}`} className="flex flex-col space-y-1">
                           <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 font-mono">

@@ -26,14 +26,30 @@ if (!fs.existsSync(JSON_DB_PATH)) {
     vehicle_requests: [],
     item_requests: [],
     device_requests: [],
-    guest_requests: []
+    guest_requests: [],
+    sim_sms_logs: []
   }, null, 2));
 }
 
 let useJsonFallback = false;
 
 // Use environment variables for connection
-const pool = new Pool({
+const isDbUrlValid = !!(
+  process.env.DATABASE_URL &&
+  process.env.DATABASE_URL !== 'undefined' &&
+  process.env.DATABASE_URL.trim() !== '' &&
+  (process.env.DATABASE_URL.startsWith('postgres://') || process.env.DATABASE_URL.startsWith('postgresql://'))
+);
+
+if (!isDbUrlValid) {
+  delete process.env.DATABASE_URL;
+}
+
+const pool = new Pool(isDbUrlValid ? {
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 2000,
+} : {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
   database: process.env.DB_NAME || 'mydb',
@@ -46,6 +62,11 @@ const pool = new Pool({
 pool.on('error', (err) => {
   console.error('Unexpected error on idle PostgreSQL client', err);
 });
+
+export async function query(text: string, params?: any[]) {
+  if (useJsonFallback) return null;
+  return pool.query(text, params);
+}
 
 export async function initDb() {
   try {
@@ -110,7 +131,7 @@ export async function initDb() {
       // Create Requests Tables
       const requestTables = [
         'service_requests', 'camera_requests', 'studio_requests', 'vehicle_requests',
-        'item_requests', 'device_requests', 'guest_requests'
+        'item_requests', 'device_requests', 'guest_requests', 'sim_sms_logs'
       ];
 
       for (const table of requestTables) {
@@ -151,11 +172,19 @@ function fromDb(row: any) {
   if (!row) return null;
   const { uid, created_at, updated_at, ...rest } = row;
   const id = row.id || uid;
+  
+  const parseDate = (d: any) => {
+    if (!d) return null;
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return null;
+    return { seconds: Math.floor(date.getTime() / 1000), nanoseconds: 0 };
+  };
+
   const result: any = { 
     id,
     ...rest,
-    createdAt: created_at ? { seconds: Math.floor(new Date(created_at).getTime() / 1000), nanoseconds: 0 } : null,
-    updatedAt: updated_at ? { seconds: Math.floor(new Date(updated_at).getTime() / 1000), nanoseconds: 0 } : null
+    createdAt: parseDate(created_at),
+    updatedAt: parseDate(updated_at)
   };
   // Handle JSONB data field
   if (rest.data && typeof rest.data === 'object') {
@@ -196,7 +225,9 @@ export async function createDocument(collectionName: string, id: string, data: a
     const row = {
       [idCol]: id,
       ...data,
-      created_at: data.createdAt ? new Date(data.createdAt.seconds * 1000).toISOString() : new Date().toISOString(),
+      created_at: (data.createdAt && typeof data.createdAt.seconds === 'number' && !isNaN(data.createdAt.seconds)) 
+        ? new Date(data.createdAt.seconds * 1000).toISOString() 
+        : new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
@@ -286,7 +317,7 @@ export async function listDocuments(collectionName: string, filters: Record<stri
   
   if (useJsonFallback) {
     const db = readJsonDb();
-    let rows = db[table];
+    let rows = db[table] || [];
     
     Object.keys(filters).forEach(key => {
       const val = filters[key];

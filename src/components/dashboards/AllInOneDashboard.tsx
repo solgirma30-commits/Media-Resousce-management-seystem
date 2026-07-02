@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { useAuth } from '../../App';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { toast } from 'react-hot-toast';
@@ -618,7 +618,7 @@ export function AllInOneDashboard() {
                           <div className="flex items-center gap-0.5 text-dark-text-muted">
                             <Clock className="w-1.5 h-1.5" />
                             <span className="text-[8px] font-mono font-bold">
-                              {task.createdAt ? format(new Date(task.createdAt), 'dd/MM/yy') : '--/--/--'}
+                              {formatDate(task.createdAt, 'dd/MM/yy')}
                             </span>
                           </div>
                         </div>

@@ -33,8 +33,10 @@ export default defineConfig(({mode}) => {
         }
       }) */
     ],
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.NEXT_PUBLIC_API_URL': JSON.stringify(env.NEXT_PUBLIC_API_URL),
     },
     resolve: {
       alias: {

@@ -1,43 +1,4 @@
-import { auth } from '../lib/firebase';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
-export async function apiRequest<T>(method: string, endpoint: string, body?: any, queryParams: Record<string, any> = {}): Promise<T> {
-  const token = await auth.currentUser?.getIdToken();
-  
-  let url = `${API_BASE_URL}/api${endpoint}`;
-  const searchParams = new URLSearchParams();
-  Object.keys(queryParams).forEach(key => {
-    const val = queryParams[key];
-    if (val !== undefined && val !== null) {
-      searchParams.append(key, typeof val === 'object' ? JSON.stringify(val) : String(val));
-    }
-  });
-  
-  const queryString = searchParams.toString();
-  if (queryString) url += (url.includes('?') ? '&' : '?') + queryString;
-
-  const res = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || `API request failed with status ${res.status}`);
-  }
-  
-  // Unwrap standard backend response { success: true, data: ... }
-  if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
-    return data.data;
-  }
-  
-  return data;
-}
+import { apiRequest } from '../lib/api';
 
 export const dataService = {
   // Generic collection operations
@@ -46,52 +7,62 @@ export const dataService = {
     Object.keys(filters).forEach(key => {
       queryParams[`where_${key}_==`] = filters[key];
     });
-    return apiRequest<T[]>('GET', `/collections/${collection}`, null, queryParams);
+    return apiRequest<T[]>(`/collections/${collection}`, { queryParams });
   },
   
   get: <T>(collection: string, id: string) => 
-    apiRequest<T>('GET', `/collections/${collection}/${id}`),
+    apiRequest<T>(`/collections/${collection}/${id}`),
   
   create: <T>(collection: string, data: any, id?: string) => 
-    apiRequest<T>('POST', `/collections/${collection}`, { id, data }),
+    apiRequest<T>(`/collections/${collection}`, { method: 'POST', body: JSON.stringify({ id, data }) }),
   
   update: <T>(collection: string, id: string, data: any) => 
-    apiRequest<T>('PATCH', `/collections/${collection}/${id}`, data),
+    apiRequest<T>(`/collections/${collection}/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   
   delete: (collection: string, id: string) => 
-    apiRequest<void>('DELETE', `/collections/${collection}/${id}`),
+    apiRequest<void>(`/collections/${collection}/${id}`, { method: 'DELETE' }),
+
+  upsert: async <T>(collection: string, id: string, data: any) => {
+    try {
+      // Try to update first
+      return await dataService.update<T>(collection, id, data);
+    } catch (_error) {
+      // If update fails (likely 404), try to create
+      return await dataService.create<T>(collection, data, id);
+    }
+  },
 
   // Specialized methods matching existing backend routes
   getDepartmentUpdates: (department?: string) => 
-    apiRequest<any[]>('GET', '/department-updates', null, department ? { department } : {}),
+    apiRequest<any[]>('/department-updates', { queryParams: department ? { department } : {} }),
     
   addDepartmentUpdate: (update: { department: string, message: string, sender: string }) =>
-    apiRequest<any>('POST', '/department-updates', update),
+    apiRequest<any>('/department-updates', { method: 'POST', body: JSON.stringify(update) }),
     
   getNotifications: (userId: string) =>
-    apiRequest<any[]>('GET', '/notifications', null, { userId }),
+    apiRequest<any[]>('/notifications', { queryParams: { userId } }),
     
   updateNotification: (id: string, data: any) =>
-    apiRequest<any>('PATCH', `/notifications/${id}`, data),
+    apiRequest<any>(`/notifications/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     
   getFirebaseUsers: () =>
-    apiRequest<any[]>('GET', '/firebase-users'),
+    apiRequest<any[]>('/firebase-users'),
     
   transcribeAudio: (audioBase64: string, mimeType: string) =>
-    apiRequest<{ text: string }>('POST', '/transcribe', { audioBase64, mimeType }),
+    apiRequest<{ text: string }>('/transcribe', { method: 'POST', body: JSON.stringify({ audioBase64, mimeType }) }),
     
   dispatchPersonnel: (data: any) =>
-    apiRequest<any>('POST', '/dispatch-personnel', data),
+    apiRequest<any>('/dispatch-personnel', { method: 'POST', body: JSON.stringify(data) }),
     
   registerFcmToken: (userId: string, fcmToken: string) =>
-    apiRequest<any>('POST', '/register-fcm-token', { userId, fcmToken }),
+    apiRequest<any>('/register-fcm-token', { method: 'POST', body: JSON.stringify({ userId, fcmToken }) }),
     
   sendFcmNotification: (data: any) =>
-    apiRequest<any>('POST', '/send-fcm-notification', data),
+    apiRequest<any>('/send-fcm-notification', { method: 'POST', body: JSON.stringify(data) }),
     
   sendSms: (to: string, message: string) =>
-    apiRequest<any>('POST', '/send-sms', { to, message }),
+    apiRequest<any>('/send-sms', { method: 'POST', body: JSON.stringify({ to, message }) }),
     
   createNotification: (data: any) =>
-    apiRequest<any>('POST', '/collections/notifications', { data }),
+    apiRequest<any>('/collections/notifications', { method: 'POST', body: JSON.stringify({ data }) }),
 };

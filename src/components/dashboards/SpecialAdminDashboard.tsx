@@ -262,7 +262,7 @@ export function SpecialAdminDashboard() {
     setIsSavingRole(true);
     addTelemetryLog(`Initiating UPDATE on /users/${selectedUser.id} - shifting roles to [${tempRoles.join(', ')}]`, 'info');
     try {
-      await dataService.update('users', selectedUser.id, {
+      await dataService.upsert('users', selectedUser.id, {
         role: tempRoles[0] || selectedUser.role, // Keep first as primary
         roles: tempRoles,
         updatedAt: new Date()
@@ -286,7 +286,7 @@ export function SpecialAdminDashboard() {
     setIsSavingPhone(true);
     addTelemetryLog(`Initiating UPDATE on /users/${selectedUser.id} - shifting phone to ${tempPhone}`, 'info');
     try {
-      await dataService.update('users', selectedUser.id, {
+      await dataService.upsert('users', selectedUser.id, {
         phoneNumber: tempPhone,
         updatedAt: new Date()
       });
@@ -934,7 +934,7 @@ export function SpecialAdminDashboard() {
                           try {
                             const isCurrentApproved = !!(selectedUser.approved === true || selectedUser.role === UserRole.SYSTEM_ADMIN || selectedUser.isPlaceholder === true);
                             const newStatus = !isCurrentApproved;
-                            await dataService.update('users', selectedUser.id, {
+                            await dataService.upsert('users', selectedUser.id, {
                               approved: newStatus,
                               updatedAt: new Date()
                             });

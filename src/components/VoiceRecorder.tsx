@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Mic, Square } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { apiRequest } from '../lib/api';
 
 export function VoiceRecorder({ onTranscription }: { onTranscription: (text: string) => void }) {
   const [isRecording, setIsRecording] = useState(false);
@@ -20,13 +21,11 @@ export function VoiceRecorder({ onTranscription }: { onTranscription: (text: str
         reader.onloadend = async () => {
           const base64Audio = (reader.result as string).split(',')[1];
           try {
-            const response = await fetch('/api/transcribe', {
+            const data: any = await apiRequest('/transcribe', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ audioBase64: base64Audio, mimeType: 'audio/webm' }),
             });
-            const data = await response.json();
-            if (data.text) {
+            if (data?.text) {
               onTranscription(data.text);
             } else {
               toast.error('Transcription failed');

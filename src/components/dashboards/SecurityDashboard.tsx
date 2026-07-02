@@ -18,7 +18,7 @@ import {
 import { useAuth } from '../../App';
 import { dataService } from '../../services/dataService';
 import { toast } from 'react-hot-toast';
-import { cn } from '../../lib/utils';
+import { cn, formatDate } from '../../lib/utils';
 import { format } from 'date-fns';
 import { useLanguage } from '../../lib/LanguageContext';
 import { useFcmToken } from '../../hooks/useFcmToken';
@@ -422,7 +422,7 @@ export function SecurityDashboard() {
                          <div className="text-right">
                            <p className="text-[10px] font-black text-dark-text-subtle uppercase tracking-widest">Completed</p>
                            <p className="text-[9px] font-mono text-dark-accent mt-0.5">
-                             {req.updatedAt ? format(new Date(req.updatedAt), 'MMM dd, HH:mm') : 'N/A'}
+                             {formatDate(req.updatedAt, 'MMM dd, HH:mm')}
                            </p>
                          </div>
                          <button 
@@ -513,7 +513,7 @@ export function SecurityDashboard() {
                              {req.status === 'RETURNED' ? 'Returned' : 'In Field'}
                            </p>
                            <p className="text-[9px] font-mono text-dark-accent mt-0.5">
-                             {req.exitedAt ? format(new Date(req.exitedAt), 'MMM dd, HH:mm') : 'N/A'}
+                             {formatDate(req.exitedAt, 'MMM dd, HH:mm')}
                            </p>
                          </div>
                          {!isSelectMode && (

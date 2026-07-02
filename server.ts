@@ -13,7 +13,8 @@ import {
   createDocument,
   updateDocument,
   deleteDocument,
-  listDocuments
+  listDocuments,
+  query
 } from "./backend/db.ts";
 
 dotenv.config();
@@ -85,8 +86,21 @@ async function startServer() {
   let twilioClient: any = null;
 
   // API Routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", environment: process.env.NODE_ENV || "development", database: "postgresql" });
+  app.get("/api/health", async (req, res) => {
+    let dbStatus = "unknown";
+    try {
+      const result = await query('SELECT 1');
+      if (result) dbStatus = "connected";
+    } catch (err) {
+      dbStatus = "error";
+      console.error("Database health check failed:", err);
+    }
+    res.json({ 
+      status: "ok", 
+      environment: process.env.NODE_ENV || "development", 
+      database: "postgresql",
+      database_status: dbStatus
+    });
   });
 
   // GET /api/collections/:collection - Generic fetch matching firestore compat layer

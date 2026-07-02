@@ -466,31 +466,23 @@ export function AdminDashboard() {
             const notifyPromises = [];                
             if (uDetails?.fcmToken) {
               notifyPromises.push(
-                fetch("/api/send-fcm-notification", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    targetUserId,
-                    title,
-                    body: message,
-                    requestId,
-                    fcmToken: uDetails.fcmToken,
-                  }),
+                dataService.sendFcmNotification({
+                  targetUserId,
+                  title,
+                  body: message,
+                  requestId,
+                  fcmToken: uDetails.fcmToken,
                 }).catch(e => console.error("FCM target notification failed:", e))
               );
             }
             if (dDetails?.fcmToken && (dDetails as any).uid !== targetUserId) {
               notifyPromises.push(
-                fetch("/api/send-fcm-notification", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    targetUserId: (dDetails as any).uid,
-                    title,
-                    body: message,
-                    requestId,
-                    fcmToken: dDetails.fcmToken,
-                  }),
+                dataService.sendFcmNotification({
+                  targetUserId: (dDetails as any).uid,
+                  title,
+                  body: message,
+                  requestId,
+                  fcmToken: dDetails.fcmToken,
                 }).catch(e => console.error("FCM director notification failed:", e))
               );
             }
@@ -640,16 +632,12 @@ export function AdminDashboard() {
         // FCM notification for requestor/director
         const userDetails = userMap.get(targetUserId);
         if (userDetails?.fcmToken) {
-           fetch("/api/send-fcm-notification", {
-             method: "POST",
-             headers: { "Content-Type": "application/json" },
-             body: JSON.stringify({
-               targetUserId: targetUserId,
-               title,
-               body: message,
-               requestId: requestId,
-               fcmToken: userDetails.fcmToken,
-             }),
+           dataService.sendFcmNotification({
+             targetUserId: targetUserId,
+             title,
+             body: message,
+             requestId: requestId,
+             fcmToken: userDetails.fcmToken,
            }).catch(e => console.error("FCM approval/assignment notification failed:", e));
         }
       }
@@ -673,16 +661,12 @@ export function AdminDashboard() {
 
         // Send FCM notification
         try {
-          await fetch("/api/send-fcm-notification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              targetUserId: currentTech.id,
-              title: techTitle,
-              body: techMessage,
-              requestId: requestId,
-              fcmToken: currentTech.fcmToken || null, // Pass FCM token directly from client to bypass server-side Firestore lookup !
-            }),
+          await dataService.sendFcmNotification({
+            targetUserId: currentTech.id,
+            title: techTitle,
+            body: techMessage,
+            requestId: requestId,
+            fcmToken: currentTech.fcmToken || null, // Pass FCM token directly from client to bypass server-side Firestore lookup !
           });
         } catch (e) {
           console.error("FCM failed but non-blocking:", e);
@@ -714,32 +698,18 @@ export function AdminDashboard() {
             console.error("Failed to write to sim_sms_logs:", err);
           }
 
-          const smsPromise = fetch("/api/dispatch-personnel", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              taskId: requestId,
-              personnelId: currentTech.id,
-              role:
-                currentTech.role ||
-                (activeTab === "VEHICLE"
-                  ? "DRIVER"
-                  : activeTab === "CAMERA"
-                    ? "CAMERAMAN"
-                    : "TECHNICIAN"),
-              phoneNumber: currentTech.phoneNumber,
-              message: smsMessage,
-            }),
-          }).then(async (res) => {
-            const errorData = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              const error = new Error(
-                errorData.message || errorData.error || "SMS Gateway failure",
-              );
-              (error as any).code = errorData.error;
-              throw error;
-            }
-            return errorData;
+          const smsPromise = dataService.dispatchPersonnel({
+            taskId: requestId,
+            personnelId: currentTech.id,
+            role:
+              currentTech.role ||
+              (activeTab === "VEHICLE"
+                ? "DRIVER"
+                : activeTab === "CAMERA"
+                  ? "CAMERAMAN"
+                  : "TECHNICIAN"),
+            phoneNumber: currentTech.phoneNumber,
+            message: smsMessage,
           });
 
           toast.promise(smsPromise, {
@@ -811,16 +781,12 @@ export function AdminDashboard() {
         // Send real/simulated FCM push notification to director's phone/screen
         if (directorFcmToken) {
           try {
-            await fetch("/api/send-fcm-notification", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                targetUserId: directorId,
-                title: dirTitle,
-                body: dirMessage,
-                requestId: requestId,
-                fcmToken: directorFcmToken,
-              }),
+            await dataService.sendFcmNotification({
+              targetUserId: directorId,
+              title: dirTitle,
+              body: dirMessage,
+              requestId: requestId,
+              fcmToken: directorFcmToken,
             });
           } catch (e) {
             console.error("FCM dispatch failed for Director:", e);
@@ -1043,7 +1009,7 @@ export function AdminDashboard() {
     }
 
     try {
-      await dataService.update(
+      await dataService.upsert(
         "users", targetUid,
         {
           uid: targetUid,
@@ -1174,24 +1140,10 @@ export function AdminDashboard() {
   const handleSendSms = async () => {
     if (!selectedTechForSms || !customSmsMessage) return;
 
-    const promise = fetch("/api/send-sms", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: selectedTechForSms.phoneNumber,
-        message: customSmsMessage,
-      }),
-    }).then(async (res) => {
-      const data = await res.json();
-      if (!res.ok) {
-        const error = new Error(
-          data.message || data.error || "SMS Gateway failure",
-        );
-        (error as any).code = data.error;
-        throw error;
-      }
-      return data;
-    });
+    const promise = dataService.sendSms(
+      selectedTechForSms.phoneNumber,
+      customSmsMessage,
+    );
 
     toast.promise(promise, {
       loading: "Transmitting operational directive...",

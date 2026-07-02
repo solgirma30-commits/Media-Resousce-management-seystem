@@ -141,7 +141,7 @@ export function RoleSetup({ onComplete }: { onComplete: () => void }) {
         photoURL: user.photoURL || null
       };
 
-      await dataService.update('users', user.uid, profileData);
+      await dataService.upsert('users', user.uid, profileData);
       const updatedProfile = profileData as any;
       
       // Manually update the profile in context

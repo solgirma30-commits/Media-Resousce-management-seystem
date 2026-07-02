@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth } from '../lib/firebase';
 import { toast } from 'react-hot-toast';
 import { Send } from 'lucide-react';
+import { apiRequest } from '../lib/api';
 
 export function TeamNotepad({ defaultDepartment = 'SERVICE' }: { defaultDepartment?: string }) {
   const [department, setDepartment] = useState(defaultDepartment);
@@ -14,19 +15,14 @@ export function TeamNotepad({ defaultDepartment = 'SERVICE' }: { defaultDepartme
   const sendUpdate = async () => {
     if (!message) return;
     try {
-      const response = await fetch('/api/department-updates', {
+      await apiRequest('/department-updates', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           department,
           message,
           sender: 'DIRECTOR_ADMIN'
         })
       });
-
-      if (!response.ok) throw new Error('Failed to send update');
 
       toast.success(`Update sent to ${department} team`);
       setMessage('');
